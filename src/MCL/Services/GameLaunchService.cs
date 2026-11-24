@@ -16,8 +16,16 @@ public sealed class GameLaunchService(LogService log) : IDisposable
     public event Action<bool>? RunningChanged;
     public event Action<int?>? LanPortChanged;
 
-    public async Task LaunchAsync(LauncherSettings settings, GameVersion version, JavaInstallation java, CancellationToken ct = default,
+    public Task LaunchAsync(LauncherSettings settings, GameVersion version, JavaInstallation java, CancellationToken ct = default,
         GameLaunchIdentity? identity = null, int? quickJoinPort = null)
+        => LaunchCoreAsync(settings, version, java, ct, identity, quickJoinPort, null);
+
+    internal Task LaunchWithAppearanceAsync(LauncherSettings settings, GameVersion version, JavaInstallation java,
+        LocalAppearanceLaunch appearance, CancellationToken ct, int? quickJoinPort)
+        => LaunchCoreAsync(settings, version, java, ct, null, quickJoinPort, appearance);
+
+    private async Task LaunchCoreAsync(LauncherSettings settings, GameVersion version, JavaInstallation java, CancellationToken ct,
+        GameLaunchIdentity? identity, int? quickJoinPort, LocalAppearanceLaunch? appearance)
     {
         if (identity is not null)
         {
@@ -34,7 +42,7 @@ public sealed class GameLaunchService(LogService log) : IDisposable
         string? nativeDirectory = null;
         try
         {
-            var startInfo = await Task.Run(() => BuildStartInfo(settings, version, java, out nativeDirectory, ct, identity, quickJoinPort), ct).ConfigureAwait(false);
+            var startInfo = await Task.Run(() => BuildStartInfo(settings, version, java, out nativeDirectory, ct, identity, quickJoinPort, appearance), ct).ConfigureAwait(false);
             ct.ThrowIfCancellationRequested();
             identity?.Validate();
             var process = new Process { StartInfo = startInfo };
@@ -66,7 +74,8 @@ public sealed class GameLaunchService(LogService log) : IDisposable
     }
 
     private static ProcessStartInfo BuildStartInfo(LauncherSettings settings, GameVersion version, JavaInstallation java,
-        out string? nativeDirectory, CancellationToken ct, GameLaunchIdentity? identity, int? quickJoinPort)
+        out string? nativeDirectory, CancellationToken ct, GameLaunchIdentity? identity, int? quickJoinPort,
+        LocalAppearanceLaunch? appearance)
     {
         nativeDirectory = null;
         ct.ThrowIfCancellationRequested();
@@ -128,16 +137,18 @@ public sealed class GameLaunchService(LogService log) : IDisposable
 
         var libraryRoot = Path.Combine(gameDirectory, "libraries");
         var classpath = new List<string>();
-        if (pack is not null)
+        var fabricLibraries = appearance?.Fabric?.Libraries ?? pack?.Libraries;
+        if (fabricLibraries is { Length: > 0 })
         {
-            foreach (var library in pack.Libraries)
+            var fabricRoot = appearance?.FabricFolder ?? ModpackPaths.SafeTarget(gameDirectory, $"versions/{version.Id}");
+            foreach (var library in fabricLibraries)
             {
                 ct.ThrowIfCancellationRequested();
-                var path = ModpackPaths.SafeTarget(gameDirectory, $"versions/{version.Id}/.mcl-libraries/{ModpackPaths.LibraryPath(library.Coordinate)}");
+                var path = ModpackPaths.SafeTarget(fabricRoot, $".mcl-libraries/{ModpackPaths.LibraryPath(library.Coordinate)}");
                 using var file = File.OpenRead(path);
                 if (file.Length is < 1 or > 64 * 1024 * 1024
                     || !Convert.ToHexString(System.Security.Cryptography.SHA1.HashData(file)).Equals(library.Sha1, StringComparison.OrdinalIgnoreCase))
-                    throw new InvalidDataException("Fabric 依赖损坏，请重新导入这个整合包。");
+                    throw new InvalidDataException("Fabric 依赖损坏，请重新准备游戏文件。");
                 classpath.Add(path);
             }
         }
@@ -199,7 +210,7 @@ public sealed class GameLaunchService(LogService log) : IDisposable
             ["version_type"] = metadata.TryGetProperty("type", out var type) ? type.GetString() ?? "release" : "release",
             ["natives_directory"] = nativeDirectory,
             ["launcher_name"] = "MCL",
-            ["launcher_version"] = "0.6.0",
+            ["launcher_version"] = "0.8.0",
             ["classpath"] = string.Join(Path.PathSeparator, classpath),
             ["classpath_separator"] = Path.PathSeparator.ToString(),
             ["library_directory"] = libraryRoot,
@@ -229,7 +240,8 @@ public sealed class GameLaunchService(LogService log) : IDisposable
         else throw new InvalidDataException("版本缺少可识别的游戏启动参数。");
         if (!jvmArguments.Any(argument => argument.StartsWith("-Djava.library.path=", StringComparison.Ordinal))) jvmArguments.Add("-Djava.library.path=${natives_directory}");
         if (!jvmArguments.Any(argument => argument is "-cp" or "-classpath" or "--class-path")) jvmArguments.AddRange(["-cp", "${classpath}"]);
-        if (pack is not null) jvmArguments.AddRange(pack.JvmArguments);
+        var fabricArguments = appearance?.Fabric?.Jvm ?? pack?.JvmArguments;
+        if (fabricArguments is not null) jvmArguments.AddRange(fabricArguments);
         // The settings value wins over any memory values bundled with local metadata.
         foreach (var argument in jvmArguments.Where(argument => !argument.StartsWith("-Xmx", StringComparison.Ordinal) && !argument.StartsWith("-Xms", StringComparison.Ordinal)))
             info.ArgumentList.Add(MinecraftMetadata.Expand(argument, replacements));
@@ -240,6 +252,12 @@ public sealed class GameLaunchService(LogService log) : IDisposable
         info.ArgumentList.Add("-Dstderr.encoding=UTF-8");
         info.ArgumentList.Add("-Dsun.stdout.encoding=UTF-8");
         info.ArgumentList.Add("-Dsun.stderr.encoding=UTF-8");
+        if (appearance is not null)
+        {
+            info.ArgumentList.Add("-Dfabric.addMods=" + appearance.ModJar);
+            if (appearance.EmptyModsFolder is not null) info.ArgumentList.Add("-Dfabric.modsFolder=" + appearance.EmptyModsFolder);
+            if (appearance.Fabric is { } fabric) mainClass = fabric.MainClass;
+        }
         if (metadata.TryGetProperty("logging", out var logging) && logging.TryGetProperty("client", out var loggingClient)
             && loggingClient.TryGetProperty("argument", out var loggingArgument) && loggingClient.TryGetProperty("file", out var loggingFile))
         {

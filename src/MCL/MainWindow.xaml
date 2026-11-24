@@ -7,114 +7,199 @@
         Closing="Window_Closing" SourceInitialized="Window_SourceInitialized">
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolVisibility" />
+        <Geometry x:Key="HomeIcon">M 2,9 L 10,2 18,9 M 4,8 L 4,17 16,17 16,8 M 8,17 L 8,12 12,12 12,17</Geometry>
+        <Geometry x:Key="VersionsIcon">M 3,3 H 8 V 8 H 3 Z M 12,3 H 17 V 8 H 12 Z M 3,12 H 8 V 17 H 3 Z M 12,12 H 17 V 17 H 12 Z</Geometry>
+        <Geometry x:Key="DownloadIcon">M 10,2 V 13 M 6,9 L 10,13 14,9 M 3,13 V 17 H 17 V 13</Geometry>
+        <Geometry x:Key="PackIcon">M 3,6 L 10,2 17,6 V 14 L 10,18 3,14 Z M 3,6 L 10,10 17,6 M 10,10 V 18 M 6.5,4 L 13.5,8</Geometry>
+        <Geometry x:Key="LinkIcon">M 2,7 H 17 M 13,3 L 17,7 13,11 M 18,13 H 3 M 7,9 L 3,13 7,17</Geometry>
+        <Geometry x:Key="AccountIcon">M 13.5,6 A 3.5,3.5 0 1 1 6.5,6 A 3.5,3.5 0 1 1 13.5,6 M 3,17 C 3,13 6,11 10,11 C 14,11 17,13 17,17</Geometry>
+        <Geometry x:Key="SettingsIcon">M 3,5 H 7 M 11,5 H 17 M 7,2 V 8 M 3,13 H 12 M 16,13 H 17 M 12,10 V 16</Geometry>
+        <Geometry x:Key="LogsIcon">M 4,2 H 16 V 18 H 4 Z M 7,6 H 13 M 7,10 H 13 M 7,14 H 11</Geometry>
+        <Style x:Key="ShortcutIcon" TargetType="Path">
+            <Setter Property="Stroke" Value="{StaticResource AccentTextBrush}" />
+            <Setter Property="StrokeThickness" Value="1.55" />
+            <Setter Property="StrokeStartLineCap" Value="Round" />
+            <Setter Property="StrokeEndLineCap" Value="Round" />
+            <Setter Property="StrokeLineJoin" Value="Round" />
+            <Setter Property="Width" Value="18" />
+            <Setter Property="Height" Value="18" />
+            <Setter Property="Stretch" Value="Uniform" />
+        </Style>
         <Style x:Key="NavigationButton" TargetType="RadioButton">
             <Setter Property="Foreground" Value="{StaticResource MutedBrush}" /><Setter Property="Cursor" Value="Hand" />
-            <Setter Property="Margin" Value="0,0,0,7" /><Setter Property="Padding" Value="17,14" />
+            <Setter Property="Margin" Value="0,0,0,5" /><Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="RadioButton">
-                <Border x:Name="NavBorder" Background="Transparent" CornerRadius="9" Padding="{TemplateBinding Padding}">
-                    <ContentPresenter />
-                </Border>
+                <Grid>
+                    <Border x:Name="NavBorder" Background="Transparent" CornerRadius="10" />
+                    <Border x:Name="NavMarker" Width="3" VerticalAlignment="Stretch" Margin="0,11,0,11" HorizontalAlignment="Left"
+                            CornerRadius="1.5" Background="{StaticResource AccentBrush}" Visibility="Collapsed" />
+                    <StackPanel Orientation="Horizontal" Margin="15,12,9,12">
+                        <Path Data="{TemplateBinding CommandParameter}" Style="{StaticResource ShortcutIcon}"
+                              Stroke="{TemplateBinding Foreground}" Margin="0,0,12,0" />
+                        <ContentPresenter VerticalAlignment="Center" RecognizesAccessKey="True" />
+                    </StackPanel>
+                </Grid>
                 <ControlTemplate.Triggers>
-                    <Trigger Property="IsChecked" Value="True"><Setter TargetName="NavBorder" Property="Background" Value="{StaticResource SoftAccentBrush}" /><Setter Property="Foreground" Value="{StaticResource AccentTextBrush}" /></Trigger>
                     <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="NavBorder" Property="Background" Value="{StaticResource HoverBrush}" /></Trigger>
+                    <Trigger Property="IsChecked" Value="True">
+                        <Setter TargetName="NavBorder" Property="Background" Value="{StaticResource SoftAccentBrush}" />
+                        <Setter TargetName="NavMarker" Property="Visibility" Value="Visible" />
+                        <Setter Property="Foreground" Value="{StaticResource AccentTextBrush}" />
+                    </Trigger>
                 </ControlTemplate.Triggers>
             </ControlTemplate></Setter.Value></Setter>
         </Style>
         <Style x:Key="PagePanel" TargetType="Grid"><Setter Property="Visibility" Value="Collapsed" /></Style>
     </Window.Resources>
-    <Grid x:Name="RootLayout" Background="{StaticResource BackgroundBrush}" TextOptions.TextFormattingMode="Display">
+    <Grid x:Name="RootLayout" Background="{StaticResource BackgroundBrush}" UseLayoutRounding="True" TextOptions.TextFormattingMode="Display">
         <Grid.ColumnDefinitions><ColumnDefinition Width="196" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
         <Border Background="{StaticResource SidebarBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,1,0">
-            <Grid Margin="18,29,18,20">
-                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="52" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-                <StackPanel Orientation="Horizontal" Margin="8,0,0,0">
-                    <Border Width="38" Height="38" CornerRadius="9" Background="{StaticResource AccentBrush}"><TextBlock Text="M" FontSize="24" FontWeight="Black" Foreground="{StaticResource AccentForegroundBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" /></Border>
-                    <StackPanel Margin="11,-2,0,0"><TextBlock Text="MCL" FontSize="23" FontWeight="Bold" /><TextBlock Text="你的世界，由此开始" FontSize="9" Foreground="{StaticResource MutedBrush}" Margin="0,2,0,0" /></StackPanel>
+            <Grid Margin="15,24,15,16">
+                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                <StackPanel Orientation="Horizontal" Margin="9,0,0,27">
+                    <Border Width="42" Height="42" CornerRadius="12">
+                        <Border.Background><LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                            <GradientStop Color="#D04C83" Offset="0" /><GradientStop Color="#AC295F" Offset="1" />
+                        </LinearGradientBrush></Border.Background>
+                        <TextBlock Text="M" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="24" FontWeight="Black" Foreground="White" />
+                    </Border>
+                    <StackPanel Margin="10,0,0,0" VerticalAlignment="Center">
+                        <TextBlock Text="MCL" FontSize="23" FontWeight="Bold" />
+                        <TextBlock Text="Java 版启动器" FontSize="10" Foreground="{StaticResource MutedBrush}" />
+                    </StackPanel>
                 </StackPanel>
-                <StackPanel Grid.Row="2">
-                    <TextBlock Text="工作空间" Foreground="{StaticResource MutedBrush}" FontSize="10" Margin="17,0,0,12" />
-                    <RadioButton x:Name="HomeNav" Style="{StaticResource NavigationButton}" GroupName="Navigation" Tag="Home" Checked="Navigation_Checked"><StackPanel Orientation="Horizontal"><TextBlock Text="⌂" FontSize="20" Width="31" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" /><TextBlock Text="首页" VerticalAlignment="Center" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" /></StackPanel></RadioButton>
-                    <RadioButton x:Name="VersionsNav" Style="{StaticResource NavigationButton}" GroupName="Navigation" Tag="Versions" Checked="Navigation_Checked"><StackPanel Orientation="Horizontal"><TextBlock Text="▦" FontSize="18" Width="31" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" /><TextBlock Text="游戏版本" VerticalAlignment="Center" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" /></StackPanel></RadioButton>
-                    <RadioButton x:Name="DownloadsNav" Style="{StaticResource NavigationButton}" GroupName="Navigation" Tag="Downloads" Checked="Navigation_Checked"><StackPanel Orientation="Horizontal"><TextBlock Text="↓" FontSize="20" Width="31" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" /><TextBlock Text="下载游戏" VerticalAlignment="Center" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" /></StackPanel></RadioButton>
-                    <RadioButton x:Name="ModpacksNav" Style="{StaticResource NavigationButton}" GroupName="Navigation" Tag="Modpacks" Checked="Navigation_Checked"><StackPanel Orientation="Horizontal"><TextBlock Text="◇" FontSize="20" Width="31" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" /><TextBlock Text="导入整合包" VerticalAlignment="Center" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" /></StackPanel></RadioButton>
-                    <RadioButton x:Name="MultiplayerNav" Style="{StaticResource NavigationButton}" GroupName="Navigation" Tag="Multiplayer" Checked="Navigation_Checked"><StackPanel Orientation="Horizontal"><TextBlock Text="⇄" FontSize="20" Width="31" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" /><TextBlock Text="好友联机" VerticalAlignment="Center" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" /></StackPanel></RadioButton>
-                    <RadioButton x:Name="AccountsNav" Style="{StaticResource NavigationButton}" GroupName="Navigation" Tag="Accounts" Checked="Navigation_Checked"><StackPanel Orientation="Horizontal"><TextBlock Text="♙" FontSize="20" Width="31" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" /><TextBlock Text="账号管理" VerticalAlignment="Center" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" /></StackPanel></RadioButton>
-                    <RadioButton x:Name="SettingsNav" Style="{StaticResource NavigationButton}" GroupName="Navigation" Tag="Settings" Checked="Navigation_Checked"><StackPanel Orientation="Horizontal"><TextBlock Text="⚙" FontSize="18" Width="31" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" /><TextBlock Text="启动设置" VerticalAlignment="Center" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" /></StackPanel></RadioButton>
-                    <RadioButton x:Name="LogsNav" Style="{StaticResource NavigationButton}" GroupName="Navigation" Tag="Logs" Checked="Navigation_Checked"><StackPanel Orientation="Horizontal"><TextBlock Text="≡" FontSize="21" Width="31" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" /><TextBlock Text="运行日志" VerticalAlignment="Center" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" /></StackPanel></RadioButton>
+                <StackPanel Grid.Row="1">
+                    <RadioButton x:Name="HomeNav" Style="{StaticResource NavigationButton}" GroupName="Navigation" Tag="Home" Checked="Navigation_Checked" Content="首页" CommandParameter="{StaticResource HomeIcon}" />
+                    <RadioButton x:Name="VersionsNav" Style="{StaticResource NavigationButton}" GroupName="Navigation" Tag="Versions" Checked="Navigation_Checked" Content="游戏版本" CommandParameter="{StaticResource VersionsIcon}" />
+                    <RadioButton x:Name="DownloadsNav" Style="{StaticResource NavigationButton}" GroupName="Navigation" Tag="Downloads" Checked="Navigation_Checked" Content="下载游戏" CommandParameter="{StaticResource DownloadIcon}" />
+                    <RadioButton x:Name="ModpacksNav" Style="{StaticResource NavigationButton}" GroupName="Navigation" Tag="Modpacks" Checked="Navigation_Checked" Content="导入整合包" CommandParameter="{StaticResource PackIcon}" />
+                    <RadioButton x:Name="MultiplayerNav" Style="{StaticResource NavigationButton}" GroupName="Navigation" Tag="Multiplayer" Checked="Navigation_Checked" Content="好友联机" CommandParameter="{StaticResource LinkIcon}" />
+                    <RadioButton x:Name="AccountsNav" Style="{StaticResource NavigationButton}" GroupName="Navigation" Tag="Accounts" Checked="Navigation_Checked" Content="账号管理" CommandParameter="{StaticResource AccountIcon}" />
+                    <RadioButton x:Name="SettingsNav" Style="{StaticResource NavigationButton}" GroupName="Navigation" Tag="Settings" Checked="Navigation_Checked" Content="启动设置" CommandParameter="{StaticResource SettingsIcon}" />
+                    <RadioButton x:Name="LogsNav" Style="{StaticResource NavigationButton}" GroupName="Navigation" Tag="Logs" Checked="Navigation_Checked" Content="运行日志" CommandParameter="{StaticResource LogsIcon}" />
                 </StackPanel>
-                <StackPanel Grid.Row="4">
-                    <Border Height="1" Background="{StaticResource DividerBrush}" Margin="8,0,8,19" />
-                    <StackPanel Orientation="Horizontal" Margin="8,0,0,0"><Border Width="33" Height="33" CornerRadius="8" Background="{StaticResource SoftAccentBrush}"><TextBlock Text="M" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="Bold" Foreground="{StaticResource AccentTextBrush}" /></Border><StackPanel Margin="10,0,0,0" Width="106"><TextBlock Text="{Binding ActivePlayerName}" FontSize="12" TextTrimming="CharacterEllipsis" /><TextBlock Text="{Binding ActiveAccountLabel}" FontSize="10" Foreground="{StaticResource MutedBrush}" Margin="0,3,0,0" /></StackPanel></StackPanel>
-                    <TextBlock Text="MCL  /  0.6.0" FontSize="10" Foreground="{StaticResource MutedBrush}" Margin="8,24,0,0" />
+                <StackPanel Grid.Row="3">
+                    <Border Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="12" Padding="9,8">
+                        <StackPanel Orientation="Horizontal">
+                            <Border Width="30" Height="30" CornerRadius="8" Background="{StaticResource SoftAccentBrush}">
+                                <Path Data="{StaticResource AccountIcon}" Style="{StaticResource ShortcutIcon}" Width="16" Height="16" />
+                            </Border>
+                            <StackPanel Margin="9,0,0,0" Width="100" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding ActivePlayerName}" FontSize="12" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Text="{Binding ActiveAccountLabel}" FontSize="10" Foreground="{StaticResource MutedBrush}" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                    <TextBlock Text="{Binding AppVersionText}" FontSize="10" Foreground="{StaticResource MutedBrush}" Margin="9,11,0,0" />
                 </StackPanel>
             </Grid>
         </Border>
-        <Grid Grid.Column="1" Margin="32,27,32,18">
+        <Grid Grid.Column="1" Margin="30,25,30,16">
             <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-            <Grid Margin="0,0,0,25">
-                <StackPanel><TextBlock Text="MINECRAFT JAVA EDITION" Foreground="{StaticResource MutedBrush}" FontSize="10" FontWeight="SemiBold" /><TextBlock Text="{Binding PageTitle}" FontSize="26" FontWeight="SemiBold" Margin="0,6,0,0" /></StackPanel>
-                <Border HorizontalAlignment="Right" VerticalAlignment="Center" Background="{StaticResource SoftAccentBrush}" CornerRadius="16" Padding="12,7"><StackPanel Orientation="Horizontal"><Ellipse Width="6" Height="6" Fill="{StaticResource AccentBrush}" Margin="0,0,7,0" /><TextBlock Text="{Binding ActivityText}" Foreground="{StaticResource AccentTextBrush}" FontSize="11" /></StackPanel></Border>
+            <Grid Margin="0,0,0,20">
+                <TextBlock Text="{Binding PageTitle}" FontSize="27" FontWeight="SemiBold" VerticalAlignment="Center" />
+                <Border HorizontalAlignment="Right" VerticalAlignment="Center" Background="{StaticResource PanelBrush}"
+                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="14" Padding="11,6">
+                    <StackPanel Orientation="Horizontal">
+                        <Ellipse Width="6" Height="6" Fill="{StaticResource AccentBrush}" Margin="0,0,7,0" />
+                        <TextBlock Text="{Binding ActivityText}" Foreground="{StaticResource AccentTextBrush}" FontSize="11" />
+                    </StackPanel>
+                </Border>
             </Grid>
-            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-                <Grid>
+            <ScrollViewer x:Name="PageScroll" Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <Grid x:Name="PageContent">
+                    <Grid.RenderTransform><TranslateTransform x:Name="PageShift" /></Grid.RenderTransform>
                     <Grid x:Name="HomePage" Style="{StaticResource PagePanel}">
                         <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-                        <Border CornerRadius="16" Background="{StaticResource HeroBrush}" BorderBrush="{StaticResource HeroBorderBrush}" BorderThickness="1" Padding="28,26" MinHeight="232">
+                        <Border CornerRadius="21" BorderBrush="{StaticResource HeroBorderBrush}" BorderThickness="1" MinHeight="326">
+                            <Border.Background>
+                                <ImageBrush ImageSource="/MCL;component/Assets/spring-valley.jpg" Stretch="UniformToFill" AlignmentY="Center" />
+                            </Border.Background>
+                            <Border CornerRadius="20" Padding="29,25">
+                                <Border.Background><LinearGradientBrush StartPoint="0,0.5" EndPoint="1,0.5">
+                                    <GradientStop Color="#FFFFF8FC" Offset="0" />
+                                    <GradientStop Color="#FCFFF5F9" Offset="0.28" />
+                                    <GradientStop Color="#D8FFF2F7" Offset="0.43" />
+                                    <GradientStop Color="#2DFFF1F6" Offset="0.69" />
+                                    <GradientStop Color="#00FFF1F6" Offset="1" />
+                                </LinearGradientBrush></Border.Background>
+                                <Grid>
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="56*" /><ColumnDefinition Width="44*" /></Grid.ColumnDefinitions>
+                                    <StackPanel VerticalAlignment="Center">
+                                        <TextBlock Text="当前游戏" Foreground="{StaticResource AccentTextBrush}" FontSize="12" FontWeight="SemiBold" />
+                                        <TextBlock Text="{Binding SelectedVersionTitle}" ToolTip="{Binding SelectedVersionTitle}" FontSize="35" FontWeight="Bold"
+                                                   TextTrimming="CharacterEllipsis" Margin="0,9,0,6" />
+                                        <TextBlock Text="{Binding SelectedVersionDescription}" Style="{StaticResource MutedText}" Margin="0,0,0,22" />
+                                        <WrapPanel>
+                                            <Button Content="{Binding LaunchButtonText}" Style="{StaticResource PrimaryButton}" MinWidth="153" Click="Launch_Click" IsEnabled="{Binding CanLaunch}" />
+                                            <Button Content="停止游戏" Margin="8,0,0,0" Click="Stop_Click" IsEnabled="{Binding CanStop}"
+                                                    Visibility="{Binding IsGameRunning, Converter={StaticResource BoolVisibility}}" />
+                                        </WrapPanel>
+                                        <Button Content="选择已有游戏  →" HorizontalAlignment="Left" Margin="0,13,0,0" Padding="0,4"
+                                                Background="Transparent" BorderThickness="0" Foreground="{StaticResource AccentTextBrush}"
+                                                Click="BrowseGame_Click" IsEnabled="{Binding CanInteract}" />
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                        </Border>
+                        <UniformGrid Grid.Row="1" Columns="4" Margin="0,17,0,0">
+                            <Button Style="{StaticResource ShortcutButton}" Margin="0,0,6,0" Click="ShowVersions_Click" AutomationProperties.Name="游戏版本">
+                                <DockPanel LastChildFill="True">
+                                    <Border Width="38" Height="38" CornerRadius="10" Background="{StaticResource SoftAccentBrush}" Margin="0,0,10,0">
+                                        <Path Data="{StaticResource VersionsIcon}" Style="{StaticResource ShortcutIcon}" />
+                                    </Border>
+                                    <TextBlock DockPanel.Dock="Right" Text="›" Foreground="{StaticResource MutedBrush}" FontSize="19" VerticalAlignment="Center" Margin="8,0,0,0" />
+                                    <TextBlock Text="游戏版本" FontWeight="SemiBold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                </DockPanel>
+                            </Button>
+                            <Button Style="{StaticResource ShortcutButton}" Margin="6,0" Click="ShowDownloads_Click" AutomationProperties.Name="下载游戏">
+                                <DockPanel LastChildFill="True">
+                                    <Border Width="38" Height="38" CornerRadius="10" Background="{StaticResource SoftAccentBrush}" Margin="0,0,10,0">
+                                        <Path Data="{StaticResource DownloadIcon}" Style="{StaticResource ShortcutIcon}" />
+                                    </Border>
+                                    <TextBlock DockPanel.Dock="Right" Text="›" Foreground="{StaticResource MutedBrush}" FontSize="19" VerticalAlignment="Center" Margin="8,0,0,0" />
+                                    <TextBlock Text="下载游戏" FontWeight="SemiBold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                </DockPanel>
+                            </Button>
+                            <Button Style="{StaticResource ShortcutButton}" Margin="6,0" Click="ShowModpacks_Click" AutomationProperties.Name="导入整合包">
+                                <DockPanel LastChildFill="True">
+                                    <Border Width="38" Height="38" CornerRadius="10" Background="{StaticResource SoftAccentBrush}" Margin="0,0,10,0">
+                                        <Path Data="{StaticResource PackIcon}" Style="{StaticResource ShortcutIcon}" />
+                                    </Border>
+                                    <TextBlock DockPanel.Dock="Right" Text="›" Foreground="{StaticResource MutedBrush}" FontSize="19" VerticalAlignment="Center" Margin="8,0,0,0" />
+                                    <TextBlock Text="导入整合包" FontWeight="SemiBold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                </DockPanel>
+                            </Button>
+                            <Button Style="{StaticResource ShortcutButton}" Margin="6,0,0,0" Click="ShowMultiplayer_Click" AutomationProperties.Name="好友联机">
+                                <DockPanel LastChildFill="True">
+                                    <Border Width="38" Height="38" CornerRadius="10" Background="{StaticResource SoftAccentBrush}" Margin="0,0,10,0">
+                                        <Path Data="{StaticResource LinkIcon}" Style="{StaticResource ShortcutIcon}" />
+                                    </Border>
+                                    <TextBlock DockPanel.Dock="Right" Text="›" Foreground="{StaticResource MutedBrush}" FontSize="19" VerticalAlignment="Center" Margin="8,0,0,0" />
+                                    <TextBlock Text="好友联机" FontWeight="SemiBold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                </DockPanel>
+                            </Button>
+                        </UniformGrid>
+                        <Border Grid.Row="2" Style="{StaticResource Card}" Margin="0,17,0,12" Padding="19,15">
                             <Grid>
-                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="236" /></Grid.ColumnDefinitions>
-                                <StackPanel VerticalAlignment="Center">
-                                    <TextBlock Text="LET'S PLAY." Foreground="{StaticResource AccentTextBrush}" FontSize="10" FontWeight="Bold" Margin="0,0,0,14" />
-                                    <TextBlock Text="从这里，进入你的世界。" FontSize="29" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                    <TextBlock Text="熟悉的方块，全新的冒险。&#10;下载一个新版本，或把已有的游戏加入 MCL。" Style="{StaticResource MutedText}" Margin="0,13,0,20" />
-                                    <StackPanel Orientation="Horizontal"><Button Content="↓  下载新版本" Style="{StaticResource PrimaryButton}" Click="ShowDownloads_Click" /><Button Content="选择已有游戏" Margin="10,0,0,0" Click="BrowseGame_Click" IsEnabled="{Binding CanInteract}" /></StackPanel>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="1.15*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="Java" Foreground="{StaticResource MutedBrush}" FontSize="11" />
+                                    <TextBlock Text="{Binding JavaSummary}" FontWeight="SemiBold" Margin="0,5,0,0" TextTrimming="CharacterEllipsis" />
                                 </StackPanel>
-                                <Viewbox Grid.Column="1" Width="220" Height="188" HorizontalAlignment="Right" VerticalAlignment="Center" IsHitTestVisible="False">
-                                    <Canvas Width="240" Height="205">
-                                        <Ellipse Width="188" Height="33" Fill="#EED9E4" Canvas.Left="27" Canvas.Top="163" />
-                                        <Path Data="M 42,103 L 117,64 194,103 118,144 Z" Fill="#F2BCD3" />
-                                        <Path Data="M 42,103 L 118,144 118,187 42,147 Z" Fill="#CF87A8" />
-                                        <Path Data="M 118,144 L 194,103 194,147 118,187 Z" Fill="#B96991" />
-                                        <Path Data="M 42,103 L 118,144 118,156 42,115 Z" Fill="#EFAAC8" />
-                                        <Path Data="M 118,144 L 194,103 194,115 118,156 Z" Fill="#D991B3" />
-                                        <Path Data="M 106,113 L 118,119 118,145 106,139 Z" Fill="#B88E9F" />
-                                        <Path Data="M 118,119 L 129,113 129,139 118,145 Z" Fill="#976C83" />
-                                        <Path Data="M 69,63 L 117,38 167,63 118,89 Z" Fill="#FFD2E5" />
-                                        <Path Data="M 69,63 L 118,89 118,126 69,100 Z" Fill="#E69DBD" />
-                                        <Path Data="M 118,89 L 167,63 167,100 118,126 Z" Fill="#C779A1" />
-                                        <Path Data="M 83,39 L 118,20 153,39 118,58 Z" Fill="#FFE1ED" />
-                                        <Path Data="M 83,39 L 118,58 118,82 83,63 Z" Fill="#F1B6D0" />
-                                        <Path Data="M 118,58 L 153,39 153,63 118,82 Z" Fill="#DB95B7" />
-                                        <Rectangle Width="9" Height="9" Fill="#D99DB9" Canvas.Left="27" Canvas.Top="57" />
-                                        <Rectangle Width="5" Height="5" Fill="#E3A8C3" Canvas.Left="193" Canvas.Top="40" />
-                                        <Rectangle Width="7" Height="7" Fill="#C888A6" Canvas.Left="209" Canvas.Top="118" />
-                                    </Canvas>
-                                </Viewbox>
+                                <StackPanel Grid.Column="1">
+                                    <TextBlock Text="分配内存" Foreground="{StaticResource MutedBrush}" FontSize="11" />
+                                    <TextBlock Text="{Binding MemorySummary}" FontWeight="SemiBold" Margin="0,5,0,0" />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="本地版本" Foreground="{StaticResource MutedBrush}" FontSize="11" />
+                                    <TextBlock Text="{Binding VersionCountLabel}" FontWeight="SemiBold" Margin="0,5,0,0" />
+                                </StackPanel>
+                                <Button Grid.Column="3" Content="启动设置  →" Click="ShowSettings_Click" VerticalAlignment="Center" />
                             </Grid>
                         </Border>
-                        <Grid Grid.Row="1" Margin="0,20,0,0">
-                            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="18" /><ColumnDefinition Width="290" /></Grid.ColumnDefinitions>
-                            <Border Style="{StaticResource Card}">
-                                <StackPanel>
-                                    <Grid><TextBlock Text="准备启动" FontWeight="SemiBold" /><Button Content="管理版本  →" HorizontalAlignment="Right" Padding="0" Background="Transparent" BorderThickness="0" Foreground="{StaticResource MutedBrush}" Click="ShowVersions_Click" /></Grid>
-                                    <TextBlock Text="{Binding SelectedVersionTitle}" FontSize="24" FontWeight="SemiBold" Margin="0,21,0,6" TextTrimming="CharacterEllipsis" />
-                                    <TextBlock Text="{Binding SelectedVersionDescription}" Style="{StaticResource MutedText}" Margin="0,0,0,17" />
-                                    <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><Button Content="{Binding LaunchButtonText}" Style="{StaticResource PrimaryButton}" IsEnabled="{Binding CanLaunch}" Click="Launch_Click" /><Button Grid.Column="1" Content="停止" Margin="9,0,0,0" IsEnabled="{Binding CanStop}" Click="Stop_Click" /></Grid>
-                                    <Button Content="{Binding LaunchAccountHint}" Foreground="{StaticResource MutedBrush}" FontSize="10" Margin="0,12,0,0" Padding="0" Background="Transparent" BorderThickness="0" HorizontalAlignment="Left" Click="ShowAccounts_Click" />
-                                </StackPanel>
-                            </Border>
-                            <Border Grid.Column="2" Style="{StaticResource Card}">
-                                <StackPanel>
-                                    <TextBlock Text="运行环境" FontWeight="SemiBold" Margin="0,0,0,20" />
-                                    <Grid><TextBlock Text="Java" Style="{StaticResource MutedText}" /><TextBlock Text="{Binding JavaSummary}" HorizontalAlignment="Right" Foreground="{StaticResource AccentTextBrush}" FontSize="13" /></Grid>
-                                    <Border Height="1" Background="{StaticResource DividerBrush}" Margin="0,12,0,12" />
-                                    <Grid><TextBlock Text="分配内存" Style="{StaticResource MutedText}" /><TextBlock Text="{Binding MemorySummary}" HorizontalAlignment="Right" FontSize="13" /></Grid>
-                                    <Border Height="1" Background="{StaticResource DividerBrush}" Margin="0,12,0,12" />
-                                    <Grid><TextBlock Text="本地版本" Style="{StaticResource MutedText}" /><TextBlock Text="{Binding VersionCountLabel}" HorizontalAlignment="Right" FontSize="13" /></Grid>
-                                    <Button Content="调整启动设置  →" Margin="0,19,0,0" Padding="0" HorizontalAlignment="Left" Background="Transparent" BorderThickness="0" Foreground="{StaticResource MutedBrush}" Click="ShowSettings_Click" />
-                                </StackPanel>
-                            </Border>
-                        </Grid>
-                        <TextBlock Grid.Row="2" Text="官方版本，按需下载。已有且完整的游戏资源会自动复用。" Style="{StaticResource MutedText}" FontSize="11" Margin="2,17,0,10" />
                     </Grid>
                     <Grid x:Name="VersionsPage" Style="{StaticResource PagePanel}">
                         <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
@@ -126,9 +211,9 @@
                         </Border>
                         <Grid Grid.Row="1" Margin="2,20,2,14"><TextBlock Text="已安装的版本" FontWeight="SemiBold" /><TextBlock Text="选中后可启动或管理版本" Style="{StaticResource MutedText}" HorizontalAlignment="Right" FontSize="11" /></Grid>
                         <Grid Grid.Row="2">
-                            <ListBox x:Name="VersionList" ItemsSource="{Binding Versions}" SelectedItem="{Binding SelectedVersion, Mode=TwoWay}" IsEnabled="{Binding CanInteract}" MinHeight="180" MaxHeight="245" SelectionChanged="VersionList_SelectionChanged">
+                            <ListBox x:Name="VersionList" ItemsSource="{Binding Versions}" SelectedItem="{Binding SelectedVersion, Mode=TwoWay}" IsEnabled="{Binding CanInteract}" MinHeight="180" MaxHeight="265" SelectionChanged="VersionList_SelectionChanged">
                                 <ListBox.ItemTemplate><DataTemplate><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="48" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                    <Border Width="36" Height="36" Background="{StaticResource SoftAccentBrush}" CornerRadius="7" HorizontalAlignment="Left"><TextBlock Text="▦" FontSize="22" Foreground="{StaticResource AccentTextBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" /></Border>
+                                    <Border Width="36" Height="36" Background="{StaticResource SoftAccentBrush}" CornerRadius="9" HorizontalAlignment="Left"><Path Data="{StaticResource VersionsIcon}" Style="{StaticResource ShortcutIcon}" /></Border>
                                     <StackPanel Grid.Column="1"><TextBlock Text="{Binding DisplayName}" FontSize="16" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" /><TextBlock Text="{Binding Description}" Style="{StaticResource MutedText}" FontSize="11" Margin="0,4,0,0" /></StackPanel>
                                     <StackPanel Grid.Column="2" Margin="16,0,0,0"><TextBlock Text="{Binding Kind}" Foreground="{StaticResource AccentTextBrush}" HorizontalAlignment="Right" FontSize="12" /><TextBlock Text="{Binding StatusText}" Foreground="{StaticResource MutedBrush}" FontSize="10" Margin="0,5,0,0" HorizontalAlignment="Right" /></StackPanel>
                                 </Grid></DataTemplate></ListBox.ItemTemplate>
@@ -252,7 +337,20 @@
                                     <TextBlock Text="使用与房主相同的 Java 版游戏版本和模组。支持 1.20 及以上。" Style="{StaticResource MutedText}" Margin="0,6,0,10" />
                                     <DockPanel>
                                         <Button Content="加入并启动" DockPanel.Dock="Right" Style="{StaticResource PrimaryButton}" Click="JoinRoom_Click" IsEnabled="{Binding CanJoinRoom}" Margin="9,0,0,0" />
-                                        <TextBox Text="{Binding InviteInput, UpdateSourceTrigger=PropertyChanged}" MaxLength="128" IsEnabled="{Binding CanEditRelay}" VerticalContentAlignment="Center" AutomationProperties.Name="好友邀请码" />
+                                        <Grid>
+                                            <TextBox Text="{Binding InviteInput, UpdateSourceTrigger=PropertyChanged}" MaxLength="128" IsEnabled="{Binding CanEditRelay}" VerticalContentAlignment="Center" AutomationProperties.Name="好友邀请码" />
+                                            <TextBlock Text="粘贴好友邀请码" Foreground="{StaticResource MutedBrush}" FontSize="12" Margin="12,0"
+                                                       VerticalAlignment="Center" IsHitTestVisible="False">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding InviteInput}" Value=""><Setter Property="Visibility" Value="Visible" /></DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                        </Grid>
                                     </DockPanel>
                                 </StackPanel>
                             </Border>
@@ -273,7 +371,67 @@
                     </Grid>
                     <Grid x:Name="AccountsPage" Style="{StaticResource PagePanel}">
                         <StackPanel>
-                            <Border Style="{StaticResource Card}" Padding="24">
+                            <Border Style="{StaticResource Card}" Background="{StaticResource HeroBrush}" Padding="22">
+                                <StackPanel IsEnabled="{Binding CanChooseAccountMode}">
+                                    <TextBlock Text="本地角色" FontSize="23" FontWeight="SemiBold" />
+                                    <TextBlock Text="在本机编辑游戏名和外观，直接使用本地档案启动。" Style="{StaticResource MutedText}" Margin="0,5,0,12" />
+                                    <TextBlock Text="游戏内 ID（玩家名）" FontWeight="SemiBold" Margin="0,0,0,6" />
+                                    <TextBox x:Name="LocalPlayerNameBox" Text="{Binding PlayerName, UpdateSourceTrigger=PropertyChanged}" MaxLength="16"
+                                             AutomationProperties.Name="游戏内玩家名" />
+                                    <TextBlock Text="1–16 位英文字母、数字或下划线。改名后，部分存档里的背包或进度会按新玩家记录。"
+                                               Style="{StaticResource MutedText}" FontSize="11" Margin="0,5,0,13" />
+                                    <Grid>
+                                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="12" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                        <Border Style="{StaticResource Card}" Padding="13">
+                                            <DockPanel>
+                                                <Border Width="44" Height="50" CornerRadius="8" Background="{StaticResource SoftAccentBrush}" Margin="0,0,10,0" VerticalAlignment="Top">
+                                                    <Grid>
+                                                        <Path Data="{StaticResource AccountIcon}" Style="{StaticResource ShortcutIcon}" />
+                                                        <Image Source="{Binding LocalAvatar}" Width="32" Height="32" RenderOptions.BitmapScalingMode="NearestNeighbor" />
+                                                    </Grid>
+                                                </Border>
+                                                <StackPanel>
+                                                    <TextBlock Text="皮肤" FontWeight="SemiBold" />
+                                                    <TextBlock Text="{Binding LocalSkinLabel}" Style="{StaticResource MutedText}" FontSize="11" Margin="0,0,0,5" />
+                                                    <WrapPanel>
+                                                        <Button Content="选择 PNG" Click="PickLocalSkin_Click" Padding="11,6" Margin="0,0,6,0" />
+                                                        <Button Content="清除" Click="ClearLocalSkin_Click" Padding="9,6" IsEnabled="{Binding HasLocalSkin}" />
+                                                    </WrapPanel>
+                                                    <CheckBox Content="使用细手臂模型（Alex）" IsChecked="{Binding UseSlimSkin}"
+                                                              IsEnabled="{Binding HasLocalSkin}" Margin="0,8,0,0" />
+                                                </StackPanel>
+                                            </DockPanel>
+                                        </Border>
+                                        <Border Grid.Column="2" Style="{StaticResource Card}" Padding="13">
+                                            <DockPanel>
+                                                <Border Width="44" Height="50" CornerRadius="8" Background="{StaticResource SoftAccentBrush}" Margin="0,0,10,0" VerticalAlignment="Top">
+                                                    <Grid>
+                                                        <Path Data="{StaticResource PackIcon}" Style="{StaticResource ShortcutIcon}" />
+                                                        <Image Source="{Binding LocalCapePreview}" Width="24" Height="38" RenderOptions.BitmapScalingMode="NearestNeighbor" />
+                                                    </Grid>
+                                                </Border>
+                                                <StackPanel>
+                                                    <TextBlock Text="披风" FontWeight="SemiBold" />
+                                                    <TextBlock Text="{Binding LocalCapeLabel}" Style="{StaticResource MutedText}" FontSize="11" Margin="0,0,0,5" />
+                                                    <WrapPanel>
+                                                        <Button Content="选择 PNG" Click="PickLocalCape_Click" Padding="11,6" Margin="0,0,6,0" />
+                                                        <Button Content="清除" Click="ClearLocalCape_Click" Padding="9,6" IsEnabled="{Binding HasLocalCape}" />
+                                                    </WrapPanel>
+                                                </StackPanel>
+                                            </DockPanel>
+                                        </Border>
+                                    </Grid>
+                                    <CheckBox Content="启动时应用外观" IsChecked="{Binding ApplyLocalAppearance}" Margin="0,13,0,0" />
+                                    <TextBlock Text="首次使用需要联网安装外观组件。自定义皮肤和披风仅在本机显示。" Style="{StaticResource MutedText}"
+                                               FontSize="11" Margin="0,4,0,7" />
+                                    <WrapPanel>
+                                        <Button Content="保存并使用本地档案" Style="{StaticResource PrimaryButton}" Click="SaveLocalAppearance_Click" />
+                                        <TextBlock Text="{Binding LocalAppearanceStatus}" TextWrapping="Wrap" MaxWidth="440"
+                                                   VerticalAlignment="Center" Margin="10,3,0,3" FontSize="11" />
+                                    </WrapPanel>
+                                </StackPanel>
+                            </Border>
+                            <Border Style="{StaticResource Card}" Padding="24" Margin="0,16,0,0">
                                 <StackPanel>
                                     <Grid>
                                         <Grid.ColumnDefinitions><ColumnDefinition Width="68" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
@@ -300,7 +458,7 @@
                                     <RadioButton x:Name="LocalModeButton" Content="本地档案" GroupName="AccountMode" IsChecked="{Binding UseLocalAccount, Mode=TwoWay}" Margin="0,0,0,8" />
                                 </WrapPanel>
                                 <TextBlock Text="{Binding LaunchAccountHint}" Style="{StaticResource MutedText}" FontSize="12" Margin="0,4,0,0" />
-                                <TextBlock Text="微软身份启动前会联网验证；失败时会显示原因。切换到本地档案后，使用启动设置中的玩家名称。" Style="{StaticResource MutedText}" FontSize="11" Margin="0,7,0,0" />
+                                <TextBlock Text="微软身份启动前会联网验证。本地档案使用上方设置的游戏内玩家名。" Style="{StaticResource MutedText}" FontSize="11" Margin="0,7,0,0" />
                             </StackPanel></Border>
                             <Border Style="{StaticResource Card}" Padding="22" Margin="0,16,0,0"><StackPanel>
                                 <TextBlock Text="{Binding AccountSetupHint}" Style="{StaticResource MutedText}" FontSize="12" Margin="0,0,0,12" />
@@ -348,7 +506,14 @@
                     </Grid>
                 </Grid>
             </ScrollViewer>
-            <Border Grid.Row="2" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0" Padding="0,13,0,0" Margin="0,15,0,0"><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><TextBlock Text="{Binding StatusMessage}" Foreground="{StaticResource MutedBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,0,15,0" VerticalAlignment="Center" /><TextBlock x:Name="FooterSlogan" Grid.Column="1" Text="为每一次出发而造" Foreground="{StaticResource MutedBrush}" FontSize="10" VerticalAlignment="Center" /><Button x:Name="FooterSaveButton" Grid.Column="1" Content="保存设置" Visibility="Collapsed" Style="{StaticResource PrimaryButton}" Padding="18,9" Click="SaveSettings_Click" IsEnabled="{Binding CanInteract}" /></Grid></Border>
+            <Border Grid.Row="2" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0" Padding="0,11,0,0" Margin="0,10,0,0">
+                <Grid>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                    <TextBlock Text="{Binding StatusMessage}" Foreground="{StaticResource MutedBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,0,15,0" VerticalAlignment="Center" />
+                    <Button x:Name="FooterSaveButton" Grid.Column="1" Content="保存设置" Visibility="Collapsed" Style="{StaticResource PrimaryButton}"
+                            Padding="18,9" Click="SaveSettings_Click" IsEnabled="{Binding CanInteract}" />
+                </Grid>
+            </Border>
         </Grid>
     </Grid>
 </Window>

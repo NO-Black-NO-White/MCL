@@ -41,6 +41,11 @@ public sealed class MinecraftAvatarService : IDisposable
         catch (Exception ex) when (ex is IOException or FormatException or NotSupportedException or ArgumentException or System.Runtime.InteropServices.COMException)
         { return null; }
         if (skin.PixelWidth != 64 || skin.PixelHeight is not (32 or 64)) return null;
+        return CreateAvatar(skin);
+    }
+
+    internal static BitmapSource CreateAvatar(BitmapSource skin)
+    {
         var visual = new DrawingVisual();
         using (var drawing = visual.RenderOpen())
         {

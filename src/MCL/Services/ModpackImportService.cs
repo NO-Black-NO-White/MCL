@@ -68,7 +68,7 @@ public sealed class ModpackImportService : IDisposable
             var version = versions.FirstOrDefault(v => v.Id == pack.Preview.Minecraft)
                 ?? throw new NotSupportedException("这个整合包需要的 Minecraft 版本不在当前可安装的官方正式版清单中。");
             var baseInfo = await _minecraft.InstallModpackBaseAsync(version, root, progress, ct).ConfigureAwait(false);
-            var fabric = await InstallFabricAsync(pack.Preview, staging, progress, ct).ConfigureAwait(false);
+            var fabric = await InstallFabricAsync(pack.Preview.Minecraft, pack.Preview.Fabric, staging, progress, ct).ConfigureAwait(false);
             await DownloadPackFilesAsync(plan, game, progress, ct).ConfigureAwait(false);
 
             Report(progress, "写入整合包配置", "正在应用配置、资源包和存档");
@@ -114,18 +114,20 @@ public sealed class ModpackImportService : IDisposable
         }
     }
 
-    private async Task<(string MainClass, FabricLibrary[] Libraries, string[] Jvm)> InstallFabricAsync(
-        ModpackPreview pack, string staging, IProgress<InstallProgress>? progress, CancellationToken ct)
+    internal async Task<FabricProfile> InstallFabricAsync(string minecraft, string? loader,
+        string staging, IProgress<InstallProgress>? progress, CancellationToken ct)
     {
-        if (pack.Fabric is null) return (ModpackPaths.VanillaMain, [], []);
-        Report(progress, "安装 Fabric", $"正在准备 Fabric Loader {pack.Fabric}");
-        var uri = new Uri($"https://meta.fabricmc.net/v2/versions/loader/{pack.Minecraft}/{pack.Fabric}/profile/json");
+        if (loader is null) return new(ModpackPaths.VanillaMain, [], []);
+        if (!ModpackPaths.IsGameVersion(minecraft) || !ModpackPaths.IsLoaderVersion(loader))
+            throw new InvalidDataException("Fabric 所需的版本编号无效。");
+        Report(progress, "安装 Fabric", $"正在准备 Fabric Loader {loader}");
+        var uri = new Uri($"https://meta.fabricmc.net/v2/versions/loader/{minecraft}/{loader}/profile/json");
         using var response = await GetSmallAsync(uri, 512 * 1024, ct).ConfigureAwait(false);
         using var document = JsonDocument.Parse(response);
         var metadata = document.RootElement;
         var main = metadata.GetProperty("mainClass").GetString();
-        if (metadata.GetProperty("inheritsFrom").GetString() != pack.Minecraft
-            || metadata.GetProperty("id").GetString() != $"fabric-loader-{pack.Fabric}-{pack.Minecraft}"
+        if (metadata.GetProperty("inheritsFrom").GetString() != minecraft
+            || metadata.GetProperty("id").GetString() != $"fabric-loader-{loader}-{minecraft}"
             || main is not (ModpackPaths.FabricMain or ModpackPaths.LegacyFabricMain))
             throw new InvalidDataException("Fabric 官方返回的版本信息与整合包不一致。");
         var arguments = metadata.GetProperty("arguments");
@@ -156,12 +158,13 @@ public sealed class ModpackImportService : IDisposable
             if (!ModpackPaths.IsHex(sha, 40) || (sha512 is not null && !ModpackPaths.IsHex(sha512, 128)) || size is < 1 or > 64 * 1024 * 1024)
                 throw new InvalidDataException("Fabric 依赖校验信息无效。");
             var target = ModpackPaths.SafeTarget(staging, ".mcl-libraries/" + relative);
-            await DownloadAsync([jar], target, size, 64 * 1024 * 1024, sha!, sha512, FabricUri, ct).ConfigureAwait(false);
+            if (!File.Exists(target) || !await VerifiedDownloader.IsValidAsync(target, sha!, size ?? new FileInfo(target).Length, ct).ConfigureAwait(false))
+                await DownloadAsync([jar], target, size, 64 * 1024 * 1024, sha!, sha512, FabricUri, ct, overwrite: true).ConfigureAwait(false);
             libraries.Add(new(coordinate, sha!));
         }
-        if (!libraries.Any(l => l.Coordinate == $"net.fabricmc:fabric-loader:{pack.Fabric}"))
+        if (!libraries.Any(l => l.Coordinate == $"net.fabricmc:fabric-loader:{loader}"))
             throw new InvalidDataException("Fabric 依赖中没有整合包要求的加载器文件。");
-        return (main, libraries.ToArray(), jvm);
+        return new(main, libraries.ToArray(), jvm);
     }
 
     private async Task DownloadPackFilesAsync(PackFile[] files, string root, IProgress<InstallProgress>? progress, CancellationToken ct)
@@ -190,8 +193,8 @@ public sealed class ModpackImportService : IDisposable
         }).ConfigureAwait(false);
     }
 
-    private async Task DownloadAsync(IEnumerable<Uri> sources, string target, long? size, long maxBytes,
-        string sha1, string? sha512, Func<Uri, bool> allowed, CancellationToken ct)
+    internal async Task DownloadAsync(IEnumerable<Uri> sources, string target, long? size, long maxBytes,
+        string sha1, string? sha512, Func<Uri, bool> allowed, CancellationToken ct, bool overwrite = false)
     {
         Directory.CreateDirectory(Path.GetDirectoryName(target)!);
         Exception? lastError = null;
@@ -218,7 +221,7 @@ public sealed class ModpackImportService : IDisposable
                         || (hash512 is not null && !Convert.ToHexString(hash512.GetHashAndReset()).Equals(sha512, StringComparison.OrdinalIgnoreCase)))
                         throw new InvalidDataException("下载文件与清单中的校验值不一致。");
                     ct.ThrowIfCancellationRequested();
-                    File.Move(temporary, target);
+                    File.Move(temporary, target, overwrite);
                     return;
                 }
                 catch (Exception ex) when (!ct.IsCancellationRequested && (ex is IOException or InvalidDataException or HttpRequestException or OperationCanceledException))

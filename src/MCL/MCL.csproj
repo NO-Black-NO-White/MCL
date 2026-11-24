@@ -7,10 +7,11 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>MCL</AssemblyName>
     <RootNamespace>MCL</RootNamespace>
-    <Version>0.6.0</Version>
+    <Version>0.8.0</Version>
     <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="../Multiplayer/RoomProtocol.cs" Link="RoomProtocol.cs" />
+    <Resource Include="Assets/spring-valley.jpg" />
   </ItemGroup>
 </Project>

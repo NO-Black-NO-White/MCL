@@ -10,6 +10,8 @@ public sealed record ModpackPreview(
 public sealed record ModpackInstallResult(string InstanceId, string Name, int RequiredJava);
 
 internal sealed record FabricLibrary(string Coordinate, string Sha1);
+internal sealed record FabricProfile(string MainClass, FabricLibrary[] Libraries, string[] Jvm);
+internal sealed record LocalAppearanceLaunch(string ModJar, string? EmptyModsFolder, string? FabricFolder, FabricProfile? Fabric);
 internal sealed record ModpackInstance(
     int Format, string Name, string PackVersion, string Minecraft, string BaseSha1,
     string? Fabric, FabricLibrary[] Libraries, string[] JvmArguments, bool UsesCachedBase = false);

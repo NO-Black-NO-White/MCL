@@ -7,6 +7,7 @@ using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Interop;
+using System.Windows.Media.Animation;
 using Microsoft.Win32;
 using MCL.Models;
 using MCL.Services;
@@ -33,7 +34,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private bool _isDirty;
     private bool _loading = true;
     private bool _closing;
-    private string _pageTitle = "欢迎回来";
+    private string _pageTitle = "首页";
     private string _statusMessage = "准备就绪。选择已有的 Minecraft 文件夹，开始你的第一次出发。";
     private string _currentPage = "Home";
 
@@ -55,6 +56,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         _launcher.LanPortChanged += OnLanPortChanged;
         _versionManager = new VersionManagementService(recycleBin, () => _launcher.IsRunning);
         _modpacks = new ModpackImportService(_downloads);
+        _localAppearance = new LocalAppearanceService(_store.DataDirectory, _modpacks);
         var settings = _store.Load();
         _gameDirectory = GameDirectoryResolver.Normalize(settings.GameDirectory);
         _javaPath = settings.JavaPath;
@@ -65,11 +67,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         _useMicrosoftAccount = settings.UseMicrosoftAccount;
         _relayEndpoint = string.IsNullOrWhiteSpace(settings.RelayEndpoint) ? DefaultRelayEndpoint() : settings.RelayEndpoint;
         LoadSavedAccount();
+        LoadLocalAppearance(settings);
         InitializeComponent();
         DataContext = this;
         HomeNav.IsChecked = true;
         _loading = false;
-        _log.Info("MCL 0.6 已打开。");
+        _log.Info($"MCL {AppVersionText} 已打开。");
     }
 
     public string GameDirectory
@@ -114,11 +117,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     public string SelectedVersionTitle => SelectedVersion?.DisplayName ?? "选择你的第一个版本";
     public string SelectedVersionDescription => SelectedVersion is null
-        ? "添加已有游戏后，在版本列表里选择一个原版版本。"
+        ? "下载新版本，或选择已有游戏文件夹。"
         : SelectedVersion.IsValid ? $"{SelectedVersion.Kind} · {ActiveAccountLabel} {ActivePlayerName}" : SelectedVersion.Issue ?? "版本文件需要检查";
     public string JavaSummary => _java is null ? (IsBusy ? "检测中…" : "待配置") : $"Java {_java.MajorVersion} · {(_java.Is64Bit ? "64 位" : "32 位")}";
     public string JavaDetail => _java is null ? "自动检测本机 Java，或手动选择 java.exe。启动前会再次检查。" : $"已检测：Java {_java.VersionText} · {(_java.Is64Bit ? "64 位" : "32 位")}";
     public string VersionCountLabel => $"{Versions.Count} 个";
+    public string AppVersionText => typeof(MainWindow).Assembly.GetName().Version?.ToString(3) ?? "";
     public string PageTitle { get => _pageTitle; private set => Set(ref _pageTitle, value); }
     public string StatusMessage { get => _statusMessage; private set => Set(ref _statusMessage, value); }
     public string SettingsStatus => _isDirty ? "有尚未保存的修改" : "当前没有未保存的修改";
@@ -130,7 +134,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     public string LaunchButtonText => IsBusy ? "正在准备…" : IsGameRunning ? "游戏运行中" : UseMicrosoftAccount
         ? !HasMicrosoftAccount || _accountRequiresLogin ? "请先登录微软账号" : "▶  使用微软账号启动" : "▶  启动本地游戏";
     public bool IsGameRunning { get => _isGameRunning; private set { if (Set(ref _isGameRunning, value)) { Notify(nameof(CanLaunch), nameof(CanStop), nameof(LaunchButtonText), nameof(ActivityText)); NotifyVersionManagement(); NotifyAccountState(); NotifyPackActions(); NotifyMultiplayer(); } } }
-    public string ActivityText => PackInProgress ? "正在安装整合包" : IsInstalling ? "正在安装游戏" : _isAuthenticating ? "正在验证账号" : IsBusy ? "正在处理" : IsGameRunning ? "游戏运行中" : "游戏工作空间";
+    public string ActivityText => PackInProgress ? "正在安装整合包" : IsInstalling ? "正在安装游戏" : _isAuthenticating ? "正在验证账号" : IsBusy ? "正在处理" : IsGameRunning ? "游戏运行中" : "就绪";
 
     public async Task InitializeAsync()
     {
@@ -214,6 +218,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void Navigate(string page)
     {
+        var changed = _currentPage != page;
         _currentPage = page;
         HomePage.Visibility = page == "Home" ? Visibility.Visible : Visibility.Collapsed;
         VersionsPage.Visibility = page == "Versions" ? Visibility.Visible : Visibility.Collapsed;
@@ -224,12 +229,35 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         SettingsPage.Visibility = page == "Settings" ? Visibility.Visible : Visibility.Collapsed;
         LogsPage.Visibility = page == "Logs" ? Visibility.Visible : Visibility.Collapsed;
         FooterSaveButton.Visibility = page == "Settings" ? Visibility.Visible : Visibility.Collapsed;
-        FooterSlogan.Visibility = page == "Settings" ? Visibility.Collapsed : Visibility.Visible;
-        PageTitle = page switch { "Versions" => "你的游戏版本", "Downloads" => "下载一个新世界", "Modpacks" => "导入整合包", "Multiplayer" => "好友联机", "Accounts" => "你的游戏账号", "Settings" => "启动设置", "Logs" => "运行日志", _ => "欢迎回来" };
+        PageTitle = page switch { "Versions" => "游戏版本", "Downloads" => "下载游戏", "Modpacks" => "导入整合包", "Multiplayer" => "好友联机", "Accounts" => "账号管理", "Settings" => "启动设置", "Logs" => "运行日志", _ => "首页" };
+        if (changed)
+        {
+            PageScroll.ScrollToTop();
+            AnimatePage();
+        }
         if (page == "Logs" && Logs.Count > 0) LogList.ScrollIntoView(Logs[^1]);
     }
 
+    private void AnimatePage()
+    {
+        if (!IsLoaded || _offlinePreview || !SystemParameters.ClientAreaAnimation) return;
+        var duration = TimeSpan.FromMilliseconds(210);
+        var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+        PageContent.BeginAnimation(OpacityProperty, new DoubleAnimation(0.58, 1, duration)
+        {
+            EasingFunction = ease,
+            FillBehavior = FillBehavior.Stop
+        });
+        PageShift.BeginAnimation(System.Windows.Media.TranslateTransform.YProperty, new DoubleAnimation(8, 0, duration)
+        {
+            EasingFunction = ease,
+            FillBehavior = FillBehavior.Stop
+        });
+    }
+
     private void ShowVersions_Click(object sender, RoutedEventArgs e) => VersionsNav.IsChecked = true;
+    private void ShowModpacks_Click(object sender, RoutedEventArgs e) => OpenModpacks();
+    private void ShowMultiplayer_Click(object sender, RoutedEventArgs e) => OpenMultiplayer();
     private void ShowSettings_Click(object sender, RoutedEventArgs e) => SettingsNav.IsChecked = true;
 
     private async void BrowseGame_Click(object sender, RoutedEventArgs e)
@@ -299,7 +327,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             SelectedVersionId = SelectedVersion?.Id,
             MicrosoftClientId = MicrosoftClientId?.Trim() ?? "",
             UseMicrosoftAccount = UseMicrosoftAccount,
-            RelayEndpoint = RelayEndpoint.Trim()
+            RelayEndpoint = RelayEndpoint.Trim(),
+            ApplyLocalAppearance = ApplyLocalAppearance,
+            LocalSkin = _localSkin,
+            LocalCape = _localCape,
+            LocalSkinModel = UseSlimSkin ? "slim" : "default"
         };
     }
 
@@ -326,9 +358,19 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (_java is null) throw new InvalidDataException("Java 未配置或不可用。请到启动设置中点击自动检测，或选择 java.exe。");
         SaveCurrentSettings();
         var identity = await PrepareAccountForLaunchAsync();
+        LocalAppearanceLaunch? appearance = null;
+        if (identity is null && settings.ApplyLocalAppearance && (settings.LocalSkin is not null || settings.LocalCape is not null))
+        {
+            StatusMessage = "正在准备本地皮肤和披风，首次使用需要下载外观组件…";
+            appearance = await Task.Run(() => _localAppearance.PrepareAsync(settings, version, ct), ct);
+        }
         ct.ThrowIfCancellationRequested();
         _runningGame = version;
-        try { await _launcher.LaunchAsync(settings, version, _java, ct, identity, quickJoinPort); }
+        try
+        {
+            if (appearance is null) await _launcher.LaunchAsync(settings, version, _java, ct, identity, quickJoinPort);
+            else await _launcher.LaunchWithAppearanceAsync(settings, version, _java, appearance, ct, quickJoinPort);
+        }
         catch { _runningGame = null; throw; }
         StatusMessage = "启动命令已执行。游戏输出会显示在运行日志中。";
     }
