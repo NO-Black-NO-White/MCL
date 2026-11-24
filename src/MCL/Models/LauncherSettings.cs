@@ -9,4 +9,5 @@ public sealed class LauncherSettings
     public string? SelectedVersionId { get; set; }
     public string MicrosoftClientId { get; set; } = "";
     public bool UseMicrosoftAccount { get; set; }
+    public string RelayEndpoint { get; set; } = "";
 }

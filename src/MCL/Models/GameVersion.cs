@@ -4,6 +4,8 @@ public sealed record GameVersion(string Id, string JsonPath, string VersionDirec
 {
     public string? ModpackName { get; init; }
     public string? ModpackMinecraft { get; init; }
+    public string? ModpackVersion { get; init; }
+    public string? ModpackLoader { get; init; }
     public string DisplayName => ModpackName ?? Id;
     public string StatusText => IsValid ? "已发现" : "需要检查";
     public string Description => Issue ?? (ModpackMinecraft is not null ? $"Minecraft {ModpackMinecraft} · 独立游戏目录"

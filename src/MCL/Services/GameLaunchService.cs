@@ -14,8 +14,10 @@ public sealed class GameLaunchService(LogService log) : IDisposable
     private bool _disposed;
     public bool IsRunning { get { lock (_gate) return _process is not null || _starting; } }
     public event Action<bool>? RunningChanged;
+    public event Action<int?>? LanPortChanged;
 
-    public async Task LaunchAsync(LauncherSettings settings, GameVersion version, JavaInstallation java, CancellationToken ct = default, GameLaunchIdentity? identity = null)
+    public async Task LaunchAsync(LauncherSettings settings, GameVersion version, JavaInstallation java, CancellationToken ct = default,
+        GameLaunchIdentity? identity = null, int? quickJoinPort = null)
     {
         if (identity is not null)
         {
@@ -32,7 +34,7 @@ public sealed class GameLaunchService(LogService log) : IDisposable
         string? nativeDirectory = null;
         try
         {
-            var startInfo = await Task.Run(() => BuildStartInfo(settings, version, java, out nativeDirectory, ct, identity), ct).ConfigureAwait(false);
+            var startInfo = await Task.Run(() => BuildStartInfo(settings, version, java, out nativeDirectory, ct, identity, quickJoinPort), ct).ConfigureAwait(false);
             ct.ThrowIfCancellationRequested();
             identity?.Validate();
             var process = new Process { StartInfo = startInfo };
@@ -52,7 +54,7 @@ public sealed class GameLaunchService(LogService log) : IDisposable
                 : $"已启动 {version.DisplayName}（正版账号：{identity.PlayerName}，内存 {settings.MemoryMb} MB）。");
             var directoryToClean = nativeDirectory;
             nativeDirectory = null;
-            _ = ObserveAsync(process, directoryToClean);
+            _ = ObserveAsync(process, directoryToClean, quickJoinPort is null);
         }
         catch
         {
@@ -63,7 +65,8 @@ public sealed class GameLaunchService(LogService log) : IDisposable
         }
     }
 
-    private static ProcessStartInfo BuildStartInfo(LauncherSettings settings, GameVersion version, JavaInstallation java, out string? nativeDirectory, CancellationToken ct, GameLaunchIdentity? identity = null)
+    private static ProcessStartInfo BuildStartInfo(LauncherSettings settings, GameVersion version, JavaInstallation java,
+        out string? nativeDirectory, CancellationToken ct, GameLaunchIdentity? identity, int? quickJoinPort)
     {
         nativeDirectory = null;
         ct.ThrowIfCancellationRequested();
@@ -196,7 +199,7 @@ public sealed class GameLaunchService(LogService log) : IDisposable
             ["version_type"] = metadata.TryGetProperty("type", out var type) ? type.GetString() ?? "release" : "release",
             ["natives_directory"] = nativeDirectory,
             ["launcher_name"] = "MCL",
-            ["launcher_version"] = "0.5.0",
+            ["launcher_version"] = "0.6.0",
             ["classpath"] = string.Join(Path.PathSeparator, classpath),
             ["classpath_separator"] = Path.PathSeparator.ToString(),
             ["library_directory"] = libraryRoot,
@@ -247,16 +250,21 @@ public sealed class GameLaunchService(LogService log) : IDisposable
         }
         info.ArgumentList.Add(mainClass ?? throw new InvalidDataException("版本缺少启动入口。"));
         foreach (var argument in gameArguments) info.ArgumentList.Add(MinecraftMetadata.Expand(argument, replacements));
+        if (quickJoinPort is >= 1 and <= 65535)
+        {
+            info.ArgumentList.Add("--quickPlayMultiplayer");
+            info.ArgumentList.Add($"127.0.0.1:{quickJoinPort}");
+        }
         ct.ThrowIfCancellationRequested();
         return info;
     }
 
-    private async Task ObserveAsync(Process process, string? nativeDirectory)
+    private async Task ObserveAsync(Process process, string? nativeDirectory, bool observeLan)
     {
         try
         {
-            var output = ReadOutputAsync(process.StandardOutput, "GAME");
-            var errors = ReadOutputAsync(process.StandardError, "GAME");
+            var output = ReadOutputAsync(process.StandardOutput, observeLan);
+            var errors = ReadOutputAsync(process.StandardError, false);
             await process.WaitForExitAsync().ConfigureAwait(false);
             await Task.WhenAll(output, errors).ConfigureAwait(false);
             if (process.ExitCode == 0) log.Info("游戏已正常退出。");
@@ -275,9 +283,21 @@ public sealed class GameLaunchService(LogService log) : IDisposable
         }
     }
 
-    private async Task ReadOutputAsync(StreamReader reader, string level)
+    private async Task ReadOutputAsync(StreamReader reader, bool observeLan)
     {
-        while (await reader.ReadLineAsync().ConfigureAwait(false) is { } line) log.Write(level, line);
+        while (await reader.ReadLineAsync().ConfigureAwait(false) is { } line)
+        {
+            log.Write("GAME", line);
+            if (!observeLan || LanPortChanged is null) continue;
+            var message = Regex.Match(line,
+                @"^\s*(?:<log4j:Message><!\[CDATA\[|\[[^\]]{1,48}\] \[(?:Render|Server) thread/INFO\]: )(?<message>.*?)\s*(?:\]\]></log4j:Message>)?$",
+                RegexOptions.CultureInvariant).Groups["message"].Value;
+            var port = Regex.Match(message, @"^Started serving on ([0-9]{1,5})$", RegexOptions.CultureInvariant);
+            if (port.Success && int.TryParse(port.Groups[1].Value, out var number) && number is > 0 and <= 65535)
+                LanPortChanged?.Invoke(number);
+            else if (message is "Stopping server" or "Stopping integrated server")
+                LanPortChanged?.Invoke(null);
+        }
     }
 
     public void Stop()
@@ -315,5 +335,6 @@ public sealed class GameLaunchService(LogService log) : IDisposable
         // Closing the launcher never terminates a running game.
         lock (_gate) _disposed = true;
         RunningChanged = null;
+        LanPortChanged = null;
     }
 }

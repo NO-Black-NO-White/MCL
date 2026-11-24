@@ -42,14 +42,11 @@ public sealed class VersionCatalog
                     if (string.Equals(inheritsFrom, id, StringComparison.OrdinalIgnoreCase)) issue = "版本不能继承自身";
                     if (inheritsFrom is null && string.IsNullOrWhiteSpace(GetString(root, "mainClass"))) issue = "版本描述缺少启动入口";
                     var kind = IdentifyKind(root, id);
-                    string? packName = null;
-                    string? packMinecraft = null;
+                    ModpackInstance? instance = null;
                     if (issue is null && root.TryGetProperty(ModpackPaths.InstanceKey, out var pack))
                     {
-                        var instance = pack.Deserialize<ModpackInstance>() ?? throw new InvalidDataException("缺少整合包实例配置。");
+                        instance = pack.Deserialize<ModpackInstance>() ?? throw new InvalidDataException("缺少整合包实例配置。");
                         ModpackPaths.CheckInstance(id, inheritsFrom, GetString(root, "mainClass"), instance);
-                        packName = instance.Name;
-                        packMinecraft = instance.Minecraft;
                         kind = instance.Fabric is null ? "原版整合包" : "Fabric 整合包";
                         var baseDirectory = ModpackPaths.BaseDirectory(instance.Minecraft, instance.BaseSha1, instance.UsesCachedBase);
                         if (!Directory.Exists(ModpackPaths.SafeTarget(directory, "game"))
@@ -57,7 +54,7 @@ public sealed class VersionCatalog
                             issue = "整合包缺少游戏目录或基础版本，请重新导入";
                     }
                     versions.Add(new GameVersion(id, jsonPath, directory, kind, inheritsFrom, issue is null, issue)
-                    { ModpackName = packName, ModpackMinecraft = packMinecraft });
+                    { ModpackName = instance?.Name, ModpackMinecraft = instance?.Minecraft, ModpackVersion = instance?.PackVersion, ModpackLoader = instance?.Fabric });
                 }
                 catch (InvalidDataException ex)
                 {

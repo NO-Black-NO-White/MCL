@@ -1,4 +1,4 @@
-# MCL 0.5
+# MCL 0.6
 
 粉白配色的 Minecraft Java 版启动器，使用 C#、WPF 和 .NET 9 开发。
 
@@ -33,6 +33,29 @@ MCL 会安装或复用校验通过的原版文件，安装清单指定的 Fabric
 可以在首页选择包含 `versions`、`libraries` 和 `assets` 的游戏文件夹。误选 `versions` 子目录时，MCL 会识别对应根目录。
 
 在“启动设置”里填写本地玩家名、选择 Java、调整内存，然后点击右下角“保存设置”。本地档案没有微软账户身份，不能用于要求正版认证的服务器。
+
+## 好友联机
+
+好友联机支持 Minecraft Java 1.20 及以上的原版和由 MCL 导入的整合包。双方需要安装相同的 Minecraft 版本和模组，使用不同的玩家身份。
+
+1. 房主用 MCL 启动游戏，进入单人存档，按 Esc 选择“对局域网开放”，再点击“创建一个局域网世界”。
+2. 回到 MCL 的“好友联机”，看到房间已识别后点击“创建房间”，把邀请码复制给好友。
+3. 好友在同一页面粘贴邀请码，点击“加入并启动”。MCL 会从已安装的版本中寻找匹配项并启动游戏。
+4. 房主需要保持存档和启动器运行。房主结束联机或关闭游戏后，该邀请码失效。
+
+双方的启动器需要连到同一个中转服务。本机验证可在项目根目录运行以下命令，再把 MCL 的“好友联机 → 联机服务设置”填为 `http://127.0.0.1:28470`。
+
+```powershell
+dotnet run --project src/MCL.Relay/MCL.Relay.csproj
+```
+
+中转服务默认只监听本机。跨网联机需要运营者把中转服务部署到双方都能访问的 HTTPS 地址。服务使用 `/mcl/v1/` 下的 HTTP 和 WebSocket 连接，反向代理要保留 WebSocket 升级。发布时可在 `MCL.exe` 同目录放一个 `relay-url.txt`，内容为该 HTTPS 地址，这样玩家只需交换邀请码。
+
+本机中转运行时，可用以下命令验证邀请码、两路并发转发和关闭房间。
+
+```powershell
+dotnet run --project tests/MultiplayerValidation/MultiplayerValidation.csproj -- http://127.0.0.1:28470
+```
 
 ## 微软账号登录
 

@@ -37,6 +37,7 @@
                     <RadioButton x:Name="VersionsNav" Style="{StaticResource NavigationButton}" GroupName="Navigation" Tag="Versions" Checked="Navigation_Checked"><StackPanel Orientation="Horizontal"><TextBlock Text="▦" FontSize="18" Width="31" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" /><TextBlock Text="游戏版本" VerticalAlignment="Center" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" /></StackPanel></RadioButton>
                     <RadioButton x:Name="DownloadsNav" Style="{StaticResource NavigationButton}" GroupName="Navigation" Tag="Downloads" Checked="Navigation_Checked"><StackPanel Orientation="Horizontal"><TextBlock Text="↓" FontSize="20" Width="31" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" /><TextBlock Text="下载游戏" VerticalAlignment="Center" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" /></StackPanel></RadioButton>
                     <RadioButton x:Name="ModpacksNav" Style="{StaticResource NavigationButton}" GroupName="Navigation" Tag="Modpacks" Checked="Navigation_Checked"><StackPanel Orientation="Horizontal"><TextBlock Text="◇" FontSize="20" Width="31" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" /><TextBlock Text="导入整合包" VerticalAlignment="Center" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" /></StackPanel></RadioButton>
+                    <RadioButton x:Name="MultiplayerNav" Style="{StaticResource NavigationButton}" GroupName="Navigation" Tag="Multiplayer" Checked="Navigation_Checked"><StackPanel Orientation="Horizontal"><TextBlock Text="⇄" FontSize="20" Width="31" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" /><TextBlock Text="好友联机" VerticalAlignment="Center" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" /></StackPanel></RadioButton>
                     <RadioButton x:Name="AccountsNav" Style="{StaticResource NavigationButton}" GroupName="Navigation" Tag="Accounts" Checked="Navigation_Checked"><StackPanel Orientation="Horizontal"><TextBlock Text="♙" FontSize="20" Width="31" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" /><TextBlock Text="账号管理" VerticalAlignment="Center" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" /></StackPanel></RadioButton>
                     <RadioButton x:Name="SettingsNav" Style="{StaticResource NavigationButton}" GroupName="Navigation" Tag="Settings" Checked="Navigation_Checked"><StackPanel Orientation="Horizontal"><TextBlock Text="⚙" FontSize="18" Width="31" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" /><TextBlock Text="启动设置" VerticalAlignment="Center" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" /></StackPanel></RadioButton>
                     <RadioButton x:Name="LogsNav" Style="{StaticResource NavigationButton}" GroupName="Navigation" Tag="Logs" Checked="Navigation_Checked"><StackPanel Orientation="Horizontal"><TextBlock Text="≡" FontSize="21" Width="31" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" /><TextBlock Text="运行日志" VerticalAlignment="Center" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" /></StackPanel></RadioButton>
@@ -44,7 +45,7 @@
                 <StackPanel Grid.Row="4">
                     <Border Height="1" Background="{StaticResource DividerBrush}" Margin="8,0,8,19" />
                     <StackPanel Orientation="Horizontal" Margin="8,0,0,0"><Border Width="33" Height="33" CornerRadius="8" Background="{StaticResource SoftAccentBrush}"><TextBlock Text="M" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="Bold" Foreground="{StaticResource AccentTextBrush}" /></Border><StackPanel Margin="10,0,0,0" Width="106"><TextBlock Text="{Binding ActivePlayerName}" FontSize="12" TextTrimming="CharacterEllipsis" /><TextBlock Text="{Binding ActiveAccountLabel}" FontSize="10" Foreground="{StaticResource MutedBrush}" Margin="0,3,0,0" /></StackPanel></StackPanel>
-                    <TextBlock Text="MCL  /  0.5.0" FontSize="10" Foreground="{StaticResource MutedBrush}" Margin="8,24,0,0" />
+                    <TextBlock Text="MCL  /  0.6.0" FontSize="10" Foreground="{StaticResource MutedBrush}" Margin="8,24,0,0" />
                 </StackPanel>
             </Grid>
         </Border>
@@ -221,6 +222,51 @@
                                     <ProgressBar Height="6" Margin="0,10,0,0" Minimum="0" Maximum="100"
                                                  Value="{Binding PackPercent, Mode=OneWay}" IsIndeterminate="{Binding PackIndeterminate, Mode=OneWay}"
                                                  Visibility="{Binding PackInProgress, Converter={StaticResource BoolVisibility}}" />
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </Grid>
+                    <Grid x:Name="MultiplayerPage" Style="{StaticResource PagePanel}">
+                        <StackPanel>
+                            <Border Style="{StaticResource Card}" Background="{StaticResource HeroBrush}" Padding="24">
+                                <StackPanel>
+                                    <TextBlock Text="开房邀好友" FontSize="23" FontWeight="SemiBold" />
+                                    <TextBlock Text="用 MCL 启动游戏，进入单人存档，按 Esc 选择「对局域网开放」。" Style="{StaticResource MutedText}" Margin="0,8,0,0" />
+                                    <TextBlock Text="{Binding LanRoomStatus}" TextWrapping="Wrap" Margin="0,10,0,14" />
+                                    <WrapPanel>
+                                        <Button Content="启动所选版本" Click="Launch_Click" IsEnabled="{Binding CanLaunch}" Margin="0,0,9,0" />
+                                        <Button Content="创建房间" Click="HostRoom_Click" IsEnabled="{Binding CanHostRoom}" />
+                                    </WrapPanel>
+                                    <StackPanel Visibility="{Binding HasRoomCode, Converter={StaticResource BoolVisibility}}" Margin="0,13,0,0">
+                                        <TextBlock Text="邀请码" FontWeight="SemiBold" Margin="0,0,0,5" />
+                                        <DockPanel>
+                                            <Button Content="复制邀请码" DockPanel.Dock="Right" Click="CopyRoom_Click" Margin="9,0,0,0" />
+                                            <TextBox Text="{Binding RoomCode, Mode=OneWay}" IsReadOnly="True" VerticalContentAlignment="Center" />
+                                        </DockPanel>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                            <Border Style="{StaticResource Card}" Padding="20" Margin="0,14,0,0">
+                                <StackPanel>
+                                    <TextBlock Text="加入好友房间" FontSize="19" FontWeight="SemiBold" />
+                                    <TextBlock Text="使用与房主相同的 Java 版游戏版本和模组。支持 1.20 及以上。" Style="{StaticResource MutedText}" Margin="0,6,0,10" />
+                                    <DockPanel>
+                                        <Button Content="加入并启动" DockPanel.Dock="Right" Style="{StaticResource PrimaryButton}" Click="JoinRoom_Click" IsEnabled="{Binding CanJoinRoom}" Margin="9,0,0,0" />
+                                        <TextBox Text="{Binding InviteInput, UpdateSourceTrigger=PropertyChanged}" MaxLength="128" IsEnabled="{Binding CanEditRelay}" VerticalContentAlignment="Center" AutomationProperties.Name="好友邀请码" />
+                                    </DockPanel>
+                                </StackPanel>
+                            </Border>
+                            <Border Style="{StaticResource Card}" Padding="18" Margin="0,14,0,0">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding MultiplayerMessage}" TextWrapping="Wrap" />
+                                    <Button Content="结束联机" Click="CloseRoom_Click" HorizontalAlignment="Left" Margin="0,10,0,0"
+                                            Visibility="{Binding MultiplayerActive, Converter={StaticResource BoolVisibility}}" />
+                                    <Expander Header="联机服务设置" Margin="0,10,0,0">
+                                        <StackPanel>
+                                            <TextBlock Text="测试或自建服务时填写地址。正式发布版可预先配置。" Style="{StaticResource MutedText}" Margin="0,5,0,6" />
+                                            <TextBox Text="{Binding RelayEndpoint, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding CanEditRelay}" AutomationProperties.Name="联机服务地址" />
+                                        </StackPanel>
+                                    </Expander>
                                 </StackPanel>
                             </Border>
                         </StackPanel>
