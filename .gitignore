@@ -1,0 +1,8 @@
+**/bin/
+**/obj/
+.vs/
+work/
+outputs/
+*.user
+*.suo
+/启动 MCL.lnk
