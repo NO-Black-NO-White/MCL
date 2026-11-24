@@ -13,6 +13,9 @@ public sealed record InstallProgress(string Stage, string Detail, int CompletedF
     public double Percent => TotalBytes > 0 ? Math.Clamp(100d * CompletedBytes / TotalBytes, 0, 100) : 0;
 }
 
-public sealed record InstallResult(string VersionId, int DownloadedFiles, int ReusedFiles, int RequiredJava);
+public sealed record InstallResult(string VersionId, int DownloadedFiles, int ReusedFiles, int RequiredJava)
+{
+    internal bool UsesCachedBase { get; init; }
+}
 
 internal sealed record DownloadFile(Uri Url, string Path, string Sha1, long Size);

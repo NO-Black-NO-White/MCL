@@ -10,8 +10,9 @@ public partial class MainWindow
     private bool _isDeletingVersion;
     public bool CanOpenVersionFolder => !IsBusy && SelectedVersion is not null;
     public bool CanDeleteVersion => !IsBusy && !_isDeletingVersion && !IsGameRunning && !_launcher.IsRunning && SelectedVersion is not null;
-    public string ManagedVersionTitle => SelectedVersion?.Id ?? "选择一个版本";
-    public string ManagedVersionPath => SelectedVersion?.VersionDirectory ?? "";
+    public string ManagedVersionTitle => SelectedVersion?.DisplayName ?? "选择一个版本";
+    public string ManagedVersionPath => SelectedVersion is { } version
+        ? version.ModpackName is null ? version.VersionDirectory : Path.Combine(version.VersionDirectory, "game") : "";
     public string VersionManagementHint => IsGameRunning || _launcher.IsRunning ? "游戏运行中，退出游戏后可以删除版本。" : "删除前会显示确认窗口，所选版本文件夹将移入回收站。";
 
     private void NotifyVersionManagement()
@@ -61,8 +62,9 @@ public partial class MainWindow
             var expected = Path.GetFullPath(Path.Combine(root, "versions", version.Id));
             if (!string.Equals(Path.GetDirectoryName(expected), Path.Combine(root, "versions"), StringComparison.OrdinalIgnoreCase)
                 || !string.Equals(expected, Path.GetFullPath(version.VersionDirectory), StringComparison.OrdinalIgnoreCase)) throw new InvalidDataException("版本目录已改变，请刷新列表后重试。");
-            if (!Directory.Exists(expected)) throw new DirectoryNotFoundException("版本文件夹已不存在，请刷新列表。");
-            Process.Start(new ProcessStartInfo(expected) { UseShellExecute = true });
+            var folder = version.ModpackName is null ? expected : ModpackPaths.SafeTarget(expected, "game");
+            if (!Directory.Exists(folder)) throw new DirectoryNotFoundException("版本文件夹已不存在，请刷新列表。");
+            Process.Start(new ProcessStartInfo(folder) { UseShellExecute = true });
         }
         catch (Exception ex) { ReportError("无法打开版本文件夹", ex); }
     }

@@ -48,8 +48,8 @@ public sealed class GameLaunchService(LogService log) : IDisposable
             }
             catch { process.Dispose(); throw; }
             log.Info(identity is null
-                ? $"已启动原版 {version.Id}（本地档案：{settings.PlayerName}，内存 {settings.MemoryMb} MB）。"
-                : $"已启动原版 {version.Id}（正版账号：{identity.PlayerName}，内存 {settings.MemoryMb} MB）。");
+                ? $"已启动 {version.DisplayName}（本地档案：{settings.PlayerName}，内存 {settings.MemoryMb} MB）。"
+                : $"已启动 {version.DisplayName}（正版账号：{identity.PlayerName}，内存 {settings.MemoryMb} MB）。");
             var directoryToClean = nativeDirectory;
             nativeDirectory = null;
             _ = ObserveAsync(process, directoryToClean);
@@ -68,7 +68,8 @@ public sealed class GameLaunchService(LogService log) : IDisposable
         nativeDirectory = null;
         ct.ThrowIfCancellationRequested();
         if (!version.IsValid) throw new InvalidDataException(version.Issue ?? "所选版本的配置文件不完整。");
-        if (!string.IsNullOrWhiteSpace(version.InheritsFrom)) throw new NotSupportedException("第一版只支持独立的原版游戏，暂不支持 Forge、Fabric 等继承版本。");
+        if (!string.IsNullOrWhiteSpace(version.InheritsFrom) && version.ModpackName is null)
+            throw new NotSupportedException("当前支持独立原版和由 MCL 导入的整合包。其他启动器的继承版本暂不支持。");
         identity?.Validate();
         if (identity is null && !Regex.IsMatch(settings.PlayerName, "^[A-Za-z0-9_]{1,16}$", RegexOptions.CultureInvariant)) throw new InvalidDataException("本地玩家名称需为 1–16 位英文字母、数字或下划线。");
         if (settings.MemoryMb is < 512 or > 65536) throw new InvalidDataException("游戏内存需要在 512–65536 MB 之间。");
@@ -79,23 +80,64 @@ public sealed class GameLaunchService(LogService log) : IDisposable
         // Keep all metadata paths inside the selected game directory.
         var expectedJson = MinecraftMetadata.SafePath(Path.Combine(gameDirectory, "versions"), version.Id + "/" + version.Id + ".json");
         if (!string.Equals(expectedJson, Path.GetFullPath(version.JsonPath), StringComparison.OrdinalIgnoreCase)) throw new InvalidDataException("版本配置路径与所选游戏文件夹不一致，请重新扫描版本。");
+        if (version.ModpackName is not null) ModpackPaths.SafeTarget(gameDirectory, $"versions/{version.Id}/{version.Id}.json");
         using var document = JsonDocument.Parse(File.ReadAllText(expectedJson), new JsonDocumentOptions { AllowTrailingCommas = true, CommentHandling = JsonCommentHandling.Skip, MaxDepth = 128 });
         var metadata = document.RootElement;
-        if (metadata.TryGetProperty("inheritsFrom", out _) || metadata.TryGetProperty("jar", out _)) throw new NotSupportedException("第一版暂不支持继承或引用其他版本的游戏，请选择独立原版版本。");
         var mainClass = metadata.GetProperty("mainClass").GetString();
-        if (mainClass is not ("net.minecraft.client.main.Main" or "net.minecraft.client.Minecraft")) throw new NotSupportedException("这个版本使用了模组加载器或旧版启动方式，第一版暂不支持。");
+        ModpackInstance? pack = null;
+        JsonDocument? baseMetadata = null;
+        var runtimeDirectory = gameDirectory;
+        var versionJar = MinecraftMetadata.SafePath(Path.Combine(gameDirectory, "versions"), version.Id + "/" + version.Id + ".jar");
+        if (metadata.TryGetProperty(ModpackPaths.InstanceKey, out var packJson))
+        {
+            pack = packJson.Deserialize<ModpackInstance>() ?? throw new InvalidDataException("整合包实例配置无效。");
+            ModpackPaths.CheckInstance(version.Id, metadata.GetProperty("inheritsFrom").GetString(), mainClass, pack);
+            runtimeDirectory = ModpackPaths.SafeTarget(gameDirectory, $"versions/{version.Id}/game");
+            if (!Directory.Exists(runtimeDirectory)) throw new DirectoryNotFoundException("整合包的游戏目录不存在，请重新导入。");
+            var versionBase = ModpackPaths.BaseDirectory(pack.Minecraft, pack.BaseSha1, pack.UsesCachedBase);
+            versionJar = ModpackPaths.SafeTarget(gameDirectory, $"{versionBase}/{pack.Minecraft}.jar");
+            var basePath = ModpackPaths.SafeTarget(gameDirectory, $"{versionBase}/{pack.Minecraft}.json");
+            using var input = File.OpenRead(basePath);
+            if (input.Length is < 1 or > 16 * 1024 * 1024) throw new InvalidDataException("整合包的基础版本配置有误。");
+            var bytes = new byte[(int)input.Length];
+            input.ReadExactly(bytes);
+            if (!Convert.ToHexString(System.Security.Cryptography.SHA1.HashData(bytes)).Equals(pack.BaseSha1, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException("整合包的原版配置与安装时的官方清单不一致，请修复基础游戏版本。");
+            baseMetadata = JsonDocument.Parse(bytes);
+            metadata = baseMetadata.RootElement;
+        }
+        else
+        {
+            if (metadata.TryGetProperty("inheritsFrom", out _) || metadata.TryGetProperty("jar", out _))
+                throw new NotSupportedException("当前支持独立原版和由 MCL 导入的整合包。");
+            if (mainClass is not ("net.minecraft.client.main.Main" or "net.minecraft.client.Minecraft"))
+                throw new NotSupportedException("这个版本的启动方式暂不支持。");
+        }
+        using var baseDocument = baseMetadata;
         if (metadata.TryGetProperty("javaVersion", out var javaRequirement) && javaRequirement.TryGetProperty("majorVersion", out var major))
         {
             var required = major.GetInt32();
             if (java.MajorVersion < required) throw new InvalidDataException($"这个游戏版本至少需要 Java {required}，当前选择的是 Java {java.MajorVersion}。");
         }
-        var versionJar = MinecraftMetadata.SafePath(Path.Combine(gameDirectory, "versions"), version.Id + "/" + version.Id + ".jar");
         if (!File.Exists(versionJar)) throw new FileNotFoundException("缺少游戏主文件，请先用已有启动器补全这个版本。", versionJar);
         var assetsDirectory = Path.Combine(gameDirectory, "assets");
         MinecraftMetadata.ValidateAssets(metadata, assetsDirectory, ct);
 
         var libraryRoot = Path.Combine(gameDirectory, "libraries");
         var classpath = new List<string>();
+        if (pack is not null)
+        {
+            foreach (var library in pack.Libraries)
+            {
+                ct.ThrowIfCancellationRequested();
+                var path = ModpackPaths.SafeTarget(gameDirectory, $"versions/{version.Id}/.mcl-libraries/{ModpackPaths.LibraryPath(library.Coordinate)}");
+                using var file = File.OpenRead(path);
+                if (file.Length is < 1 or > 64 * 1024 * 1024
+                    || !Convert.ToHexString(System.Security.Cryptography.SHA1.HashData(file)).Equals(library.Sha1, StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidDataException("Fabric 依赖损坏，请重新导入这个整合包。");
+                classpath.Add(path);
+            }
+        }
         var nativeArchives = new List<(string Path, List<string> Exclusions)>();
         if (metadata.TryGetProperty("libraries", out var libraries))
         {
@@ -141,7 +183,7 @@ public sealed class GameLaunchService(LogService log) : IDisposable
         {
             ["auth_player_name"] = identity?.PlayerName ?? settings.PlayerName,
             ["version_name"] = version.Id,
-            ["game_directory"] = gameDirectory,
+            ["game_directory"] = runtimeDirectory,
             ["assets_root"] = assetsDirectory,
             ["assets_index_name"] = assetsId,
             ["auth_uuid"] = identity?.ProfileId ?? MinecraftMetadata.OfflineUuid(settings.PlayerName),
@@ -154,7 +196,7 @@ public sealed class GameLaunchService(LogService log) : IDisposable
             ["version_type"] = metadata.TryGetProperty("type", out var type) ? type.GetString() ?? "release" : "release",
             ["natives_directory"] = nativeDirectory,
             ["launcher_name"] = "MCL",
-            ["launcher_version"] = "0.4.0",
+            ["launcher_version"] = "0.5.0",
             ["classpath"] = string.Join(Path.PathSeparator, classpath),
             ["classpath_separator"] = Path.PathSeparator.ToString(),
             ["library_directory"] = libraryRoot,
@@ -164,7 +206,7 @@ public sealed class GameLaunchService(LogService log) : IDisposable
         };
         var info = new ProcessStartInfo(java.Path)
         {
-            WorkingDirectory = gameDirectory,
+            WorkingDirectory = runtimeDirectory,
             UseShellExecute = false,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
@@ -184,6 +226,7 @@ public sealed class GameLaunchService(LogService log) : IDisposable
         else throw new InvalidDataException("版本缺少可识别的游戏启动参数。");
         if (!jvmArguments.Any(argument => argument.StartsWith("-Djava.library.path=", StringComparison.Ordinal))) jvmArguments.Add("-Djava.library.path=${natives_directory}");
         if (!jvmArguments.Any(argument => argument is "-cp" or "-classpath" or "--class-path")) jvmArguments.AddRange(["-cp", "${classpath}"]);
+        if (pack is not null) jvmArguments.AddRange(pack.JvmArguments);
         // The settings value wins over any memory values bundled with local metadata.
         foreach (var argument in jvmArguments.Where(argument => !argument.StartsWith("-Xmx", StringComparison.Ordinal) && !argument.StartsWith("-Xms", StringComparison.Ordinal)))
             info.ArgumentList.Add(MinecraftMetadata.Expand(argument, replacements));
@@ -202,7 +245,7 @@ public sealed class GameLaunchService(LogService log) : IDisposable
             replacements["path"] = configPath;
             info.ArgumentList.Add(MinecraftMetadata.Expand(loggingArgument.GetString()!, replacements));
         }
-        info.ArgumentList.Add(mainClass);
+        info.ArgumentList.Add(mainClass ?? throw new InvalidDataException("版本缺少启动入口。"));
         foreach (var argument in gameArguments) info.ArgumentList.Add(MinecraftMetadata.Expand(argument, replacements));
         ct.ThrowIfCancellationRequested();
         return info;

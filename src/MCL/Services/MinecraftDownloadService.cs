@@ -80,16 +80,22 @@ public sealed class MinecraftDownloadService : IDisposable
         return new VersionInstallInfo(version, java, estimate, bytes);
     }
 
-    public async Task<InstallResult> InstallAsync(RemoteGameVersion version, string gameDirectory, IProgress<InstallProgress>? progress = null, CancellationToken ct = default)
+    public Task<InstallResult> InstallAsync(RemoteGameVersion version, string gameDirectory, IProgress<InstallProgress>? progress = null, CancellationToken ct = default)
+        => InstallAsync(version, gameDirectory, progress, false, ct);
+
+    internal Task<InstallResult> InstallModpackBaseAsync(RemoteGameVersion version, string gameDirectory, IProgress<InstallProgress>? progress, CancellationToken ct)
+        => InstallAsync(version, gameDirectory, progress, true, ct);
+
+    private async Task<InstallResult> InstallAsync(RemoteGameVersion version, string gameDirectory, IProgress<InstallProgress>? progress, bool allowCachedBase, CancellationToken ct)
     {
         if (!await _installGate.WaitAsync(0, ct)) throw new InvalidOperationException("已有一个版本正在安装。");
-        try { return await InstallCoreAsync(version, gameDirectory, progress, ct); }
+        try { return await InstallCoreAsync(version, gameDirectory, progress, allowCachedBase, ct); }
         catch (HttpRequestException ex) { throw new IOException("无法连接官方文件服务器，请检查网络后重新尝试。", ex); }
         catch (UnauthorizedAccessException ex) { throw new IOException("无法写入游戏目录，请选择当前账户可以写入的文件夹。", ex); }
         finally { _installGate.Release(); }
     }
 
-    private async Task<InstallResult> InstallCoreAsync(RemoteGameVersion version, string gameDirectory, IProgress<InstallProgress>? progress, CancellationToken ct)
+    private async Task<InstallResult> InstallCoreAsync(RemoteGameVersion version, string gameDirectory, IProgress<InstallProgress>? progress, bool allowCachedBase, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(gameDirectory)) throw new InvalidDataException("请先选择游戏安装文件夹。");
         var root = Path.GetFullPath(gameDirectory);
@@ -98,12 +104,19 @@ public sealed class MinecraftDownloadService : IDisposable
         var info = await InspectVersionAsync(version, ct);
         using var metadataDoc = JsonDocument.Parse(info.Metadata);
         var metadata = metadataDoc.RootElement;
-        var versionJson = SafeTarget(root, $"versions/{version.Id}/{version.Id}.json");
-        if (File.Exists(versionJson) && !await VerifiedDownloader.IsValidAsync(versionJson, version.MetadataSha1, info.Metadata.Length, ct))
-            throw new IOException("已存在同名版本，且配置与官方版本不同。为保护已有配置，请换一个游戏目录安装。");
         var lockPath = SafeTarget(root, $".mcl-downloads/{version.Id}.lock");
         Directory.CreateDirectory(Path.GetDirectoryName(lockPath)!);
         using var installationLock = new FileStream(lockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+        var versionBase = ModpackPaths.BaseDirectory(version.Id, version.MetadataSha1, false);
+        var versionJson = SafeTarget(root, $"{versionBase}/{version.Id}.json");
+        var useCachedBase = File.Exists(versionJson) && !await VerifiedDownloader.IsValidAsync(versionJson, version.MetadataSha1, info.Metadata.Length, ct);
+        if (useCachedBase)
+        {
+            if (!allowCachedBase) throw new IOException("已存在同名版本，且配置与官方版本不同。为保护已有配置，请换一个游戏目录安装。");
+            progress?.Report(new("准备游戏版本", "保留同名版本，使用整合包专用的官方游戏文件", 0, 0, 0, 0, 0));
+            versionBase = ModpackPaths.BaseDirectory(version.Id, version.MetadataSha1, true);
+            versionJson = SafeTarget(root, $"{versionBase}/{version.Id}.json");
+        }
         var plan = new Dictionary<string, DownloadFile>(StringComparer.OrdinalIgnoreCase);
         void Add(JsonElement descriptor, string relativePath)
         {
@@ -114,7 +127,7 @@ public sealed class MinecraftDownloadService : IDisposable
             if (plan.TryGetValue(file.Path, out var previous) && (previous.Sha1 != file.Sha1 || previous.Size != file.Size)) throw new InvalidDataException("文件清单包含冲突的下载路径。");
             plan[file.Path] = file;
         }
-        Add(metadata.GetProperty("downloads").GetProperty("client"), $"versions/{version.Id}/{version.Id}.jar");
+        Add(metadata.GetProperty("downloads").GetProperty("client"), $"{versionBase}/{version.Id}.jar");
         var java = new JavaInstallation("", info.RequiredJava, "", true);
         foreach (var library in metadata.GetProperty("libraries").EnumerateArray())
         {
@@ -157,7 +170,7 @@ public sealed class MinecraftDownloadService : IDisposable
         }
         ct.ThrowIfCancellationRequested();
         Directory.CreateDirectory(Path.GetDirectoryName(versionJson)!);
-        var marker = SafeTarget(root, $"versions/{version.Id}/.mcl-installing");
+        var marker = SafeTarget(root, $"{versionBase}/.mcl-installing");
         if (!File.Exists(versionJson)) await File.WriteAllTextAsync(marker, version.Id, ct);
         var files = plan.Values.ToArray();
         var totalBytes = checked(files.Sum(file => file.Size));
@@ -209,7 +222,7 @@ public sealed class MinecraftDownloadService : IDisposable
         await WriteCompleteFileAsync(versionJson, info.Metadata, ct);
         try { if (File.Exists(marker)) File.Delete(marker); } catch (IOException) { } catch (UnauthorizedAccessException) { }
         Report("安装完成", $"下载 {downloaded} 个文件，复用 {reused} 个文件", true);
-        return new InstallResult(version.Id, downloaded, reused, info.RequiredJava);
+        return new InstallResult(version.Id, downloaded, reused, info.RequiredJava) { UsesCachedBase = useCachedBase };
     }
 
     private static async Task WriteCompleteFileAsync(string path, byte[] bytes, CancellationToken ct)

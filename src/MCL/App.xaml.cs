@@ -37,7 +37,7 @@ public partial class App : Application
             if (smoke && catalogIndex >= 0 && catalogIndex + 1 < e.Args.Length) window.LoadSmokeCatalog(e.Args[catalogIndex + 1]);
             var detailsIndex = Array.IndexOf(e.Args, "--details-fixture");
             if (smoke && detailsIndex >= 0 && detailsIndex + 1 < e.Args.Length) window.LoadSmokeVersionDetails(e.Args[detailsIndex + 1]);
-            if (!smoke) { if (e.Args.Contains("--downloads")) window.OpenDownloads(); else if (e.Args.Contains("--versions")) window.OpenVersions(); else if (e.Args.Contains("--accounts")) window.OpenAccounts(); return; }
+            if (!smoke) { if (e.Args.Contains("--downloads")) window.OpenDownloads(); else if (e.Args.Contains("--versions")) window.OpenVersions(); else if (e.Args.Contains("--modpacks")) window.OpenModpacks(); else if (e.Args.Contains("--accounts")) window.OpenAccounts(); return; }
             ShutdownMode = ShutdownMode.OnExplicitShutdown;
             await window.ValidateUiAsync();
             window.Width = 1180;
@@ -51,7 +51,7 @@ public partial class App : Application
             {
                 var screenshotPath = Path.GetFullPath(e.Args[smokeIndex + 1]);
                 Directory.CreateDirectory(Path.GetDirectoryName(screenshotPath)!);
-                foreach (var page in new[] { "Home", "Versions", "Downloads", "Accounts", "Settings", "Logs" })
+                foreach (var page in new[] { "Home", "Versions", "Downloads", "Modpacks", "Accounts", "Settings", "Logs" })
                 {
                     window.SelectSmokePage(page);
                     visual.UpdateLayout();

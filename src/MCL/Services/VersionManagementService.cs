@@ -45,9 +45,10 @@ public sealed class VersionManagementService
         CheckTree(target, ct);
         EnsureGameStopped();
         var data = new List<string>();
+        var contentRoot = version.ModpackName is null ? target : Path.Combine(target, "game");
         foreach (var (folder, label) in new[] { ("saves", "独立存档"), ("mods", "模组"), ("config", "模组配置"), ("resourcepacks", "资源包"), ("shaderpacks", "光影包") })
-            if (Directory.Exists(Path.Combine(target, folder))) data.Add(label);
-        if (File.Exists(Path.Combine(target, "options.txt"))) data.Add("版本设置");
+            if (Directory.Exists(Path.Combine(contentRoot, folder))) data.Add(label);
+        if (File.Exists(Path.Combine(contentRoot, "options.txt"))) data.Add("版本设置");
         return new VersionDeletionInfo(root, version, target, Directory.GetCreationTimeUtc(target), data);
     }
 

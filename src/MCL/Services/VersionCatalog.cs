@@ -10,7 +10,8 @@ public sealed class VersionCatalog
         return Task.Run<IReadOnlyList<GameVersion>>(() =>
         {
             ct.ThrowIfCancellationRequested();
-            var versionsRoot = Path.Combine(Path.GetFullPath(gameDirectory), "versions");
+            var gameRoot = Path.GetFullPath(gameDirectory);
+            var versionsRoot = Path.Combine(gameRoot, "versions");
             if (!Directory.Exists(versionsRoot)) return Array.Empty<GameVersion>();
             var versions = new List<GameVersion>();
             var options = new EnumerationOptions { RecurseSubdirectories = false, IgnoreInaccessible = true, AttributesToSkip = FileAttributes.ReparsePoint };
@@ -40,7 +41,27 @@ public sealed class VersionCatalog
                     if (inheritsFrom is not null && !IsSafeVersionId(inheritsFrom)) issue = "继承版本名称无效";
                     if (string.Equals(inheritsFrom, id, StringComparison.OrdinalIgnoreCase)) issue = "版本不能继承自身";
                     if (inheritsFrom is null && string.IsNullOrWhiteSpace(GetString(root, "mainClass"))) issue = "版本描述缺少启动入口";
-                    versions.Add(new GameVersion(id, jsonPath, directory, IdentifyKind(root, id), inheritsFrom, issue is null, issue));
+                    var kind = IdentifyKind(root, id);
+                    string? packName = null;
+                    string? packMinecraft = null;
+                    if (issue is null && root.TryGetProperty(ModpackPaths.InstanceKey, out var pack))
+                    {
+                        var instance = pack.Deserialize<ModpackInstance>() ?? throw new InvalidDataException("缺少整合包实例配置。");
+                        ModpackPaths.CheckInstance(id, inheritsFrom, GetString(root, "mainClass"), instance);
+                        packName = instance.Name;
+                        packMinecraft = instance.Minecraft;
+                        kind = instance.Fabric is null ? "原版整合包" : "Fabric 整合包";
+                        var baseDirectory = ModpackPaths.BaseDirectory(instance.Minecraft, instance.BaseSha1, instance.UsesCachedBase);
+                        if (!Directory.Exists(ModpackPaths.SafeTarget(directory, "game"))
+                            || !File.Exists(ModpackPaths.SafeTarget(gameRoot, $"{baseDirectory}/{instance.Minecraft}.json")))
+                            issue = "整合包缺少游戏目录或基础版本，请重新导入";
+                    }
+                    versions.Add(new GameVersion(id, jsonPath, directory, kind, inheritsFrom, issue is null, issue)
+                    { ModpackName = packName, ModpackMinecraft = packMinecraft });
+                }
+                catch (InvalidDataException ex)
+                {
+                    versions.Add(new GameVersion(id, jsonPath, directory, "整合包", null, false, ex.Message));
                 }
                 catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException or System.Security.SecurityException)
                 {

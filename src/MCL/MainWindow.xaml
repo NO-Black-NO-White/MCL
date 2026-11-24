@@ -36,6 +36,7 @@
                     <RadioButton x:Name="HomeNav" Style="{StaticResource NavigationButton}" GroupName="Navigation" Tag="Home" Checked="Navigation_Checked"><StackPanel Orientation="Horizontal"><TextBlock Text="⌂" FontSize="20" Width="31" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" /><TextBlock Text="首页" VerticalAlignment="Center" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" /></StackPanel></RadioButton>
                     <RadioButton x:Name="VersionsNav" Style="{StaticResource NavigationButton}" GroupName="Navigation" Tag="Versions" Checked="Navigation_Checked"><StackPanel Orientation="Horizontal"><TextBlock Text="▦" FontSize="18" Width="31" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" /><TextBlock Text="游戏版本" VerticalAlignment="Center" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" /></StackPanel></RadioButton>
                     <RadioButton x:Name="DownloadsNav" Style="{StaticResource NavigationButton}" GroupName="Navigation" Tag="Downloads" Checked="Navigation_Checked"><StackPanel Orientation="Horizontal"><TextBlock Text="↓" FontSize="20" Width="31" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" /><TextBlock Text="下载游戏" VerticalAlignment="Center" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" /></StackPanel></RadioButton>
+                    <RadioButton x:Name="ModpacksNav" Style="{StaticResource NavigationButton}" GroupName="Navigation" Tag="Modpacks" Checked="Navigation_Checked"><StackPanel Orientation="Horizontal"><TextBlock Text="◇" FontSize="20" Width="31" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" /><TextBlock Text="导入整合包" VerticalAlignment="Center" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" /></StackPanel></RadioButton>
                     <RadioButton x:Name="AccountsNav" Style="{StaticResource NavigationButton}" GroupName="Navigation" Tag="Accounts" Checked="Navigation_Checked"><StackPanel Orientation="Horizontal"><TextBlock Text="♙" FontSize="20" Width="31" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" /><TextBlock Text="账号管理" VerticalAlignment="Center" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" /></StackPanel></RadioButton>
                     <RadioButton x:Name="SettingsNav" Style="{StaticResource NavigationButton}" GroupName="Navigation" Tag="Settings" Checked="Navigation_Checked"><StackPanel Orientation="Horizontal"><TextBlock Text="⚙" FontSize="18" Width="31" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" /><TextBlock Text="启动设置" VerticalAlignment="Center" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" /></StackPanel></RadioButton>
                     <RadioButton x:Name="LogsNav" Style="{StaticResource NavigationButton}" GroupName="Navigation" Tag="Logs" Checked="Navigation_Checked"><StackPanel Orientation="Horizontal"><TextBlock Text="≡" FontSize="21" Width="31" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" /><TextBlock Text="运行日志" VerticalAlignment="Center" Foreground="{Binding Foreground, RelativeSource={RelativeSource AncestorType=RadioButton}}" /></StackPanel></RadioButton>
@@ -43,7 +44,7 @@
                 <StackPanel Grid.Row="4">
                     <Border Height="1" Background="{StaticResource DividerBrush}" Margin="8,0,8,19" />
                     <StackPanel Orientation="Horizontal" Margin="8,0,0,0"><Border Width="33" Height="33" CornerRadius="8" Background="{StaticResource SoftAccentBrush}"><TextBlock Text="M" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="Bold" Foreground="{StaticResource AccentTextBrush}" /></Border><StackPanel Margin="10,0,0,0" Width="106"><TextBlock Text="{Binding ActivePlayerName}" FontSize="12" TextTrimming="CharacterEllipsis" /><TextBlock Text="{Binding ActiveAccountLabel}" FontSize="10" Foreground="{StaticResource MutedBrush}" Margin="0,3,0,0" /></StackPanel></StackPanel>
-                    <TextBlock Text="MCL  /  0.4.0" FontSize="10" Foreground="{StaticResource MutedBrush}" Margin="8,24,0,0" />
+                    <TextBlock Text="MCL  /  0.5.0" FontSize="10" Foreground="{StaticResource MutedBrush}" Margin="8,24,0,0" />
                 </StackPanel>
             </Grid>
         </Border>
@@ -127,7 +128,7 @@
                             <ListBox x:Name="VersionList" ItemsSource="{Binding Versions}" SelectedItem="{Binding SelectedVersion, Mode=TwoWay}" IsEnabled="{Binding CanInteract}" MinHeight="180" MaxHeight="245" SelectionChanged="VersionList_SelectionChanged">
                                 <ListBox.ItemTemplate><DataTemplate><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="48" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                                     <Border Width="36" Height="36" Background="{StaticResource SoftAccentBrush}" CornerRadius="7" HorizontalAlignment="Left"><TextBlock Text="▦" FontSize="22" Foreground="{StaticResource AccentTextBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" /></Border>
-                                    <StackPanel Grid.Column="1"><TextBlock Text="{Binding Id}" FontSize="16" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" /><TextBlock Text="{Binding Description}" Style="{StaticResource MutedText}" FontSize="11" Margin="0,4,0,0" /></StackPanel>
+                                    <StackPanel Grid.Column="1"><TextBlock Text="{Binding DisplayName}" FontSize="16" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" /><TextBlock Text="{Binding Description}" Style="{StaticResource MutedText}" FontSize="11" Margin="0,4,0,0" /></StackPanel>
                                     <StackPanel Grid.Column="2" Margin="16,0,0,0"><TextBlock Text="{Binding Kind}" Foreground="{StaticResource AccentTextBrush}" HorizontalAlignment="Right" FontSize="12" /><TextBlock Text="{Binding StatusText}" Foreground="{StaticResource MutedBrush}" FontSize="10" Margin="0,5,0,0" HorizontalAlignment="Right" /></StackPanel>
                                 </Grid></DataTemplate></ListBox.ItemTemplate>
                             </ListBox>
@@ -172,6 +173,57 @@
                             <Button x:Name="InstalledShortcut" Content="查看已安装版本  →" Visibility="Collapsed" Click="ShowVersions_Click" HorizontalAlignment="Left" Margin="0,13,0,0" Padding="0" Background="Transparent" BorderThickness="0" Foreground="{StaticResource AccentTextBrush}" />
                         </StackPanel></Border>
                         <TextBlock Grid.Row="2" Text="{Binding RemoteCountText}" Visibility="Collapsed" />
+                    </Grid>
+                    <Grid x:Name="ModpacksPage" Style="{StaticResource PagePanel}">
+                        <StackPanel>
+                            <Border Style="{StaticResource Card}" Background="{StaticResource HeroBrush}" Padding="24"
+                                    AllowDrop="True" DragOver="Pack_DragOver" Drop="Pack_Drop">
+                                <StackPanel>
+                                    <TextBlock Text="选择或拖入整合包" FontSize="23" FontWeight="SemiBold" />
+                                    <TextBlock Text="支持 Modrinth .mrpack 的原版和 Fabric 整合包。安装后，模组、配置与存档放在各自的游戏目录。"
+                                               Style="{StaticResource MutedText}" Margin="0,10,0,17" />
+                                    <Button Content="选择整合包文件…" Click="ChoosePack_Click" IsEnabled="{Binding CanChoosePack}" HorizontalAlignment="Left" />
+                                </StackPanel>
+                            </Border>
+                            <Border Style="{StaticResource Card}" Padding="20" Margin="0,14,0,0">
+                                <Grid>
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                    <StackPanel Margin="0,0,14,0">
+                                        <TextBlock Text="安装位置" FontWeight="SemiBold" />
+                                        <TextBlock Text="{Binding GameDirectory}" Style="{StaticResource MutedText}" TextTrimming="CharacterEllipsis"
+                                                   ToolTip="{Binding GameDirectory}" Margin="0,6,0,0" />
+                                    </StackPanel>
+                                    <Button Grid.Column="1" Content="更改位置" Click="BrowseInstallFolder_Click" IsEnabled="{Binding CanChoosePack}" VerticalAlignment="Center" />
+                                </Grid>
+                            </Border>
+                            <Border Style="{StaticResource Card}" Padding="20" Margin="0,14,0,0"
+                                    Visibility="{Binding HasPack, Converter={StaticResource BoolVisibility}}">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding PackName}" FontSize="19" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                    <TextBlock Text="{Binding PackDetails}" Style="{StaticResource MutedText}" Margin="0,6,0,0" />
+                                    <TextBlock Text="{Binding PackFileSummary}" Style="{StaticResource MutedText}" Margin="0,7,0,0" />
+                                    <TextBlock Text="{Binding PackFileName}" Style="{StaticResource MutedText}" FontSize="11" Margin="0,6,0,0" />
+                                    <CheckBox Content="{Binding PackOptionalText}" IsChecked="{Binding IncludeOptionalPackFiles}"
+                                              IsEnabled="{Binding CanImportPack}" Visibility="{Binding HasOptionalPackFiles, Converter={StaticResource BoolVisibility}}"
+                                              Margin="0,12,0,0" />
+                                    <WrapPanel Margin="0,14,0,0">
+                                        <Button Content="安装整合包" Style="{StaticResource PrimaryButton}" IsEnabled="{Binding CanImportPack}" Click="InstallPack_Click" />
+                                        <Button Content="取消安装" IsEnabled="{Binding CanCancelPack}" Click="CancelPack_Click"
+                                                Visibility="{Binding PackInProgress, Converter={StaticResource BoolVisibility}}" Margin="9,0,0,0" />
+                                        <Button Content="返回首页启动" Click="ShowPackHome_Click"
+                                                Visibility="{Binding PackCompleted, Converter={StaticResource BoolVisibility}}" Margin="9,0,0,0" />
+                                    </WrapPanel>
+                                </StackPanel>
+                            </Border>
+                            <Border Style="{StaticResource Card}" Padding="18" Margin="0,14,0,0">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding PackStatus}" TextWrapping="Wrap" />
+                                    <ProgressBar Height="6" Margin="0,10,0,0" Minimum="0" Maximum="100"
+                                                 Value="{Binding PackPercent, Mode=OneWay}" IsIndeterminate="{Binding PackIndeterminate, Mode=OneWay}"
+                                                 Visibility="{Binding PackInProgress, Converter={StaticResource BoolVisibility}}" />
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
                     </Grid>
                     <Grid x:Name="AccountsPage" Style="{StaticResource PagePanel}">
                         <StackPanel>

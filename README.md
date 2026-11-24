@@ -1,4 +1,4 @@
-# MCL 0.4
+# MCL 0.5
 
 粉白配色的 Minecraft Java 版启动器，使用 C#、WPF 和 .NET 9 开发。
 
@@ -14,17 +14,25 @@
 4. 点击“下载并安装”，查看进度、速度和已完成文件数量；需要时可取消。
 5. 安装完成后，版本会加入“游戏版本”列表并设为当前启动项，返回首页即可启动。
 
-目前使用官方源，提供 1.13 及以后的原版正式版。Java 运行环境仍需在“启动设置”里检测或选择；如果版本要求高于当前 Java，会显示提示。更早的游戏版本、快照、模组加载器和 Java 自动下载后续再加入。
+原版下载使用官方源，提供 1.13 及以后的原版正式版。Java 运行环境仍需在“启动设置”里检测或选择，版本需要的 Java 高于已选版本时会显示提示。
 
 下载内容包括客户端、适用于 Windows 64 位的依赖与原生库、资源索引、声音和语言等资源，以及日志配置。按官方清单核对文件大小和 SHA-1。已校验的本地文件会复用，下载失败会自动重试；取消后重新安装会跳过已完成文件，不提供单个文件内部的断点续传。
 
 只有完整安装后才写入正式版本配置；未完成的安装不会显示为可启动版本。遇到已有同名版本且配置与官方不同，会停止以保护原配置，请选其他游戏目录安装。
 
+## 导入整合包
+
+选择侧栏“导入整合包”。把 Modrinth 的 `.mrpack` 拖入页面，或点击“选择整合包文件”。也可选择包含 Modrinth 清单的 ZIP。核对包名、Minecraft 版本、加载器和安装位置后，点击“安装整合包”。清单里标为可选的客户端文件可以勾选一并安装。
+
+MCL 会安装或复用校验通过的原版文件，安装清单指定的 Fabric Loader，下载并核对模组文件，然后应用客户端配置。安装完成后，整合包会加入“游戏版本”并成为当前选择，回首页即可启动。`versions/pack-…/game` 保存该整合包的模组、配置和存档。如果已有同名版本的配置与官方不同，MCL 会保留该版本，并缓存一份整合包使用的官方版本文件。如果整合包使用版本列表中的基础版本，MCL 会阻止误删该基础版本。
+
+当前支持 Minecraft 1.13 及以后的原版正式版与 Fabric 整合包，所选版本还须能通过当前原版安装器安装。CurseForge、Forge、NeoForge、Quilt 和其他格式会显示不支持的原因。取消或失败时，已经完成的基础游戏文件可复用，整合包实例在全部安装成功后才出现。
+
 ## 已有游戏与本地档案
 
 可以在首页选择包含 `versions`、`libraries` 和 `assets` 的游戏文件夹。误选 `versions` 子目录时，MCL 会识别对应根目录。
 
-在“启动设置”里填写本地玩家名、选择 Java、调整内存，然后点击右下角“保存设置”。本地档案没有微软账户身份，不能用于要求正版认证的服务器。按当前选择继续保留这项功能；模组版本启动和整合包管理仍待开发。
+在“启动设置”里填写本地玩家名、选择 Java、调整内存，然后点击右下角“保存设置”。本地档案没有微软账户身份，不能用于要求正版认证的服务器。
 
 ## 微软账号登录
 
@@ -55,6 +63,7 @@ dotnet publish src/MCL/MCL.csproj -c Release -r win-x64 --self-contained false -
 隔离验证入口：
 
 ```powershell
+dotnet run --project tests/ModpackValidation/ModpackValidation.csproj -c Release
 dotnet run --project work/download-validation/DownloadValidation.csproj -c Release
 dotnet run --project work/validation/Validation.csproj -c Release
 dotnet run --project work/auth-validation/AuthValidation.csproj -c Release
@@ -63,6 +72,8 @@ dotnet run --project work/account-ui-validation/AccountUiValidation.csproj -c Re
 ```
 
 下载回归覆盖首次安装、完整文件复用、损坏文件修复、校验失败重试、取消后恢复、保护已有版本及路径边界。已从空目录实际下载并验证官方 1.20.1 的 3641 个文件，随后验证重复安装全部复用。
+
+整合包验证覆盖独立实例、可选文件、覆盖文件优先级、同名版本保护、校验失败和取消。另在隔离目录实际安装并启动了 Minecraft 1.20.1、Fabric Loader 0.16.14 和 Fabric API。
 
 账号功能已通过 35 项认证与真实本机回调检查、43 项凭证存储和启动参数检查、34 项实际 WPF 窗口及头像检查。认证服务测试使用模拟响应，浏览器测试只在本机回调；启动参数测试使用隔离的假 Java 子进程。这些检查不代表已用真实微软账号登录，也不代表应用已通过审批。
 
