@@ -1,6 +1,7 @@
 param(
     [string] $RelayDotnet = 'dotnet',
-    [string] $OutputDirectory
+    [string] $OutputDirectory,
+    [string] $CloudflaredPath
 )
 
 $ErrorActionPreference = 'Stop'
@@ -21,6 +22,30 @@ $relaySource = Join-Path $stage 'src/MCL.Relay'
 $sharedSource = Join-Path $stage 'src/Multiplayer'
 $relayOutput = Join-Path $stage 'relay'
 New-Item -ItemType Directory -Path $relaySource, $sharedSource -Force | Out-Null
+$cloudflaredVersion = '2026.11.2'
+$cloudflaredHash = '555B46C85582461D189CAC30D14AD05480D612613801BE9F110B8CE08C5B2113'
+$cloudflaredBundle = Join-Path $stage 'cloudflared.exe'
+if ($CloudflaredPath) {
+    $cloudflaredBundle = (Resolve-Path -LiteralPath $CloudflaredPath).Path
+} elseif (!(Test-Path -LiteralPath $cloudflaredBundle -PathType Leaf)) {
+    $cached = Join-Path $env:LOCALAPPDATA "MCL/multiplayer/cloudflared/$cloudflaredVersion/cloudflared.exe"
+    if ((Test-Path -LiteralPath $cached -PathType Leaf) -and (Get-FileHash -LiteralPath $cached).Hash -eq $cloudflaredHash) {
+        $cloudflaredBundle = $cached
+    } else {
+        $temporary = "$cloudflaredBundle.$([Guid]::NewGuid().ToString('N')).part"
+        try {
+            $url = "https://github.com/cloudflare/cloudflared/releases/download/$cloudflaredVersion/cloudflared-windows-amd64.exe"
+            Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $temporary
+            if ((Get-FileHash -LiteralPath $temporary).Hash -ne $cloudflaredHash) { throw '下载的 cloudflared 校验失败。' }
+            Move-Item -LiteralPath $temporary -Destination $cloudflaredBundle -Force
+        } finally {
+            if (Test-Path -LiteralPath $temporary) { Remove-Item -LiteralPath $temporary }
+        }
+    }
+}
+if ((Get-FileHash -LiteralPath $cloudflaredBundle).Hash -ne $cloudflaredHash) {
+    throw "cloudflared 校验失败。请用 -CloudflaredPath 指定 Cloudflare 官方发布的 Windows x64 $cloudflaredVersion 文件。"
+}
 Copy-Item -LiteralPath (Join-Path $root 'src/MCL.Relay/MCL.Relay.csproj'), (Join-Path $root 'src/MCL.Relay/Program.cs') -Destination $relaySource
 Copy-Item -LiteralPath (Join-Path $root 'src/Multiplayer/RoomProtocol.cs') -Destination $sharedSource
 [IO.File]::WriteAllText((Join-Path $stage 'global.json'), '{"sdk":{"version":"10.0.100","rollForward":"latestFeature","allowPrerelease":false}}')
@@ -37,9 +62,13 @@ $bundle = Join-Path $relayOutput 'MCL.Relay.exe'
 Push-Location -LiteralPath $root
 try {
     & $clientSdk publish src/MCL/MCL.csproj -c Release -r win-x64 --self-contained false `
-        -p:PublishSingleFile=true -p:DebugType=None -p:DebugSymbols=false "-p:MclRelayBundle=$bundle" -o $OutputDirectory
+        -p:PublishSingleFile=true -p:DebugType=None -p:DebugSymbols=false "-p:MclRelayBundle=$bundle" `
+        "-p:MclCloudflaredBundle=$cloudflaredBundle" -o $OutputDirectory
     if ($LASTEXITCODE -ne 0) { throw '发布 MCL 失败。' }
 } finally { Pop-Location }
+$licenses = Join-Path $OutputDirectory 'licenses'
+New-Item -ItemType Directory -Path $licenses -Force | Out-Null
+Copy-Item -LiteralPath (Join-Path $root 'licenses/cloudflared-LICENSE.txt') -Destination $licenses
 
 if ($publishDefault) {
     $shortcutPath = Join-Path $root '启动 MCL.lnk'

@@ -317,6 +317,16 @@ internal sealed partial class AutomaticRoomHost(string dataDirectory)
     {
         var target = ModpackPaths.SafeTarget(cache, $"cloudflared/{CloudflareVersion}/cloudflared.exe");
         if (await MatchesAsync(target, CloudflareSize, CloudflareSha256, ct).ConfigureAwait(false)) return target;
+        System.Windows.Resources.StreamResourceInfo? bundled;
+        try { bundled = Application.GetResourceStream(new Uri("/MCL;component/Assets/cloudflared.exe", UriKind.Relative)); }
+        catch (IOException) { bundled = null; } // A normal VS build can omit the optional publish resource.
+        if (bundled is not null)
+        {
+            progress?.Report("正在准备随 MCL 提供的 Cloudflare 隧道组件…");
+            await using var input = bundled.Stream;
+            await SaveAsync(input, target, CloudflareSize, CloudflareSha256, ct).ConfigureAwait(false);
+            return target;
+        }
         foreach (var location in new[] { Environment.SpecialFolder.ProgramFiles, Environment.SpecialFolder.ProgramFilesX86 })
         {
             var installed = Path.Combine(Environment.GetFolderPath(location), "cloudflared", "cloudflared.exe");
