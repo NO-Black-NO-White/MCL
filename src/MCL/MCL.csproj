@@ -9,9 +9,11 @@
     <RootNamespace>MCL</RootNamespace>
     <Version>0.8.0</Version>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets/cherry-leaf.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="../Multiplayer/RoomProtocol.cs" Link="RoomProtocol.cs" />
     <Resource Include="Assets/spring-valley.jpg" />
+    <Resource Include="Assets/cherry-leaf.ico" />
   </ItemGroup>
 </Project>
