@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Net.WebSockets;
 using System.Security.Cryptography;
+using System.Text;
 using MCL.Multiplayer;
 using MCL.Services;
 
@@ -41,6 +42,15 @@ try
     Check(RoomProtocol.IsToken(room.Code) && await service.FindAsync(room.Code, ct) == game, "The invite resolves to the host's game and modpack");
     await CheckMissingAsync(RoomProtocol.Token());
     var tunnel = service.StartGuest(room.Code, () => { }, guestLifetime.Token);
+    Task discovery;
+    using (var beaconReceiver = new UdpClient(new IPEndPoint(IPAddress.Loopback, GuestTunnel.LanDiscoveryPort)))
+    {
+        discovery = tunnel.AdvertiseLanRoomAsync(guestLifetime.Token);
+        var beacon = await beaconReceiver.ReceiveAsync(ct);
+        var expected = FormattableString.Invariant($"[MOTD]{GuestTunnel.LanRoomName}[/MOTD][AD]{tunnel.Port}[/AD]");
+        Check(IPAddress.IsLoopback(beacon.RemoteEndPoint.Address) && Encoding.UTF8.GetString(beacon.Buffer) == expected,
+            "Minecraft LAN discovery receives the forwarded room name and port through loopback");
+    }
     using var firstClient = new TcpClient();
     using var secondClient = new TcpClient();
     await firstClient.ConnectAsync(IPAddress.Loopback, tunnel.Port, ct);
@@ -66,6 +76,7 @@ try
     await CheckMissingAsync(room.Code);
     guestLifetime.Cancel();
     await ObserveCancellationAsync(tunnel.Completion);
+    await ObserveCancellationAsync(discovery);
     using var disconnected = new TcpClient();
     try
     {

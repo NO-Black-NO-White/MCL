@@ -154,7 +154,7 @@ public partial class MainWindow
             {
                 IsBusy = true;
                 MultiplayerStatus = $"正在启动 {version.DisplayName}…";
-                try { await LaunchGameAsync(version, null, cancellation.Token, detectJava: true); }
+                try { await LaunchGameAsync(version, cancellation.Token, detectJava: true); }
                 finally { IsBusy = false; }
                 if (!_launcher.IsRunning) throw new IOException("游戏未能保持运行。请查看运行日志后重试。");
             }
@@ -176,6 +176,12 @@ public partial class MainWindow
             {
                 RoomCode = automatic is null ? room.Code : RoomInvite.Create(automatic.Public, room.Code);
                 MultiplayerStatus = "房间已开启。复制邀请码发给好友，保持 MCL 和游戏运行。";
+                if (automatic is { PublicAddressVerified: false })
+                {
+                    const string note = "Cloudflare 已确认隧道在线，房主电脑暂时无法解析公网地址。请好友试用邀请码。";
+                    MultiplayerStatus = note;
+                    _log.Warn(note);
+                }
             }
             if (automatic is not null && await Task.WhenAny(room.Completion, automatic.Completion) == automatic.Completion
                 && !cancellation.IsCancellationRequested)
@@ -188,7 +194,11 @@ public partial class MainWindow
         }
         catch (Exception ex) when (IsMultiplayerError(ex))
         {
-            if (!cancellation.IsCancellationRequested) MultiplayerStatus = MultiplayerError(ex);
+            if (!cancellation.IsCancellationRequested)
+            {
+                MultiplayerStatus = MultiplayerError(ex);
+                _log.Warn($"创建联机房间失败：{MultiplayerStatus}");
+            }
         }
         finally
         {
@@ -205,6 +215,7 @@ public partial class MainWindow
         catch (InvalidDataException ex) { MultiplayerStatus = ex.Message; return; }
         using var cancellation = BeginMultiplayer(hosting: false);
         GuestTunnel? tunnel = null;
+        Task? discovery = null;
         var preparing = true;
         IsBusy = true;
         MultiplayerStatus = "正在查找好友房间…";
@@ -225,14 +236,20 @@ public partial class MainWindow
                     MultiplayerStatus = "连接房间失败。请确认房间仍开放，再重新加入。";
             }), cancellation.Token);
             SelectedVersion = version;
-            MultiplayerStatus = $"正在启动 {version.DisplayName} 并加入好友房间…";
-            await LaunchGameAsync(version, tunnel.Port, cancellation.Token);
+            MultiplayerStatus = $"正在启动 {version.DisplayName}…";
+            await LaunchGameAsync(version, cancellation.Token, joiningFriend: true);
             _guestLaunched = true;
             if (!_launcher.IsRunning) EndMultiplayer("游戏已退出，联机已结束。");
             InviteInput = "";
             preparing = false;
             IsBusy = false;
-            await tunnel.Completion;
+            if (!cancellation.IsCancellationRequested)
+                MultiplayerStatus = $"请在 Minecraft 的「多人游戏」中选择局域网列表里的「{GuestTunnel.LanRoomName}」。";
+            discovery = tunnel.AdvertiseLanRoomAsync(cancellation.Token);
+            var completed = await Task.WhenAny(tunnel.Completion, discovery);
+            if (completed == discovery && discovery.IsFaulted)
+                throw new IOException("无法通知 Minecraft 显示本机的局域网房间。请重新加入房间。", discovery.Exception);
+            await completed;
         }
         catch (Exception ex) when (IsMultiplayerError(ex) || ex is InvalidOperationException)
         {
@@ -244,6 +261,11 @@ public partial class MainWindow
             if (tunnel is not null)
             {
                 try { await tunnel.Completion; }
+                catch (Exception ex) when (IsMultiplayerError(ex)) { }
+            }
+            if (discovery is not null)
+            {
+                try { await discovery; }
                 catch (Exception ex) when (IsMultiplayerError(ex)) { }
             }
             if (preparing) IsBusy = false;
