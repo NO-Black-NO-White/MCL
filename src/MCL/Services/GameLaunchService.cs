@@ -210,7 +210,7 @@ public sealed class GameLaunchService(LogService log) : IDisposable
             ["version_type"] = metadata.TryGetProperty("type", out var type) ? type.GetString() ?? "release" : "release",
             ["natives_directory"] = nativeDirectory,
             ["launcher_name"] = "MCL",
-            ["launcher_version"] = "0.8.0",
+            ["launcher_version"] = "0.9.0",
             ["classpath"] = string.Join(Path.PathSeparator, classpath),
             ["classpath_separator"] = Path.PathSeparator.ToString(),
             ["library_directory"] = libraryRoot,

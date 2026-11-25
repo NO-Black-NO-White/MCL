@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Sockets;
+using System.Net.WebSockets;
 using System.Security.Cryptography;
 using MCL.Multiplayer;
 using MCL.Services;
@@ -12,12 +13,31 @@ using var hostLifetime = CancellationTokenSource.CreateLinkedTokenSource(deadlin
 using var guestLifetime = CancellationTokenSource.CreateLinkedTokenSource(deadline.Token);
 var ct = deadline.Token;
 var service = new MultiplayerClient(relay);
+var hostKey = Environment.GetEnvironmentVariable("MCL_RelayHostKey");
+var sampleCode = RoomProtocol.Token();
+var sampleInvite = RoomInvite.Create(new Uri("https://rose-world.trycloudflare.com"), sampleCode);
+Check(RoomInvite.Read(sampleInvite, "") == new RoomInvite("https://rose-world.trycloudflare.com", sampleCode),
+    "A complete invite can be used without a preconfigured endpoint");
+Check(RoomInvite.Read(sampleCode, relay) == new RoomInvite(relay, sampleCode),
+    "A legacy invite uses the configured relay");
+foreach (var host in new[] { "trycloudflare.com", "a.trycloudflare.com.example.org", "a.trycloudflare.com:443", "a@b.trycloudflare.com" })
+{
+    try { RoomInvite.Read($"MCL1/{host}/{sampleCode}", ""); throw new Exception("An invalid invite address was accepted."); }
+    catch (InvalidDataException) { }
+}
+Check(true, "An invite cannot redirect the client to unapproved hosts or ports");
 var world = new TcpListener(IPAddress.Loopback, 0);
 world.Start();
 try
 {
     var game = new RoomGame("1.20.1", "Multiplayer QA", "1", "0.16.14");
-    var room = await service.HostAsync(game, ((IPEndPoint)world.LocalEndpoint).Port, hostLifetime.Token);
+    var worldPort = ((IPEndPoint)world.LocalEndpoint).Port;
+    if (hostKey is not null)
+    {
+        try { await service.HostAsync(game, worldPort, ct); throw new Exception("An unauthenticated host was allowed."); }
+        catch (WebSocketException) { Check(true, "A managed relay rejects hosts without its private host key"); }
+    }
+    var room = await service.HostAsync(game, worldPort, hostLifetime.Token, hostKey);
     Check(RoomProtocol.IsToken(room.Code) && await service.FindAsync(room.Code, ct) == game, "The invite resolves to the host's game and modpack");
     await CheckMissingAsync(RoomProtocol.Token());
     var tunnel = service.StartGuest(room.Code, () => { }, guestLifetime.Token);
@@ -57,7 +77,7 @@ try
     var unavailablePort = ((IPEndPoint)world.LocalEndpoint).Port;
     world.Stop();
     using var unavailableLifetime = CancellationTokenSource.CreateLinkedTokenSource(ct);
-    var unavailable = await service.HostAsync(game, unavailablePort, unavailableLifetime.Token);
+    var unavailable = await service.HostAsync(game, unavailablePort, unavailableLifetime.Token, hostKey);
     var connectionFailed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
     var unavailableTunnel = service.StartGuest(unavailable.Code, () => connectionFailed.TrySetResult(), unavailableLifetime.Token);
     using var stalled = new TcpClient();

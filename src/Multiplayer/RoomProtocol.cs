@@ -16,6 +16,8 @@ internal sealed record RoomGame(string Minecraft, string? Pack, string? PackVers
 internal static class RoomProtocol
 {
     internal const string Prefix = "/mcl/v1";
+    internal const string RelayIdHeader = "X-MCL-Relay";
+    internal const string ReadyPrefix = "MCL_RELAY_READY ";
     internal const int BufferSize = 32 * 1024;
     internal const int MaximumGuests = 4;
     internal static string Token() => Convert.ToHexString(RandomNumberGenerator.GetBytes(18)).ToLowerInvariant();

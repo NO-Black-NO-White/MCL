@@ -1,4 +1,4 @@
-# MCL 0.8
+# MCL 0.9
 
 粉白配色的 Minecraft Java 版启动器，使用 C#、WPF 和 .NET 9 开发。
 
@@ -46,18 +46,20 @@ MCL 会安装或复用校验通过的原版文件，安装清单指定的 Fabric
 
 好友联机支持 Minecraft Java 1.20 及以上的原版和由 MCL 导入的整合包。双方需要安装相同的 Minecraft 版本和模组，使用不同的玩家身份。
 
-1. 房主用 MCL 启动游戏，进入单人存档，按 Esc 选择“对局域网开放”，再点击“创建一个局域网世界”。
-2. 回到 MCL 的“好友联机”，看到房间已识别后点击“创建房间”，把邀请码复制给好友。
-3. 好友在同一页面粘贴邀请码，点击“加入并启动”。MCL 会从已安装的版本中寻找匹配项并启动游戏。
-4. 房主需要保持存档和启动器运行。房主结束联机或关闭游戏后，该邀请码失效。
+1. 房主选好游戏版本，在“好友联机 → 创建房间”点“启动并创建房间”。MCL 会使用正在运行的游戏，或启动所选版本。没配置 Java 时会尝试从本机检测。
+2. 房主在游戏里进入单人存档，按 Esc 选择“对局域网开放”并启动局域网世界。MCL 识别端口后会自动启动内置中转，按需下载并校验 Cloudflare 隧道组件，再生成完整邀请码。
+3. 好友在“好友联机 → 加入房间”粘贴邀请码，点“加入并启动”。MCL 会匹配已安装的游戏版本。双方应先安装同一整合包及对应模组。
+4. 房主在联机期间保持存档和 MCL 运行。结束联机、退出游戏或关闭 MCL，会关闭这个房间的临时隧道。下次开房需要新的邀请码。
 
-双方的启动器需要连到同一个中转服务。本机验证可在项目根目录运行以下命令，再把 MCL 的“好友联机 → 联机服务设置”填为 `http://127.0.0.1:28470`。
+自动开房使用 [Cloudflare Quick Tunnel](https://developers.cloudflare.com/tunnel/get-started/quick-tunnels/)，适合临时联测。公网连接取决于房主和好友都能访问 Cloudflare。手动部署的共享中转和旧邀请码仍可通过“手动中转设置”使用。
+
+开发时可用以下命令启动本机中转，再把“手动中转设置”填为 `http://127.0.0.1:28470`，勾选“创建房间时使用这个中转地址”。
 
 ```powershell
 dotnet run --project src/MCL.Relay/MCL.Relay.csproj
 ```
 
-中转服务默认只监听本机。跨网联机需要运营者把中转服务部署到双方都能访问的 HTTPS 地址。服务使用 `/mcl/v1/` 下的 HTTP 和 WebSocket 连接，反向代理要保留 WebSocket 升级。发布时可在 `MCL.exe` 同目录放一个 `relay-url.txt`，内容为该 HTTPS 地址，这样玩家只需交换邀请码。
+共享中转的公网地址使用 HTTPS。服务使用 `/mcl/v1/` 下的 HTTP 和 WebSocket 连接，反向代理要保留 WebSocket 升级。可在 `MCL.exe` 同目录放一个 `relay-url.txt` 来预填手动中转的地址。
 
 本机中转运行时，可用以下命令验证邀请码、两路并发转发和关闭房间。
 
@@ -88,7 +90,12 @@ dotnet run --project tests/MultiplayerValidation/MultiplayerValidation.csproj --
 
 ```powershell
 dotnet build MCL.sln -c Debug
-dotnet publish src/MCL/MCL.csproj -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -p:DebugType=None -p:DebugSymbols=false -o outputs/MCL
+```
+
+正式版内置一个自带 .NET 10 运行时的中转程序。发布时为脚本提供能运行 .NET 10 SDK 的 `dotnet.exe`。已并行安装 SDK 9 和 10 时，可以省略 `-RelayDotnet`。
+
+```powershell
+.\scripts\Publish-MCL.ps1 -RelayDotnet 'C:\path\to\dotnet.exe'
 ```
 
 隔离验证入口：

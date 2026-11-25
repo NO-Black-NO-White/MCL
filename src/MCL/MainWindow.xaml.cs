@@ -349,11 +349,22 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         await RunBusyAsync(() => LaunchGameAsync(version, null, _lifetime.Token));
     }
 
-    private async Task LaunchGameAsync(GameVersion version, int? quickJoinPort, CancellationToken ct)
+    private async Task LaunchGameAsync(GameVersion version, int? quickJoinPort, CancellationToken ct, bool detectJava = false)
     {
         var settings = SnapshotSettings();
         StatusMessage = "正在检查 Java 和本地游戏文件…";
         _java = await _javaDiscovery.InspectAsync(settings.JavaPath, ct);
+        if (_java is null && detectJava)
+        {
+            var choices = await _javaDiscovery.FindAsync(ct);
+            var found = choices.FirstOrDefault(java => java.Is64Bit) ?? choices.FirstOrDefault();
+            if (found is not null)
+            {
+                JavaPath = found.Path;
+                _java = found;
+                settings = SnapshotSettings();
+            }
+        }
         Notify(nameof(JavaSummary), nameof(JavaDetail));
         if (_java is null) throw new InvalidDataException("Java 未配置或不可用。请到启动设置中点击自动检测，或选择 java.exe。");
         SaveCurrentSettings();
@@ -366,12 +377,13 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
         ct.ThrowIfCancellationRequested();
         _runningGame = version;
+        _runningForGuest = quickJoinPort is not null;
         try
         {
             if (appearance is null) await _launcher.LaunchAsync(settings, version, _java, ct, identity, quickJoinPort);
             else await _launcher.LaunchWithAppearanceAsync(settings, version, _java, appearance, ct, quickJoinPort);
         }
-        catch { _runningGame = null; throw; }
+        catch { _runningGame = null; _runningForGuest = false; throw; }
         StatusMessage = "启动命令已执行。游戏输出会显示在运行日志中。";
     }
 
@@ -439,6 +451,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (!running)
         {
             _runningGame = null;
+            _runningForGuest = false;
             _lanPort = null;
             if (_hostingRoom || _guestLaunched) EndMultiplayer("游戏已退出，联机已结束。");
             NotifyMultiplayer();
@@ -532,6 +545,13 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             var visible = new[] { HomePage, VersionsPage, DownloadsPage, ModpacksPage, MultiplayerPage, AccountsPage, SettingsPage, LogsPage }.Count(panel => panel.Visibility == Visibility.Visible);
             if (visible != 1) throw new InvalidOperationException("Navigation did not select exactly one page.");
         }
+        SelectSmokePage("Multiplayer");
+        GuestRoleButton.SetCurrentValue(System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty, true);
+        if (GuestRoomCard.Visibility != Visibility.Visible || HostRoomCard.Visibility != Visibility.Collapsed)
+            throw new InvalidOperationException("Joining must show only the guest setup.");
+        HostRoleButton.SetCurrentValue(System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty, true);
+        if (HostRoomCard.Visibility != Visibility.Visible || GuestRoomCard.Visibility != Visibility.Collapsed)
+            throw new InvalidOperationException("Hosting must show only the host setup.");
         var oldPlayer = PlayerName;
         PlayerName = "MCL_Smoke";
         SaveCurrentSettings();

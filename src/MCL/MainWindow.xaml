@@ -317,14 +317,23 @@
                     </Grid>
                     <Grid x:Name="MultiplayerPage" Style="{StaticResource PagePanel}">
                         <StackPanel>
-                            <Border Style="{StaticResource Card}" Background="{StaticResource HeroBrush}" Padding="24">
+                            <Border Style="{StaticResource Card}" Padding="15" Margin="0,0,0,14">
+                                <WrapPanel IsEnabled="{Binding CanEditRelay}">
+                                    <RadioButton x:Name="HostRoleButton" Content="创建房间" FontWeight="SemiBold" GroupName="MultiplayerRole"
+                                                 IsChecked="{Binding ShowHostSetup, Mode=TwoWay}" Margin="4,4,26,4" />
+                                    <RadioButton x:Name="GuestRoleButton" Content="加入房间" FontWeight="SemiBold" GroupName="MultiplayerRole"
+                                                 IsChecked="{Binding ShowGuestSetup, Mode=TwoWay}" Margin="0,4,0,4" />
+                                </WrapPanel>
+                            </Border>
+                            <Border x:Name="HostRoomCard" Style="{StaticResource Card}" Background="{StaticResource HeroBrush}" Padding="24"
+                                    Visibility="{Binding ShowHostSetup, Converter={StaticResource BoolVisibility}}">
                                 <StackPanel>
-                                    <TextBlock Text="开房邀好友" FontSize="23" FontWeight="SemiBold" />
-                                    <TextBlock Text="用 MCL 启动游戏，进入单人存档，按 Esc 选择「对局域网开放」。" Style="{StaticResource MutedText}" Margin="0,8,0,0" />
+                                    <TextBlock Text="邀请好友进入你的存档" FontSize="23" FontWeight="SemiBold" />
+                                    <TextBlock Text="选好版本和存档，再在游戏里点「对局域网开放」。MCL 会自动准备本机中转和临时公网隧道。"
+                                               Style="{StaticResource MutedText}" Margin="0,8,0,0" />
                                     <TextBlock Text="{Binding LanRoomStatus}" TextWrapping="Wrap" Margin="0,10,0,14" />
                                     <WrapPanel>
-                                        <Button Content="启动所选版本" Click="Launch_Click" IsEnabled="{Binding CanLaunch}" Margin="0,0,9,0" />
-                                        <Button Content="创建房间" Click="HostRoom_Click" IsEnabled="{Binding CanHostRoom}" />
+                                        <Button Content="启动并创建房间" Style="{StaticResource PrimaryButton}" Click="HostRoom_Click" IsEnabled="{Binding CanHostRoom}" />
                                     </WrapPanel>
                                     <StackPanel Visibility="{Binding HasRoomCode, Converter={StaticResource BoolVisibility}}" Margin="0,13,0,0">
                                         <TextBlock Text="邀请码" FontWeight="SemiBold" Margin="0,0,0,5" />
@@ -335,7 +344,8 @@
                                     </StackPanel>
                                 </StackPanel>
                             </Border>
-                            <Border Style="{StaticResource Card}" Padding="20" Margin="0,14,0,0">
+                            <Border x:Name="GuestRoomCard" Style="{StaticResource Card}" Padding="20"
+                                    Visibility="{Binding ShowGuestSetup, Converter={StaticResource BoolVisibility}}">
                                 <StackPanel>
                                     <TextBlock Text="加入好友房间" FontSize="19" FontWeight="SemiBold" />
                                     <TextBlock Text="使用与房主相同的 Java 版游戏版本和模组。支持 1.20 及以上。" Style="{StaticResource MutedText}" Margin="0,6,0,10" />
@@ -360,13 +370,14 @@
                             </Border>
                             <Border Style="{StaticResource Card}" Padding="18" Margin="0,14,0,0">
                                 <StackPanel>
-                                    <TextBlock Text="{Binding MultiplayerMessage}" TextWrapping="Wrap" />
+                                    <TextBlock Text="{Binding MultiplayerStatus}" TextWrapping="Wrap" />
                                     <Button Content="结束联机" Click="CloseRoom_Click" HorizontalAlignment="Left" Margin="0,10,0,0"
                                             Visibility="{Binding MultiplayerActive, Converter={StaticResource BoolVisibility}}" />
-                                    <Expander Header="联机服务设置" Margin="0,10,0,0">
+                                    <Expander Header="手动中转设置" Margin="0,10,0,0" IsEnabled="{Binding CanEditRelay}">
                                         <StackPanel>
-                                            <TextBlock Text="测试或自建服务时填写地址。正式发布版可预先配置。" Style="{StaticResource MutedText}" Margin="0,5,0,6" />
+                                            <TextBlock Text="已有共享中转或收到旧版邀请码时，可填写地址。" Style="{StaticResource MutedText}" Margin="0,5,0,6" />
                                             <TextBox Text="{Binding RelayEndpoint, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding CanEditRelay}" AutomationProperties.Name="联机服务地址" />
+                                            <CheckBox Content="创建房间时使用这个中转地址" IsChecked="{Binding UseSharedRelay}" Margin="0,8,0,0" />
                                         </StackPanel>
                                     </Expander>
                                 </StackPanel>

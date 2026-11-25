@@ -28,11 +28,11 @@ internal sealed class MultiplayerClient
         _endpoint = address;
     }
 
-    internal async Task<HostRoom> HostAsync(RoomGame game, int port, CancellationToken ct)
+    internal async Task<HostRoom> HostAsync(RoomGame game, int port, CancellationToken ct, string? hostKey = null)
     {
         if (!game.IsSupported || port is <= 0 or > 65535) throw new InvalidDataException("当前游戏无法创建联机房间。");
         using var timeout = Deadline(ct);
-        var control = await ConnectAsync("/host", null, timeout.Token);
+        var control = await ConnectAsync("/host", hostKey, timeout.Token);
         try
         {
             await RoomProtocol.SendTextAsync(control, JsonSerializer.Serialize(game, RoomProtocol.Json), timeout.Token);

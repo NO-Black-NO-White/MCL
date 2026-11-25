@@ -1,5 +1,7 @@
 using System.Collections.Concurrent;
 using System.Net.WebSockets;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Threading.Channels;
 using MCL.Multiplayer;
@@ -18,12 +20,26 @@ var rooms = new ConcurrentDictionary<string, RelayRoom>(StringComparer.Ordinal);
 var tickets = new ConcurrentDictionary<string, GuestConnection>(StringComparer.Ordinal);
 var capacity = new SemaphoreSlim(64);
 var stopping = app.Lifetime.ApplicationStopping;
+var hostKey = builder.Configuration["MCL_RelayHostKey"];
+if (hostKey is not null && !RoomProtocol.IsToken(hostKey))
+    throw new InvalidOperationException("Invalid relay host key.");
+var relayId = RoomProtocol.Token();
 var endpoints = app.MapGroup(RoomProtocol.Prefix);
-endpoints.MapGet("/health", () => Results.Ok());
+endpoints.MapGet("/health", (HttpContext request) =>
+{
+    request.Response.Headers[RoomProtocol.RelayIdHeader] = relayId;
+    return Results.Ok();
+});
 
 endpoints.MapGet("/host", async (HttpContext request) =>
 {
     if (!AcceptsSocket(request)) return;
+    if (hostKey is not null && (Credential(request) is not { } key
+        || !CryptographicOperations.FixedTimeEquals(Encoding.ASCII.GetBytes(hostKey), Encoding.ASCII.GetBytes(key))))
+    {
+        request.Response.StatusCode = 403;
+        return;
+    }
     if (!capacity.Wait(0)) { request.Response.StatusCode = 503; return; }
     var code = RoomProtocol.Token();
     using var room = new RelayRoom(request.RequestAborted, stopping);
@@ -102,7 +118,10 @@ endpoints.MapGet("/connect", async (HttpContext request) =>
     catch (Exception ex) when (Ended(ex)) { }
 });
 
-app.Run();
+await app.StartAsync();
+if (hostKey is not null)
+    Console.WriteLine($"{RoomProtocol.ReadyPrefix}{app.Urls.Single()} {relayId}");
+await app.WaitForShutdownAsync();
 
 RelayRoom? FindRoom(HttpContext request)
 {
