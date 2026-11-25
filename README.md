@@ -2,9 +2,11 @@
 
 粉白配色的 Minecraft Java 版启动器，使用 C#、WPF 和 .NET 9 开发。
 
+MCL 是非官方项目，未获 Mojang 或 Microsoft 批准，也与两者无关联。
+
 ## 直接运行
 
-双击项目内的“启动 MCL”快捷方式，或运行 `outputs/MCL-0.9.1/MCL.exe`。需要 Windows 64 位及 .NET 9 桌面运行时，当前开发电脑已具备。
+下载 Windows x64 发布包，解压后双击 `MCL.exe`。需要 64 位 Windows 和 [.NET 9 桌面运行时](https://dotnet.microsoft.com/download/dotnet/9.0)。从源码构建时，程序位于 `outputs/MCL-0.9.1/MCL.exe`。
 
 ## 下载一个游戏版本
 

@@ -9,12 +9,12 @@
     <RootNamespace>MCL</RootNamespace>
     <Version>0.9.1</Version>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <ApplicationIcon>Assets/cherry-leaf.ico</ApplicationIcon>
+    <ApplicationIcon>Assets/mcl.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="../Multiplayer/RoomProtocol.cs" Link="RoomProtocol.cs" />
     <Resource Include="Assets/spring-valley.jpg" />
-    <Resource Include="Assets/cherry-leaf.ico" />
+    <Resource Include="Assets/mcl.ico" />
     <Resource Include="$(MclRelayBundle)" Link="Assets/relay.exe"
               Condition="'$(MclRelayBundle)' != ''" />
   </ItemGroup>

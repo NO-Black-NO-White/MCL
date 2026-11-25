@@ -48,7 +48,7 @@ if ($publishDefault) {
         $shortcut = $shell.CreateShortcut($shortcutPath)
         $shortcut.TargetPath = Join-Path $OutputDirectory 'MCL.exe'
         $shortcut.WorkingDirectory = $OutputDirectory
-        $shortcut.IconLocation = (Join-Path $root 'src/MCL/Assets/cherry-leaf.ico') + ',0'
+        $shortcut.IconLocation = (Join-Path $root 'src/MCL/Assets/mcl.ico') + ',0'
         $shortcut.Save()
     }
 }
