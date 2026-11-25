@@ -4,12 +4,13 @@ using MCL.Models;
 
 namespace MCL.Services;
 
-internal sealed record PackFile(string Path, Uri[] Sources, string Sha1, string Sha512, long Bytes, bool Optional);
+internal sealed record PackFile(string Path, Uri[] Sources, string Sha1, string? Sha512, long Bytes, bool Optional);
+internal sealed record CurseForgeFile(int Project, int File, bool Optional);
 internal sealed record PackOverride(string Path, ZipArchiveEntry Entry);
 
 internal sealed class ModpackArchive
 {
-    private const long MaximumBytes = 32L * 1024 * 1024 * 1024;
+    internal const long MaximumBytes = 32L * 1024 * 1024 * 1024;
     internal const long MaximumFileBytes = 2L * 1024 * 1024 * 1024;
     private static readonly HashSet<string> DownloadHosts = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -17,16 +18,18 @@ internal sealed class ModpackArchive
         "release-assets.githubusercontent.com", "objects.githubusercontent.com", "media.githubusercontent.com", "gitlab-static.net"
     };
 
-    private ModpackArchive(ModpackPreview preview, PackFile[] files, PackOverride[] overrides)
+    private ModpackArchive(ModpackPreview preview, PackFile[] files, PackOverride[] overrides, CurseForgeFile[]? curseForgeFiles = null)
     {
         Preview = preview;
         Files = files;
         Overrides = overrides;
+        CurseForgeFiles = curseForgeFiles ?? [];
     }
 
     internal ModpackPreview Preview { get; }
     internal PackFile[] Files { get; }
     internal PackOverride[] Overrides { get; }
+    internal CurseForgeFile[] CurseForgeFiles { get; }
 
     internal static ModpackArchive Read(ZipArchive zip, string path, string hash, CancellationToken cancellation)
     {
@@ -46,9 +49,10 @@ internal sealed class ModpackArchive
         var indexes = zip.Entries.Where(e => IsIndex(e.FullName, "modrinth.index.json")).ToArray();
         if (indexes.Length == 0)
         {
-            if (zip.Entries.Any(e => IsIndex(e.FullName, "manifest.json")))
-                throw new NotSupportedException("这个 ZIP 是 CurseForge 或其他清单格式。当前支持 Modrinth .mrpack 的原版和 Fabric 整合包。");
-            throw new NotSupportedException("没有找到 Modrinth 清单。请选择包含 modrinth.index.json 的整合包。");
+            var manifests = zip.Entries.Where(e => IsIndex(e.FullName, "manifest.json")).ToArray();
+            if (manifests.Length == 1) return ReadCurseForge(zip, manifests[0], path, hash, cancellation);
+            if (manifests.Length > 1) throw new InvalidDataException("此 ZIP 包含多个 CurseForge 清单。");
+            throw new NotSupportedException("没有找到 Modrinth 或 CurseForge 客户端整合包清单。");
         }
         if (indexes.Length != 1) throw new InvalidDataException("压缩包包含多个 Modrinth 清单，请使用单个整合包。");
         var index = indexes[0];
@@ -106,6 +110,62 @@ internal sealed class ModpackArchive
             files.Add(new(target, urls, sha1!, sha512!, bytes, client == "optional"));
         }
 
+        var overrides = ReadOverrides(zip, prefix, "overrides/", true, downloadBytes, cancellation);
+        CheckPaths(files.Select(file => file.Path), overrides);
+        var preview = new ModpackPreview(path, hash, name, version, minecraft!, fabric,
+            files.Count(f => !f.Optional), files.Count(f => f.Optional), downloadBytes);
+        return new(preview, files.ToArray(), overrides);
+    }
+
+    private static ModpackArchive ReadCurseForge(ZipArchive zip, ZipArchiveEntry index, string path, string hash, CancellationToken ct)
+    {
+        ModpackPaths.Relative(index.FullName);
+        EnsureRegularFile(index);
+        if (index.Length is < 1 or > 8 * 1024 * 1024) throw new InvalidDataException("CurseForge 清单大小无效。");
+        using var input = index.Open();
+        using var doc = JsonDocument.Parse(input, new JsonDocumentOptions { MaxDepth = 32 });
+        var root = doc.RootElement;
+        if (root.GetProperty("manifestType").GetString() != "minecraftModpack" || root.GetProperty("manifestVersion").GetInt32() != 1)
+            throw new NotSupportedException("此 ZIP 不是受支持的 CurseForge Minecraft 客户端整合包。");
+        var game = root.GetProperty("minecraft");
+        var minecraft = game.GetProperty("version").GetString();
+        if (!ModpackPaths.IsGameVersion(minecraft)) throw new NotSupportedException("此 CurseForge 整合包的 Minecraft 版本暂不支持。");
+        var loaders = game.GetProperty("modLoaders").EnumerateArray().ToArray();
+        string? fabric = null, forge = null;
+        if (loaders.Length > 1) throw new NotSupportedException("当前只支持声明一种加载器的 CurseForge 整合包。");
+        if (loaders is [var loader])
+        {
+            var id = loader.GetProperty("id").GetString() ?? "";
+            if (id.StartsWith("fabric-", StringComparison.Ordinal) && ModpackPaths.IsLoaderVersion(id[7..])) fabric = id[7..];
+            else if (id.StartsWith("forge-", StringComparison.Ordinal) && ModpackPaths.IsForgeVersion(minecraft, id[6..])) forge = id[6..];
+            else throw new NotSupportedException($"当前不支持此整合包要求的加载器（{id}）。");
+        }
+        var name = Label(root, "name");
+        var version = root.TryGetProperty("version", out var value) ? value.GetString()?.Trim() : null;
+        // Some exporters leave version empty. The ZIP digest gives such exports a stable identity.
+        version = string.IsNullOrEmpty(version) ? $"ZIP-{hash[..12]}" : Label(root, "version");
+        var declarations = root.GetProperty("files");
+        if (declarations.GetArrayLength() > 20000) throw new InvalidDataException("整合包要求下载的文件过多。");
+        var ids = new HashSet<int>();
+        var files = new List<CurseForgeFile>();
+        foreach (var item in declarations.EnumerateArray())
+        {
+            ct.ThrowIfCancellationRequested();
+            var project = item.GetProperty("projectID").GetInt32();
+            var file = item.GetProperty("fileID").GetInt32();
+            if (project <= 0 || file <= 0 || !ids.Add(file)) throw new InvalidDataException("CurseForge 清单包含无效或重复的文件编号。");
+            files.Add(new(project, file, !item.GetProperty("required").GetBoolean()));
+        }
+        var folder = ModpackPaths.Relative(root.GetProperty("overrides").GetString() ?? "");
+        var overrides = ReadOverrides(zip, index.FullName[..^"manifest.json".Length], folder + '/', false, 0, ct);
+        CheckPaths([], overrides);
+        return new(new(path, hash, name, version, minecraft!, fabric, files.Count(f => !f.Optional),
+            files.Count(f => f.Optional), 0, forge, true), [], overrides, files.ToArray());
+    }
+
+    private static PackOverride[] ReadOverrides(ZipArchive zip, string prefix, string folder, bool hasClientLayer,
+        long downloadBytes, CancellationToken cancellation)
+    {
         var general = new Dictionary<string, PackOverride>(StringComparer.OrdinalIgnoreCase);
         var clientOnly = new Dictionary<string, PackOverride>(StringComparer.OrdinalIgnoreCase);
         long overrideBytes = 0;
@@ -115,12 +175,12 @@ internal sealed class ModpackArchive
             if (!entry.FullName.StartsWith(prefix, StringComparison.Ordinal) || entry.FullName.EndsWith('/')) continue;
             var relative = entry.FullName[prefix.Length..];
             Dictionary<string, PackOverride> layer;
-            if (relative.StartsWith("overrides/", StringComparison.Ordinal))
+            if (relative.StartsWith(folder, StringComparison.Ordinal))
             {
                 layer = general;
-                relative = relative["overrides/".Length..];
+                relative = relative[folder.Length..];
             }
-            else if (relative.StartsWith("client-overrides/", StringComparison.Ordinal))
+            else if (hasClientLayer && relative.StartsWith("client-overrides/", StringComparison.Ordinal))
             {
                 layer = clientOnly;
                 relative = relative["client-overrides/".Length..];
@@ -134,18 +194,27 @@ internal sealed class ModpackArchive
             if (!layer.TryAdd(relative, new(relative, entry))) throw new InvalidDataException("整合包配置包含重复路径。");
         }
         foreach (var (key, value) in clientOnly) general[key] = value;
-        foreach (var relative in paths.Concat(general.Keys).ToArray())
+        return general.Values.ToArray();
+    }
+
+    internal static void CheckPaths(IEnumerable<string> downloads, PackOverride[] overrides)
+    {
+        var paths = overrides.Select(item => item.Path).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var file in downloads)
+        {
+            if (!seen.Add(file)) throw new InvalidDataException("整合包清单列出了重复的下载路径。");
+            paths.Add(file);
+        }
+        foreach (var relative in paths)
         {
             for (var separator = relative.LastIndexOf('/'); separator >= 0; separator = relative.LastIndexOf('/', separator - 1))
             {
                 var parent = relative[..separator];
-                if (paths.Contains(parent) || general.ContainsKey(parent)) throw new InvalidDataException("整合包中的文件与文件夹使用了相同路径。");
+                if (paths.Contains(parent)) throw new InvalidDataException("整合包中的文件与文件夹使用了相同路径。");
                 if (separator == 0) break;
             }
         }
-        var preview = new ModpackPreview(path, hash, name, version, minecraft!, fabric,
-            files.Count(f => !f.Optional), files.Count(f => f.Optional), downloadBytes);
-        return new(preview, files.ToArray(), general.Values.ToArray());
     }
 
     private static string Label(JsonElement root, string property)

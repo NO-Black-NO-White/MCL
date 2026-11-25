@@ -14,6 +14,26 @@ if (args is ["--live", var testGameDirectory, var javaPath])
     return;
 }
 
+if (args is ["--preview", var archive])
+{
+    Console.WriteLine(JsonSerializer.Serialize(await ModpackImportService.PreviewAsync(archive)));
+    return;
+}
+
+if (args is ["--forge-live", var forgeGame, var forgeJava])
+{
+    await TestForgeLiveAsync(forgeGame, forgeJava);
+    return;
+}
+
+if (args is ["--forge-launch", var existingForgeGame, var installedJava])
+{
+    using var deadline = new CancellationTokenSource(TimeSpan.FromMinutes(2));
+    var installedVersion = (await new VersionCatalog().ScanAsync(existingForgeGame)).Single(item => item.ModpackLoader == "Forge 47.3.22");
+    await LaunchForgeAsync(existingForgeGame, installedJava, installedVersion, deadline.Token);
+    return;
+}
+
 var root = Directory.CreateTempSubdirectory("MCL-pack-qa-").FullName;
 using var fixture = new FixtureServer();
 using var http = new HttpClient(fixture);
@@ -21,6 +41,36 @@ using var minecraft = new MinecraftDownloadService(http);
 using var importer = new ModpackImportService(minecraft, http);
 var path = Path.Combine(root, "fixture.mrpack");
 var game = Path.Combine(root, "isolated");
+var cursePath = Path.Combine(root, "forge.zip");
+WriteCurseForge(cursePath, "overrides/config/sample.txt", files: [new { projectID = 12, fileID = 34, required = true }]);
+var curse = await ModpackImportService.PreviewAsync(cursePath);
+Check(curse is { CurseForge: true, Minecraft: "1.20.1", Forge: "47.3.22", Fabric: null, RequiredFiles: 1 }
+    && curse.Version.StartsWith("ZIP-", StringComparison.Ordinal), "CurseForge ZIP preview detects Forge and handles a blank version field");
+WriteCurseForge(cursePath, "overrides/../escaped.txt");
+await Reject<InvalidDataException>(() => ModpackImportService.PreviewAsync(cursePath), "CurseForge ZIP overrides cannot escape the instance");
+WriteCurseForge(cursePath, "overrides/config/sample.txt", [
+    new { projectID = 12, fileID = 34, required = true },
+    new { projectID = 13, fileID = 35, required = true },
+    new { projectID = 14, fileID = 36, required = true }
+], "fabric-0.16.14");
+var previousKey = Environment.GetEnvironmentVariable("MCL_CURSEFORGE_API_KEY");
+try
+{
+    Environment.SetEnvironmentVariable("MCL_CURSEFORGE_API_KEY", null);
+    var cursePreview = await ModpackImportService.PreviewAsync(cursePath);
+    var curseGame = Path.Combine(root, "curse-instance");
+    await Reject<InvalidDataException>(() => importer.InstallAsync(cursePreview, curseGame, false), "CurseForge import asks for credentials before downloading");
+    Environment.SetEnvironmentVariable("MCL_CURSEFORGE_API_KEY", "test-fixture-key");
+    var installed = await importer.InstallAsync(cursePreview, curseGame, false);
+    var installedGame = Path.Combine(curseGame, "versions", installed.InstanceId, "game");
+    Check(File.Exists(Path.Combine(installedGame, "mods", "fixture.jar"))
+        && File.Exists(Path.Combine(installedGame, "resourcepacks", "texture.zip"))
+        && File.Exists(Path.Combine(installedGame, "shaderpacks", "light.zip"))
+        && File.Exists(Path.Combine(installedGame, "config", "sample.txt")), "CurseForge determines folders and installs verified files and bundled settings");
+    fixture.HideCurseForgeDownload = true;
+    await Reject<IOException>(() => importer.InstallAsync(cursePreview, curseGame, false), "A required CurseForge file with no download URL prevents incomplete installation");
+}
+finally { Environment.SetEnvironmentVariable("MCL_CURSEFORGE_API_KEY", previousKey); }
 var originalSave = Path.Combine(game, "saves", "user-placeholder");
 Directory.CreateDirectory(originalSave);
 var original = Path.Combine(originalSave, "sentinel");
@@ -104,6 +154,59 @@ Check(await File.ReadAllTextAsync(otherJson) == otherMetadata && await File.Read
 var otherNotice = await deletion.InspectAsync(otherGame, cachedVersions.Single(candidate => candidate.Id == "1.20.1"));
 Check(otherNotice.DirectoryPath == otherVersion, "An instance with a cached base does not depend on the same-named local version");
 Console.WriteLine("MODPACK_VALIDATION_OK");
+
+static async Task TestForgeLiveAsync(string isolatedGame, string javaPath)
+{
+    Directory.CreateDirectory(isolatedGame);
+    var path = Path.Combine(isolatedGame, "forge-test.zip");
+    WriteCurseForge(path, "overrides/config/mcl-test.txt");
+    using var downloads = new MinecraftDownloadService();
+    using var installer = new ModpackImportService(downloads);
+    using var timeout = new CancellationTokenSource(TimeSpan.FromMinutes(10));
+    var result = await installer.InstallAsync(await ModpackImportService.PreviewAsync(path), isolatedGame, false,
+        new ProgressPrinter(), timeout.Token, javaPath);
+    var version = (await new VersionCatalog().ScanAsync(isolatedGame)).Single(item => item.Id == result.InstanceId);
+    Check(version is { IsValid: true, ModpackLoader: "Forge 47.3.22" }, "Forge instance is ready in the version list");
+    await LaunchForgeAsync(isolatedGame, javaPath, version, timeout.Token);
+}
+
+static async Task LaunchForgeAsync(string isolatedGame, string javaPath, GameVersion version, CancellationToken ct)
+{
+    var java = await new JavaDiscovery().InspectAsync(javaPath, ct) ?? throw new Exception("Missing Java");
+    var log = new LogService(isolatedGame);
+    using var launcher = new GameLaunchService(log);
+    var startup = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    log.EntryAdded += entry =>
+    {
+        if (entry.Message.Contains("textures/atlas", StringComparison.Ordinal)) startup.TrySetResult();
+        if (entry.Message.Contains("Exception", StringComparison.Ordinal) || entry.Message.Contains("ModLauncher", StringComparison.Ordinal))
+            Console.WriteLine(entry.Message);
+    };
+    await launcher.LaunchAsync(new LauncherSettings { GameDirectory = isolatedGame, PlayerName = "MclForgeTest", MemoryMb = 2048 },
+        version, java, ct);
+    try
+    {
+        for (var attempt = 0; attempt < 160 && launcher.IsRunning && !startup.Task.IsCompleted; attempt++) await Task.Delay(500, ct);
+        Check(startup.Task.IsCompletedSuccessfully, "Minecraft reached texture initialization through Forge");
+        Console.WriteLine("FORGE_LIVE_OK");
+    }
+    finally { if (launcher.IsRunning) launcher.Stop(); }
+}
+
+static void WriteCurseForge(string path, string overridePath, object[]? files = null, string loader = "forge-47.3.22")
+{
+    using var output = File.Create(path);
+    using var zip = new ZipArchive(output, ZipArchiveMode.Create);
+    using (var writer = new StreamWriter(zip.CreateEntry("manifest.json").Open()))
+        writer.Write(JsonSerializer.Serialize(new
+        {
+            manifestType = "minecraftModpack", manifestVersion = 1, name = "QA Forge Pack", version = "",
+            minecraft = new { version = "1.20.1", modLoaders = new[] { new { id = loader, primary = true } } },
+            overrides = "overrides", files = files ?? []
+        }));
+    using var configuration = new StreamWriter(zip.CreateEntry(overridePath).Open());
+    configuration.Write("isolated");
+}
 
 static async Task TestLiveAsync(string isolatedGame, string javaPath)
 {
@@ -211,6 +314,7 @@ sealed class FixtureServer : HttpMessageHandler
     private const string FabricJar = "https://maven.fabricmc.net/net/fabricmc/fabric-loader/0.16.14/fabric-loader-0.16.14.jar";
     public static readonly byte[] ModBytes = Encoding.UTF8.GetBytes("mod fixture");
     public ConcurrentDictionary<string, int> Requests { get; } = new();
+    public bool HideCurseForgeDownload { get; set; }
     public TaskCompletionSource BlockStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly Dictionary<string, byte[]> _data = new();
 
@@ -254,6 +358,28 @@ sealed class FixtureServer : HttpMessageHandler
     {
         var url = request.RequestUri!.AbsoluteUri;
         Requests.AddOrUpdate(url, 1, (_, count) => count + 1);
+        if (url is "https://api.curseforge.com/v1/mods/files" or "https://api.curseforge.com/v1/mods")
+        {
+            if (request.Method != HttpMethod.Post || !request.Headers.TryGetValues("x-api-key", out var keys) || keys.Single() != "test-fixture-key")
+                return new HttpResponseMessage(HttpStatusCode.Forbidden);
+            if (url.EndsWith("/files", StringComparison.Ordinal))
+            {
+                var sha = Convert.ToHexString(SHA1.HashData(ModBytes));
+                var files = new[] { "fixture.jar", "texture.zip", "light.zip" }.Select((name, index) => new
+                {
+                    modId = 12 + index, id = 34 + index, fileName = name, fileLength = ModBytes.Length,
+                    downloadUrl = HideCurseForgeDownload && index == 0 ? null : "https://edge.forgecdn.net/" + name,
+                    hashes = new[] { new { algo = 1, value = sha } }
+                });
+                return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(JsonSerializer.Serialize(new { data = files })) };
+            }
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("""{"data":[{"id":13,"links":{"websiteUrl":"https://www.curseforge.com/minecraft/texture-packs/test"}},{"id":14,"links":{"websiteUrl":"https://www.curseforge.com/minecraft/shaders/test"}}]}""") };
+        }
+        if (url.StartsWith("https://edge.forgecdn.net/", StringComparison.Ordinal))
+        {
+            if (request.Headers.Contains("x-api-key")) throw new InvalidOperationException("API secret was sent to the CDN");
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(ModBytes) };
+        }
         if (url == BlockUrl)
         {
             BlockStarted.TrySetResult();

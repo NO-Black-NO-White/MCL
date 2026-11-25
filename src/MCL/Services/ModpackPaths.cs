@@ -9,6 +9,9 @@ internal static partial class ModpackPaths
     internal const string FabricMain = "net.fabricmc.loader.impl.launch.knot.KnotClient";
     internal const string LegacyFabricMain = "net.fabricmc.loader.launch.knot.KnotClient";
     internal const string VanillaMain = "net.minecraft.client.main.Main";
+    internal const string ForgeMain = "cpw.mods.bootstraplauncher.BootstrapLauncher";
+    internal static bool IsForgeVersion(string? minecraft, string? forge) => minecraft == "1.20.1"
+        && IsLoaderVersion(forge) && forge!.StartsWith("47.", StringComparison.Ordinal);
     internal static bool IsGameVersion(string? value) => value is { Length: <= 32 }
         && GameVersionPattern().IsMatch(value) && Version.TryParse(value, out var v)
         && v.Major >= 1 && (v.Major != 1 || v.Minor >= 13);
@@ -63,6 +66,14 @@ internal static partial class ModpackPaths
             || parent != (data.UsesCachedBase ? null : data.Minecraft) || !IsHex(data.BaseSha1, 40)
             || data.Libraries is null || data.JvmArguments is null)
             throw new InvalidDataException("整合包实例配置无效，请重新导入。");
+        if (data.Forge is not null)
+        {
+            if (!IsForgeVersion(data.Minecraft, data.Forge) || data.Fabric is not null || mainClass != ForgeMain
+                || !IsHex(data.ForgeProfileSha256, 64) || data.Libraries.Length != 0 || data.JvmArguments.Length != 0)
+                throw new InvalidDataException("Forge 实例配置无效，请重新导入。");
+            return;
+        }
+        if (data.ForgeProfileSha256 is not null) throw new InvalidDataException("整合包加载器配置无效。");
         if (data.Fabric is null)
         {
             if (mainClass != VanillaMain || data.Libraries.Length != 0 || data.JvmArguments.Length != 0)

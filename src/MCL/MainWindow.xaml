@@ -270,7 +270,7 @@
                                     AllowDrop="True" DragOver="Pack_DragOver" Drop="Pack_Drop">
                                 <StackPanel>
                                     <TextBlock Text="选择或拖入整合包" FontSize="23" FontWeight="SemiBold" />
-                                    <TextBlock Text="支持 Modrinth .mrpack 的原版和 Fabric 整合包。安装后，模组、配置与存档放在各自的游戏目录。"
+                                    <TextBlock Text="支持 Modrinth .mrpack（原版、Fabric）和 CurseForge ZIP（原版、Fabric、Forge 1.20.1）。"
                                                Style="{StaticResource MutedText}" Margin="0,10,0,17" />
                                     <Button Content="选择整合包文件…" Click="ChoosePack_Click" IsEnabled="{Binding CanChoosePack}" HorizontalAlignment="Left" />
                                 </StackPanel>

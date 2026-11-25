@@ -25,7 +25,7 @@ internal sealed class LocalAppearanceService(string dataDirectory, ModpackImport
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 
     internal static bool Supports(GameVersion? game) =>
-        game is { IsValid: true } && (game.Kind == "原版" || game.ModpackName is not null)
+        game is { IsValid: true } && (game.Kind == "原版" || game.ModpackName is not null && game.Kind != "Forge 整合包")
         && Version.TryParse(game.ModpackMinecraft ?? game.Id, out var number)
         && (number >= new Version(1, 14) && number <= new Version(1, 21, 11)
             || number >= new Version(26, 1) && number <= new Version(26, 3));

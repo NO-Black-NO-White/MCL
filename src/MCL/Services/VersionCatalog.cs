@@ -47,14 +47,15 @@ public sealed class VersionCatalog
                     {
                         instance = pack.Deserialize<ModpackInstance>() ?? throw new InvalidDataException("缺少整合包实例配置。");
                         ModpackPaths.CheckInstance(id, inheritsFrom, GetString(root, "mainClass"), instance);
-                        kind = instance.Fabric is null ? "原版整合包" : "Fabric 整合包";
+                        kind = instance.Forge is not null ? "Forge 整合包" : instance.Fabric is null ? "原版整合包" : "Fabric 整合包";
                         var baseDirectory = ModpackPaths.BaseDirectory(instance.Minecraft, instance.BaseSha1, instance.UsesCachedBase);
                         if (!Directory.Exists(ModpackPaths.SafeTarget(directory, "game"))
                             || !File.Exists(ModpackPaths.SafeTarget(gameRoot, $"{baseDirectory}/{instance.Minecraft}.json")))
                             issue = "整合包缺少游戏目录或基础版本，请重新导入";
                     }
                     versions.Add(new GameVersion(id, jsonPath, directory, kind, inheritsFrom, issue is null, issue)
-                    { ModpackName = instance?.Name, ModpackMinecraft = instance?.Minecraft, ModpackVersion = instance?.PackVersion, ModpackLoader = instance?.Fabric });
+                    { ModpackName = instance?.Name, ModpackMinecraft = instance?.Minecraft, ModpackVersion = instance?.PackVersion,
+                        ModpackLoader = instance?.Forge is { } forge ? $"Forge {forge}" : instance?.Fabric });
                 }
                 catch (InvalidDataException ex)
                 {

@@ -24,7 +24,9 @@ MCL 是非官方项目，未获 Mojang 或 Microsoft 批准，也与两者无关
 
 ## 导入整合包
 
-选择侧栏“导入整合包”。把 Modrinth 的 `.mrpack` 拖入页面，或点击“选择整合包文件”。也可选择包含 Modrinth 清单的 ZIP。核对包名、Minecraft 版本、加载器和安装位置后，点击“安装整合包”。清单里标为可选的客户端文件可以勾选一并安装。
+选择侧栏“导入整合包”。把 Modrinth 的 `.mrpack` 或 CurseForge 客户端 ZIP 拖入页面，也可以点击“选择整合包文件”。核对包名、Minecraft 版本、加载器和安装位置后，点击“安装整合包”。清单里标为可选的客户端文件可以勾选一并安装。
+
+Modrinth 支持原版和 Fabric。CurseForge ZIP 支持原版、Fabric 和 Minecraft 1.20.1 的 Forge 47.x，Forge 安装需要 64 位 Java 17 或更高版本。若清单引用了 CurseForge 上的文件，请先取得 [CurseForge 官方 API 密钥](https://docs.curseforge.com/rest-api/)，在 Windows 用户环境变量中新建 `MCL_CURSEFORGE_API_KEY` 后重新打开 MCL。MCL 会按清单下载和校验模组、资源包及光影。CurseForge 未提供下载链接的文件会阻止本次安装并列出编号。
 
 MCL 会安装或复用校验通过的原版文件，安装清单指定的 Fabric Loader，下载并核对模组文件，然后应用客户端配置。安装完成后，整合包会加入“游戏版本”并成为当前选择，回首页即可启动。`versions/pack-…/game` 保存该整合包的模组、配置和存档。如果已有同名版本的配置与官方不同，MCL 会保留该版本，并缓存一份整合包使用的官方版本文件。如果整合包使用版本列表中的基础版本，MCL 会阻止误删该基础版本。
 

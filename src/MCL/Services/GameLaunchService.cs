@@ -128,6 +128,24 @@ public sealed class GameLaunchService(LogService log) : IDisposable
 
         var libraryRoot = Path.Combine(gameDirectory, "libraries");
         var classpath = new List<string>();
+        var forgeRoot = pack?.Forge is null ? null : ModpackPaths.SafeTarget(gameDirectory, $"versions/{version.Id}/.mcl-forge");
+        using var forge = forgeRoot is null ? null : LoadForgeProfile(forgeRoot, pack!);
+        var forgeLibraryRoot = forgeRoot is null ? null : ModpackPaths.SafeTarget(forgeRoot, "libraries");
+        var forgeLibraries = new HashSet<string>(StringComparer.Ordinal);
+        if (forge is not null)
+        {
+            foreach (var library in forge.RootElement.GetProperty("libraries").EnumerateArray())
+            {
+                ct.ThrowIfCancellationRequested();
+                if (!MinecraftMetadata.RulesAllow(library, java)) continue;
+                var name = library.GetProperty("name").GetString()!;
+                var artifact = library.GetProperty("downloads").GetProperty("artifact");
+                var path = ModpackPaths.SafeTarget(forgeLibraryRoot!, artifact.GetProperty("path").GetString()!);
+                if (!File.Exists(path)) throw new FileNotFoundException($"缺少 Forge 依赖 {name}，请重新导入整合包。", path);
+                forgeLibraries.Add(LibraryIdentity(name));
+                classpath.Add(path);
+            }
+        }
         var fabricLibraries = appearance?.Fabric?.Libraries ?? pack?.Libraries;
         if (fabricLibraries is { Length: > 0 })
         {
@@ -156,7 +174,7 @@ public sealed class GameLaunchService(LogService log) : IDisposable
                 string? artifactPath = null;
                 if (hasDownloads && downloads.TryGetProperty("artifact", out var artifact)) artifactPath = artifact.TryGetProperty("path", out var path) ? path.GetString() : MinecraftMetadata.MavenPath(name);
                 else if (!hasDownloads) artifactPath = MinecraftMetadata.MavenPath(name);
-                if (artifactPath is not null)
+                if (artifactPath is not null && !forgeLibraries.Contains(LibraryIdentity(name)))
                 {
                     var fullPath = MinecraftMetadata.SafePath(libraryRoot, artifactPath);
                     if (!File.Exists(fullPath)) throw new FileNotFoundException($"缺少游戏依赖 {name}。请先用已有启动器补全文件。", fullPath);
@@ -178,7 +196,8 @@ public sealed class GameLaunchService(LogService log) : IDisposable
                 }
             }
         }
-        classpath.Add(versionJar);
+        // Forge's installer supplies the patched client and client-extra in its own libraries.
+        if (forge is null) classpath.Add(versionJar);
         nativeDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MCL", "natives", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(nativeDirectory);
         foreach (var archive in nativeArchives) MinecraftMetadata.ExtractNatives(archive.Path, nativeDirectory, archive.Exclusions, ct);
@@ -204,7 +223,7 @@ public sealed class GameLaunchService(LogService log) : IDisposable
             ["launcher_version"] = typeof(GameLaunchService).Assembly.GetName().Version?.ToString(3) ?? "",
             ["classpath"] = string.Join(Path.PathSeparator, classpath),
             ["classpath_separator"] = Path.PathSeparator.ToString(),
-            ["library_directory"] = libraryRoot,
+            ["library_directory"] = forgeLibraryRoot ?? libraryRoot,
             ["game_assets"] = Path.Combine(assetsDirectory, "virtual", assetsId),
             ["resolution_width"] = "854",
             ["resolution_height"] = "480"
@@ -219,6 +238,7 @@ public sealed class GameLaunchService(LogService log) : IDisposable
             StandardErrorEncoding = new UTF8Encoding(false),
             CreateNoWindow = true
         };
+        info.Environment.Remove("MCL_CURSEFORGE_API_KEY");
         var jvmArguments = new List<string>();
         var gameArguments = new List<string>();
         if (metadata.TryGetProperty("arguments", out var modern))
@@ -233,6 +253,12 @@ public sealed class GameLaunchService(LogService log) : IDisposable
         if (!jvmArguments.Any(argument => argument is "-cp" or "-classpath" or "--class-path")) jvmArguments.AddRange(["-cp", "${classpath}"]);
         var fabricArguments = appearance?.Fabric?.Jvm ?? pack?.JvmArguments;
         if (fabricArguments is not null) jvmArguments.AddRange(fabricArguments);
+        if (forge is not null)
+        {
+            var arguments = forge.RootElement.GetProperty("arguments");
+            jvmArguments.AddRange(MinecraftMetadata.ReadArguments(arguments.GetProperty("jvm"), java));
+            gameArguments.AddRange(MinecraftMetadata.ReadArguments(arguments.GetProperty("game"), java));
+        }
         // The settings value wins over any memory values bundled with local metadata.
         foreach (var argument in jvmArguments.Where(argument => !argument.StartsWith("-Xmx", StringComparison.Ordinal) && !argument.StartsWith("-Xms", StringComparison.Ordinal)))
             info.ArgumentList.Add(MinecraftMetadata.Expand(argument, replacements));
@@ -261,6 +287,27 @@ public sealed class GameLaunchService(LogService log) : IDisposable
         foreach (var argument in gameArguments) info.ArgumentList.Add(MinecraftMetadata.Expand(argument, replacements));
         ct.ThrowIfCancellationRequested();
         return info;
+    }
+
+    private static JsonDocument LoadForgeProfile(string root, ModpackInstance pack)
+    {
+        var path = ModpackImportService.ForgeProfilePath(root, pack.Minecraft, pack.Forge!);
+        using var file = File.OpenRead(path);
+        if (file.Length is < 1 or > 1024 * 1024) throw new InvalidDataException("Forge 配置大小无效，请重新导入。");
+        var bytes = new byte[(int)file.Length];
+        file.ReadExactly(bytes);
+        if (!Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes)).Equals(pack.ForgeProfileSha256, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("Forge 配置已变化，请重新导入整合包。");
+        var profile = JsonDocument.Parse(bytes);
+        try { ModpackImportService.ValidateForgeProfile(profile.RootElement, pack.Minecraft, pack.Forge!); }
+        catch { profile.Dispose(); throw; }
+        return profile;
+    }
+
+    private static string LibraryIdentity(string coordinate)
+    {
+        var parts = coordinate.Split(':');
+        return parts.Length >= 3 ? $"{parts[0]}:{parts[1]}:{(parts.Length > 3 ? parts[3] : "")}" : coordinate;
     }
 
     private async Task ObserveAsync(Process process, string? nativeDirectory, bool observeLan)

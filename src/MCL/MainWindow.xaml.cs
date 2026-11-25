@@ -362,7 +362,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (_java is null) throw new InvalidDataException("Java 未配置或不可用。请到启动设置中点击自动检测，或选择 java.exe。");
         SaveCurrentSettings();
         LocalAppearanceLaunch? appearance = null;
-        if (settings.ApplyLocalAppearance && (settings.LocalSkin is not null || settings.LocalCape is not null))
+        if (settings.ApplyLocalAppearance && (settings.LocalSkin is not null || settings.LocalCape is not null) && version.Kind != "Forge 整合包")
         {
             StatusMessage = "正在准备本地皮肤和披风，首次使用需要下载外观组件…";
             appearance = await Task.Run(() => _localAppearance.PrepareAsync(settings, version, ct), ct);

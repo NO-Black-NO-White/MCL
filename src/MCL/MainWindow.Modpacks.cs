@@ -27,7 +27,8 @@ public partial class MainWindow
     public string PackDetails => _selectedPack is { } pack
         ? $"Minecraft {pack.Minecraft}  ·  {pack.LoaderText}  ·  整合包版本 {pack.Version}" : "";
     public string PackFileSummary => _selectedPack is { } pack
-        ? $"{pack.RequiredFiles:N0} 个必需文件，{pack.OptionalFiles:N0} 个可选文件。整合包文件最多下载 {FormatBytes(pack.DownloadBytes)}，游戏本体另计。"
+        ? $"{pack.RequiredFiles:N0} 个必需文件，{pack.OptionalFiles:N0} 个可选文件。"
+            + (pack.CurseForge ? "安装时查询 CurseForge 下载大小。" : $"整合包文件最多下载 {FormatBytes(pack.DownloadBytes)}，游戏本体另计。")
         : "";
     public string PackOptionalText => $"同时安装 {_selectedPack?.OptionalFiles ?? 0} 个可选文件";
     public string PackStatus { get => _packStatus; private set => Set(ref _packStatus, value); }
@@ -44,7 +45,7 @@ public partial class MainWindow
         if (!CanChoosePack) return;
         var dialog = new OpenFileDialog
         {
-            Title = "选择 Modrinth 整合包",
+            Title = "选择客户端整合包",
             Filter = "整合包文件 (*.mrpack;*.zip)|*.mrpack;*.zip",
             CheckFileExists = true
         };
@@ -122,7 +123,7 @@ public partial class MainWindow
                 var count = value.TotalFiles > 0 ? $" · {value.CompletedFiles:N0}/{value.TotalFiles:N0} 个文件" : "";
                 PackStatus = $"{value.Stage} · {value.Detail}{count}";
             });
-            var result = await _modpacks.InstallAsync(pack, directory, IncludeOptionalPackFiles, progress, cancellation.Token);
+            var result = await _modpacks.InstallAsync(pack, directory, IncludeOptionalPackFiles, progress, cancellation.Token, JavaPath);
             PackCompleted = true;
             PackPercent = 100;
             await ScanVersionsAsync(result.InstanceId);

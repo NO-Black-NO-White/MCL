@@ -8,7 +8,7 @@ using MCL.Models;
 
 namespace MCL.Services;
 
-public sealed class ModpackImportService : IDisposable
+public sealed partial class ModpackImportService : IDisposable
 {
     private static readonly Uri FabricMaven = new("https://maven.fabricmc.net/");
     private readonly MinecraftDownloadService _minecraft;
@@ -38,11 +38,11 @@ public sealed class ModpackImportService : IDisposable
         }, ct);
 
     public Task<ModpackInstallResult> InstallAsync(ModpackPreview preview, string gameDirectory, bool includeOptional,
-        IProgress<InstallProgress>? progress = null, CancellationToken ct = default) =>
-        Task.Run(() => InstallCoreAsync(preview, gameDirectory, includeOptional, progress, ct), ct);
+        IProgress<InstallProgress>? progress = null, CancellationToken ct = default, string? javaPath = null) =>
+        Task.Run(() => InstallCoreAsync(preview, gameDirectory, includeOptional, progress, ct, javaPath), ct);
 
     private async Task<ModpackInstallResult> InstallCoreAsync(ModpackPreview preview, string gameDirectory,
-        bool includeOptional, IProgress<InstallProgress>? progress, CancellationToken ct)
+        bool includeOptional, IProgress<InstallProgress>? progress, CancellationToken ct, string? javaPath)
     {
         Report(progress, "核对整合包", "正在确认所选文件");
         using var file = OpenArchive(preview.ArchivePath);
@@ -62,13 +62,18 @@ public sealed class ModpackImportService : IDisposable
 
         try
         {
-            var plan = pack.Files.Where(f => !f.Optional || includeOptional).ToArray();
+            var plan = pack.Preview.CurseForge
+                ? await ResolveCurseForgeFilesAsync(pack, includeOptional, progress, ct).ConfigureAwait(false)
+                : pack.Files.Where(f => !f.Optional || includeOptional).ToArray();
             Report(progress, "准备游戏版本", $"Minecraft {pack.Preview.Minecraft}");
             var versions = await _minecraft.GetVersionsAsync(ct).ConfigureAwait(false);
             var version = versions.FirstOrDefault(v => v.Id == pack.Preview.Minecraft)
                 ?? throw new NotSupportedException("这个整合包需要的 Minecraft 版本不在当前可安装的官方正式版清单中。");
             var baseInfo = await _minecraft.InstallModpackBaseAsync(version, root, progress, ct).ConfigureAwait(false);
             var fabric = await InstallFabricAsync(pack.Preview.Minecraft, pack.Preview.Fabric, staging, progress, ct).ConfigureAwait(false);
+            var forge = pack.Preview.Forge;
+            var forgeHash = forge is null ? null : await InstallForgeAsync(version.Id, forge,
+                ModpackPaths.BaseDirectory(version.Id, version.MetadataSha1, baseInfo.UsesCachedBase), root, staging, javaPath, progress, ct).ConfigureAwait(false);
             await DownloadPackFilesAsync(plan, game, progress, ct).ConfigureAwait(false);
 
             Report(progress, "写入整合包配置", "正在应用配置、资源包和存档");
@@ -85,12 +90,13 @@ public sealed class ModpackImportService : IDisposable
             var id = CreateId(pack.Preview.Name, stagingName[..8]);
             var destination = ModpackPaths.SafeTarget(root, $"versions/{id}");
             var settings = new ModpackInstance(1, pack.Preview.Name, pack.Preview.Version, version.Id, version.MetadataSha1,
-                pack.Preview.Fabric, fabric.Libraries, fabric.Jvm, baseInfo.UsesCachedBase);
+                pack.Preview.Fabric, fabric.Libraries, fabric.Jvm, baseInfo.UsesCachedBase, forge, forgeHash);
             var inheritsFrom = settings.UsesCachedBase ? null : version.Id;
-            ModpackPaths.CheckInstance(id, inheritsFrom, fabric.MainClass, settings);
+            var mainClass = forge is null ? fabric.MainClass : ModpackPaths.ForgeMain;
+            ModpackPaths.CheckInstance(id, inheritsFrom, mainClass, settings);
             var metadata = JsonSerializer.Serialize(new
             {
-                id, inheritsFrom, mainClass = fabric.MainClass, mclModpack = settings
+                id, inheritsFrom, mainClass, mclModpack = settings
             });
             await File.WriteAllTextAsync(ModpackPaths.SafeTarget(staging, id + ".json"), metadata, ct).ConfigureAwait(false);
             ct.ThrowIfCancellationRequested();
@@ -180,7 +186,8 @@ public sealed class ModpackImportService : IDisposable
         {
             var target = ModpackPaths.SafeTarget(root, file.Path);
             await DownloadAsync(file.Sources, target, file.Bytes, ModpackArchive.MaximumFileBytes, file.Sha1, file.Sha512,
-                uri => ModpackArchive.AllowedPackUri(uri.AbsoluteUri) is not null, token).ConfigureAwait(false);
+                file.Sha512 is null ? IsCurseForgeDownload : uri => ModpackArchive.AllowedPackUri(uri.AbsoluteUri) is not null,
+                token).ConfigureAwait(false);
             lock (progressGate)
             {
                 bytes += file.Bytes;
@@ -238,11 +245,11 @@ public sealed class ModpackImportService : IDisposable
         throw new IOException($"无法下载或验证 {Path.GetFileName(target)}。请检查网络和整合包版本后重试。", lastError);
     }
 
-    private async Task<MemoryStream> GetSmallAsync(Uri uri, int maxBytes, CancellationToken ct)
+    private async Task<MemoryStream> GetSmallAsync(Uri uri, int maxBytes, CancellationToken ct, Func<Uri, bool>? allowed = null)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeout.CancelAfter(TimeSpan.FromSeconds(45));
-        using var response = await RequestAsync(uri, FabricUri, timeout.Token).ConfigureAwait(false);
+        using var response = await RequestAsync(uri, allowed ?? FabricUri, timeout.Token).ConfigureAwait(false);
         await using var input = await response.Content.ReadAsStreamAsync(timeout.Token).ConfigureAwait(false);
         var buffer = new MemoryStream();
         try
@@ -301,7 +308,7 @@ public sealed class ModpackImportService : IDisposable
     {
         var extension = Path.GetExtension(path);
         if (!extension.Equals(".mrpack", StringComparison.OrdinalIgnoreCase) && !extension.Equals(".zip", StringComparison.OrdinalIgnoreCase))
-            throw new NotSupportedException("请选择 Modrinth 的 .mrpack 整合包，或带 Modrinth 清单的 ZIP。");
+            throw new NotSupportedException("请选择 Modrinth .mrpack 或 CurseForge ZIP 客户端整合包。");
         var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 65536, useAsync: true);
         if (stream.Length <= 8L * 1024 * 1024 * 1024) return stream;
         stream.Dispose();
