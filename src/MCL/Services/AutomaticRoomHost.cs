@@ -2,13 +2,15 @@ using System.Diagnostics;
 using System.Net;
 using System.Net.Http;
 using System.Security.Cryptography;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Windows;
 using MCL.Multiplayer;
 
 namespace MCL.Services;
 
-internal sealed record HostedRelay(Uri Relay, Uri Public, string Key, Task<Process> Completion, RoomProcessGroup Processes) : IDisposable
+internal sealed record HostedRelay(Uri Relay, Uri Public, string Key, bool PublicAddressVerified,
+    Task<Process> Completion, RoomProcessGroup Processes) : IDisposable
 {
     public void Dispose() => Processes.Dispose();
 }
@@ -18,15 +20,17 @@ internal sealed partial class AutomaticRoomHost(string dataDirectory)
     private const string CloudflareVersion = "2026.11.2";
     private const int CloudflareSize = 55_470_800;
     private const string CloudflareSha256 = "555b46c85582461d189cac30d14ad05480d612613801be9f110b8ce08c5b2113";
-    private static readonly HttpClient Http = new(new SocketsHttpHandler { AllowAutoRedirect = false, ConnectTimeout = TimeSpan.FromSeconds(12) })
+    private static readonly HttpClient LoopbackHttp = new(new SocketsHttpHandler { UseProxy = false, AllowAutoRedirect = false })
     { Timeout = Timeout.InfiniteTimeSpan };
 
     internal async Task<HostedRelay> StartAsync(IProgress<string>? progress, CancellationToken ct)
     {
         var cache = ModpackPaths.SafeTarget(dataDirectory, "multiplayer");
         Directory.CreateDirectory(cache);
+        using var publicHttp = new HttpClient(new SocketsHttpHandler { AllowAutoRedirect = false, ConnectTimeout = TimeSpan.FromSeconds(12) })
+        { Timeout = Timeout.InfiniteTimeSpan };
         var relayFile = await FindRelayAsync(cache, ct).ConfigureAwait(false);
-        var tunnelFile = await FindTunnelAsync(cache, progress, ct).ConfigureAwait(false);
+        var tunnelFile = await FindTunnelAsync(cache, publicHttp, progress, ct).ConfigureAwait(false);
         var group = new RoomProcessGroup();
         try
         {
@@ -37,14 +41,26 @@ internal sealed partial class AutomaticRoomHost(string dataDirectory)
             var relay = group.Start(relayStart);
             var ready = await WaitForLineAsync(relay, ParseRelay, "本机中转", TimeSpan.FromSeconds(20), ct).ConfigureAwait(false);
             var local = new Uri(ready[0]);
-            await WaitForHealthAsync(local, ready[1], TimeSpan.FromSeconds(5), ct).ConfigureAwait(false);
+            await WaitForHealthAsync(LoopbackHttp, local, ready[1], TimeSpan.FromSeconds(5), ct).ConfigureAwait(false);
 
             progress?.Report("正在建立公网隧道…");
+            var tunnelDiagnostics = new TunnelStartupDiagnostics();
             var tunnel = group.Start(StartInfo(tunnelFile, cache, "tunnel", "--url", local.GetLeftPart(UriPartial.Authority),
-                "--protocol", "http2"));
-            var publicAddress = await WaitForLineAsync(tunnel, ParseTunnel, "Cloudflare 公网隧道", TimeSpan.FromSeconds(50), ct).ConfigureAwait(false);
-            await WaitForHealthAsync(publicAddress, ready[1], TimeSpan.FromSeconds(25), ct).ConfigureAwait(false);
-            return new(local, publicAddress, key, FirstExitAsync(relay, tunnel), group);
+                "--protocol", "http2", "--loglevel", "info", "--metrics", "127.0.0.1:0"));
+            Uri publicAddress;
+            bool publicAddressVerified;
+            try
+            {
+                publicAddress = await WaitForLineAsync(tunnel, ParseTunnel, "Cloudflare 公网隧道", TimeSpan.FromSeconds(50),
+                    ct, tunnelDiagnostics.Observe).ConfigureAwait(false);
+                publicAddressVerified = await VerifyPublicAddressAsync(publicHttp, publicAddress, ready[1],
+                    tunnelDiagnostics, TimeSpan.FromSeconds(25), ct).ConfigureAwait(false);
+            }
+            catch (IOException ex) when (tunnelDiagnostics.Latest is not null)
+            {
+                throw new IOException($"{ex.Message} 隧道诊断：{tunnelDiagnostics.Latest}。", ex);
+            }
+            return new(local, publicAddress, key, publicAddressVerified, FirstExitAsync(relay, tunnel), group);
         }
         catch
         {
@@ -76,7 +92,7 @@ internal sealed partial class AutomaticRoomHost(string dataDirectory)
     }
 
     private static async Task<T> WaitForLineAsync<T>(Process process, Func<string, T?> parse,
-        string component, TimeSpan wait, CancellationToken ct) where T : class
+        string component, TimeSpan wait, CancellationToken ct, Action<string>? observe = null) where T : class
     {
         var signal = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
         var output = DrainAsync(process.StandardOutput);
@@ -85,8 +101,14 @@ internal sealed partial class AutomaticRoomHost(string dataDirectory)
         try
         {
             await Task.WhenAny(signal.Task, exit).WaitAsync(wait, ct).ConfigureAwait(false);
+            ct.ThrowIfCancellationRequested();
             if (process.HasExited || !signal.Task.IsCompletedSuccessfully)
-                throw new IOException($"{component}未能启动。请检查网络或重新打开 MCL 后重试。");
+            {
+                // A short-lived child can exit before its final stderr line has been read.
+                try { await Task.WhenAll(output, errors).WaitAsync(TimeSpan.FromSeconds(1), ct).ConfigureAwait(false); }
+                catch (TimeoutException) { }
+                throw new IOException($"{component}在就绪前退出（退出码 {process.ExitCode}）。可在当前存档重试创建房间。");
+            }
             return await signal.Task.ConfigureAwait(false);
         }
         catch (TimeoutException ex) { throw new IOException($"{component}启动超时。", ex); }
@@ -96,7 +118,10 @@ internal sealed partial class AutomaticRoomHost(string dataDirectory)
             try
             {
                 while (await reader.ReadLineAsync().ConfigureAwait(false) is { } line)
+                {
+                    observe?.Invoke(line);
                     if (!signal.Task.IsCompleted && parse(line) is { } result) signal.TrySetResult(result);
+                }
             }
             catch (Exception ex) when (ex is IOException or ObjectDisposedException) { }
         }
@@ -120,8 +145,114 @@ internal sealed partial class AutomaticRoomHost(string dataDirectory)
             && RoomInvite.IsTunnelHost(uri.Host) && uri.Host != "api.trycloudflare.com" ? uri : null;
     }
 
-    private static async Task WaitForHealthAsync(Uri address, string relayId, TimeSpan limit, CancellationToken ct)
+    private sealed class TunnelStartupDiagnostics
     {
+        private string? _latest;
+        private int _metricsPort;
+        internal string? Latest => Volatile.Read(ref _latest);
+        internal int MetricsPort => Volatile.Read(ref _metricsPort);
+
+        internal void Observe(string line)
+        {
+            var metrics = MetricsAddress().Match(line);
+            if (metrics.Success && int.TryParse(metrics.Groups[1].ValueSpan, out var port) && port is > 0 and <= 65535)
+                Volatile.Write(ref _metricsPort, port);
+
+            // Cloudflared output can contain connection addresses and configuration. Keep only known error categories.
+            var status = ProvisioningStatus().Match(line);
+            if (status.Success)
+            {
+                var code = status.Groups[1].Value;
+                var detail = code == "429" ? "Cloudflare 限制了临时隧道申请频率（HTTP 429）"
+                    : $"Cloudflare 拒绝或未能处理临时隧道申请（HTTP {code}）";
+                Volatile.Write(ref _latest, detail);
+                return;
+            }
+
+            var related = line.Contains("failed to request quick tunnel", StringComparison.OrdinalIgnoreCase)
+                || line.Contains("quick tunnel provisioning failed", StringComparison.OrdinalIgnoreCase)
+                || line.Contains("edge discovery", StringComparison.OrdinalIgnoreCase)
+                || line.Contains("dial edge", StringComparison.OrdinalIgnoreCase)
+                || line.Contains("failed to dial", StringComparison.OrdinalIgnoreCase)
+                || line.Contains("pre-check", StringComparison.OrdinalIgnoreCase);
+            if (!related) return;
+
+            var error = line.ToLowerInvariant();
+            var reason = error switch
+            {
+                var value when value.Contains("lookup ") || value.Contains("dns") || value.Contains("no such host") => "无法解析 Cloudflare 隧道相关域名",
+                var value when value.Contains("certificate") || value.Contains("x509") => "连接 Cloudflare 时证书验证失败",
+                var value when value.Contains("timeout") || value.Contains("deadline exceeded") => "连接 Cloudflare 超时",
+                var value when value.Contains("tls") => "与 Cloudflare 建立加密连接失败",
+                var value when value.Contains("refused") => "连接 Cloudflare 时对端拒绝了连接",
+                var value when value.Contains("reset") || value.Contains("forcibly closed") => "连接 Cloudflare 时连接被重置",
+                var value when value.Contains("quick tunnel provisioning failed") => "Cloudflare 未能分配临时隧道",
+                var value when value.Contains("failed to request quick tunnel") => "未能向 Cloudflare 提交临时隧道申请",
+                _ => null
+            };
+            if (reason is not null) Volatile.Write(ref _latest, reason);
+        }
+    }
+
+    private static async Task<bool> VerifyPublicAddressAsync(HttpClient client, Uri address, string relayId,
+        TunnelStartupDiagnostics diagnostics, TimeSpan limit, CancellationToken ct)
+    {
+        try
+        {
+            await WaitForHealthAsync(client, address, relayId, limit, ct).ConfigureAwait(false);
+            return true;
+        }
+        catch (RelayHealthException ex) when (ex.NameResolutionFailed)
+        {
+            // The host may resolve the public hostname differently from its guests. Fall back only
+            // when this cloudflared process confirms that its connection to Cloudflare is active.
+            if (diagnostics.MetricsPort is > 0 and var port
+                && await IsTunnelRegisteredAsync(port, address, ct).ConfigureAwait(false)) return false;
+            throw;
+        }
+    }
+
+    private static async Task<bool> IsTunnelRegisteredAsync(int port, Uri address, CancellationToken ct)
+    {
+        var metrics = new Uri($"http://127.0.0.1:{port}/");
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeout.CancelAfter(TimeSpan.FromSeconds(2));
+        try
+        {
+            using var identity = await LoopbackHttp.GetAsync(new Uri(metrics, "quicktunnel"),
+                HttpCompletionOption.ResponseHeadersRead, timeout.Token).ConfigureAwait(false);
+            if (identity.StatusCode != HttpStatusCode.OK) return false;
+            await using var stream = await identity.Content.ReadAsStreamAsync(timeout.Token).ConfigureAwait(false);
+            var buffer = new byte[512];
+            var count = await stream.ReadAtLeastAsync(buffer.AsMemory(), buffer.Length, false, timeout.Token).ConfigureAwait(false);
+            if (count == buffer.Length) return false;
+            using var json = JsonDocument.Parse(buffer.AsMemory(0, count));
+            if (json.RootElement.ValueKind != JsonValueKind.Object || !json.RootElement.TryGetProperty("hostname", out var host)
+                || host.ValueKind != JsonValueKind.String) return false;
+            var name = host.GetString();
+            if (!string.Equals(name, address.Host, StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(name, address.GetLeftPart(UriPartial.Authority), StringComparison.OrdinalIgnoreCase)) return false;
+
+            using var ready = await LoopbackHttp.GetAsync(new Uri(metrics, "ready"),
+                HttpCompletionOption.ResponseHeadersRead, timeout.Token).ConfigureAwait(false);
+            return ready.StatusCode == HttpStatusCode.OK;
+        }
+        catch (Exception ex) when (!ct.IsCancellationRequested && ex is HttpRequestException or IOException or JsonException or OperationCanceledException)
+        {
+            return false;
+        }
+    }
+
+    private sealed class RelayHealthException(string message, Exception inner, bool nameResolutionFailed) : IOException(message, inner)
+    {
+        internal bool NameResolutionFailed { get; } = nameResolutionFailed;
+    }
+
+    private static async Task WaitForHealthAsync(HttpClient client, Uri address, string relayId, TimeSpan limit, CancellationToken ct)
+    {
+        var lastResult = "等待响应超时";
+        var nameResolutionFailed = false;
+        var receivedResponse = false;
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeout.CancelAfter(limit);
         try
@@ -132,18 +263,39 @@ internal sealed partial class AutomaticRoomHost(string dataDirectory)
                 attempt.CancelAfter(TimeSpan.FromSeconds(4));
                 try
                 {
-                    using var reply = await Http.GetAsync(new Uri(address, $"{RoomProtocol.Prefix}/health"),
+                    using var reply = await client.GetAsync(new Uri(address, $"{RoomProtocol.Prefix}/health"),
                         HttpCompletionOption.ResponseHeadersRead, attempt.Token).ConfigureAwait(false);
                     if (reply.StatusCode == HttpStatusCode.OK && reply.Headers.TryGetValues(RoomProtocol.RelayIdHeader, out var values)
                         && values.Contains(relayId, StringComparer.Ordinal)) return;
+                    receivedResponse = true;
+                    nameResolutionFailed = false;
+                    lastResult = reply.StatusCode == HttpStatusCode.OK ? "响应来自其他服务" : $"HTTP {(int)reply.StatusCode}";
                 }
-                catch (HttpRequestException) { }
-                catch (OperationCanceledException) when (!timeout.IsCancellationRequested) { }
+                catch (HttpRequestException ex)
+                {
+                    nameResolutionFailed = ex.HttpRequestError == HttpRequestError.NameResolutionError;
+                    lastResult = ex.HttpRequestError switch
+                    {
+                        HttpRequestError.NameResolutionError => "无法解析隧道地址",
+                        HttpRequestError.SecureConnectionError => "TLS 连接失败",
+                        HttpRequestError.ProxyTunnelError => "系统代理连接失败",
+                        _ => "网络连接失败"
+                    };
+                }
+                catch (OperationCanceledException) when (!timeout.IsCancellationRequested)
+                {
+                    nameResolutionFailed = false;
+                    lastResult = "等待响应超时";
+                }
                 await Task.Delay(650, timeout.Token).ConfigureAwait(false);
             }
         }
         catch (OperationCanceledException ex) when (!ct.IsCancellationRequested)
-        { throw new IOException(address.IsLoopback ? "本机中转响应超时。" : "公网隧道已启动，但尚未转发到本机。请检查网络后重试。", ex); }
+        {
+            var target = address.IsLoopback ? "本机中转" : "公网隧道";
+            throw new RelayHealthException($"{target}未通过连通性检查（{lastResult}）。请重试。", ex,
+                nameResolutionFailed && !receivedResponse);
+        }
     }
 
     private static async Task<string> FindRelayAsync(string cache, CancellationToken ct)
@@ -161,7 +313,7 @@ internal sealed partial class AutomaticRoomHost(string dataDirectory)
         return path;
     }
 
-    private static async Task<string> FindTunnelAsync(string cache, IProgress<string>? progress, CancellationToken ct)
+    private static async Task<string> FindTunnelAsync(string cache, HttpClient client, IProgress<string>? progress, CancellationToken ct)
     {
         var target = ModpackPaths.SafeTarget(cache, $"cloudflared/{CloudflareVersion}/cloudflared.exe");
         if (await MatchesAsync(target, CloudflareSize, CloudflareSha256, ct).ConfigureAwait(false)) return target;
@@ -185,7 +337,7 @@ internal sealed partial class AutomaticRoomHost(string dataDirectory)
                 if (address.Scheme != "https" || !address.IsDefaultPort || address.UserInfo.Length != 0
                     || address.Host is not ("github.com" or "release-assets.githubusercontent.com" or "objects.githubusercontent.com"))
                     throw new IOException("隧道组件下载跳转到了未知地址。");
-                using var reply = await Http.GetAsync(address, HttpCompletionOption.ResponseHeadersRead, download.Token).ConfigureAwait(false);
+                using var reply = await client.GetAsync(address, HttpCompletionOption.ResponseHeadersRead, download.Token).ConfigureAwait(false);
                 if ((int)reply.StatusCode is >= 300 and < 400 && reply.Headers.Location is { } redirect)
                 { address = new Uri(address, redirect); continue; }
                 reply.EnsureSuccessStatusCode();
@@ -236,4 +388,10 @@ internal sealed partial class AutomaticRoomHost(string dataDirectory)
 
     [GeneratedRegex(@"https://[a-z0-9][a-z0-9-]{0,62}\.trycloudflare\.com(?![a-z0-9.-])", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex TunnelAddress();
+
+    [GeneratedRegex(@"quick tunnel provisioning failed with status ([45][0-9]{2})\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
+    private static partial Regex ProvisioningStatus();
+
+    [GeneratedRegex(@"Starting metrics server on 127\.0\.0\.1:([0-9]{1,5})/metrics\b", RegexOptions.CultureInvariant)]
+    private static partial Regex MetricsAddress();
 }

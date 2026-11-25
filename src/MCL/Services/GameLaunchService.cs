@@ -17,15 +17,15 @@ public sealed class GameLaunchService(LogService log) : IDisposable
     public event Action<int?>? LanPortChanged;
 
     public Task LaunchAsync(LauncherSettings settings, GameVersion version, JavaInstallation java, CancellationToken ct = default,
-        int? quickJoinPort = null)
-        => LaunchCoreAsync(settings, version, java, ct, quickJoinPort, null);
+        bool joiningFriend = false)
+        => LaunchCoreAsync(settings, version, java, ct, joiningFriend, null);
 
     internal Task LaunchWithAppearanceAsync(LauncherSettings settings, GameVersion version, JavaInstallation java,
-        LocalAppearanceLaunch appearance, CancellationToken ct, int? quickJoinPort)
-        => LaunchCoreAsync(settings, version, java, ct, quickJoinPort, appearance);
+        LocalAppearanceLaunch appearance, CancellationToken ct, bool joiningFriend)
+        => LaunchCoreAsync(settings, version, java, ct, joiningFriend, appearance);
 
     private async Task LaunchCoreAsync(LauncherSettings settings, GameVersion version, JavaInstallation java, CancellationToken ct,
-        int? quickJoinPort, LocalAppearanceLaunch? appearance)
+        bool joiningFriend, LocalAppearanceLaunch? appearance)
     {
         lock (_gate)
         {
@@ -37,7 +37,7 @@ public sealed class GameLaunchService(LogService log) : IDisposable
         string? nativeDirectory = null;
         try
         {
-            var startInfo = await Task.Run(() => BuildStartInfo(settings, version, java, out nativeDirectory, ct, quickJoinPort, appearance), ct).ConfigureAwait(false);
+            var startInfo = await Task.Run(() => BuildStartInfo(settings, version, java, out nativeDirectory, ct, appearance), ct).ConfigureAwait(false);
             ct.ThrowIfCancellationRequested();
             var process = new Process { StartInfo = startInfo };
             try
@@ -54,7 +54,7 @@ public sealed class GameLaunchService(LogService log) : IDisposable
             log.Info($"已启动 {version.DisplayName}（本地档案：{settings.PlayerName}，内存 {settings.MemoryMb} MB）。");
             var directoryToClean = nativeDirectory;
             nativeDirectory = null;
-            _ = ObserveAsync(process, directoryToClean, quickJoinPort is null);
+            _ = ObserveAsync(process, directoryToClean, !joiningFriend);
         }
         catch
         {
@@ -66,7 +66,7 @@ public sealed class GameLaunchService(LogService log) : IDisposable
     }
 
     private static ProcessStartInfo BuildStartInfo(LauncherSettings settings, GameVersion version, JavaInstallation java,
-        out string? nativeDirectory, CancellationToken ct, int? quickJoinPort,
+        out string? nativeDirectory, CancellationToken ct,
         LocalAppearanceLaunch? appearance)
     {
         nativeDirectory = null;
@@ -259,11 +259,6 @@ public sealed class GameLaunchService(LogService log) : IDisposable
         }
         info.ArgumentList.Add(mainClass ?? throw new InvalidDataException("版本缺少启动入口。"));
         foreach (var argument in gameArguments) info.ArgumentList.Add(MinecraftMetadata.Expand(argument, replacements));
-        if (quickJoinPort is >= 1 and <= 65535)
-        {
-            info.ArgumentList.Add("--quickPlayMultiplayer");
-            info.ArgumentList.Add($"127.0.0.1:{quickJoinPort}");
-        }
         ct.ThrowIfCancellationRequested();
         return info;
     }

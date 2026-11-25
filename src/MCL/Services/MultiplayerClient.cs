@@ -3,13 +3,31 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Net.Sockets;
 using System.Net.WebSockets;
+using System.Text;
 using System.Text.Json;
 using MCL.Multiplayer;
 
 namespace MCL.Services;
 
 internal sealed record HostRoom(string Code, Task Completion);
-internal sealed record GuestTunnel(int Port, Task Completion);
+internal sealed record GuestTunnel(int Port, Task Completion)
+{
+    internal const string LanRoomName = "MCL 好友房间";
+    internal const int LanDiscoveryPort = 4445;
+
+    internal async Task AdvertiseLanRoomAsync(CancellationToken ct)
+    {
+        // Keep the advertisement on the guest PC, where the proxy also listens.
+        using var discovery = new UdpClient(new IPEndPoint(IPAddress.Loopback, 0));
+        var destination = new IPEndPoint(IPAddress.Loopback, LanDiscoveryPort);
+        var message = Encoding.UTF8.GetBytes(FormattableString.Invariant($"[MOTD]{LanRoomName}[/MOTD][AD]{Port}[/AD]"));
+        while (true)
+        {
+            await discovery.SendAsync(message.AsMemory(), destination, ct).ConfigureAwait(false);
+            await Task.Delay(TimeSpan.FromMilliseconds(1500), ct).ConfigureAwait(false);
+        }
+    }
+}
 
 internal sealed class MultiplayerClient
 {

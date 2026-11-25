@@ -339,10 +339,10 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private async void Launch_Click(object sender, RoutedEventArgs e)
     {
         if (!CanLaunch || SelectedVersion is not { } version) return;
-        await RunBusyAsync(() => LaunchGameAsync(version, null, _lifetime.Token));
+        await RunBusyAsync(() => LaunchGameAsync(version, _lifetime.Token));
     }
 
-    private async Task LaunchGameAsync(GameVersion version, int? quickJoinPort, CancellationToken ct, bool detectJava = false)
+    private async Task LaunchGameAsync(GameVersion version, CancellationToken ct, bool detectJava = false, bool joiningFriend = false)
     {
         var settings = SnapshotSettings();
         StatusMessage = "正在检查 Java 和本地游戏文件…";
@@ -369,11 +369,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
         ct.ThrowIfCancellationRequested();
         _runningGame = version;
-        _runningForGuest = quickJoinPort is not null;
+        _runningForGuest = joiningFriend;
         try
         {
-            if (appearance is null) await _launcher.LaunchAsync(settings, version, _java, ct, quickJoinPort);
-            else await _launcher.LaunchWithAppearanceAsync(settings, version, _java, appearance, ct, quickJoinPort);
+            if (appearance is null) await _launcher.LaunchAsync(settings, version, _java, ct, joiningFriend);
+            else await _launcher.LaunchWithAppearanceAsync(settings, version, _java, appearance, ct, joiningFriend);
         }
         catch { _runningGame = null; _runningForGuest = false; throw; }
         StatusMessage = "启动命令已执行。游戏输出会显示在运行日志中。";
