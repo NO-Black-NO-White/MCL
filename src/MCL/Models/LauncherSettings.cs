@@ -8,7 +8,6 @@ public sealed class LauncherSettings
     public string PlayerName { get; set; } = "Player";
     public string? SelectedVersionId { get; set; }
     public string MicrosoftClientId { get; set; } = "";
-    public bool UseMicrosoftAccount { get; set; }
     public string RelayEndpoint { get; set; } = "";
     public bool ApplyLocalAppearance { get; set; }
     public string? LocalSkin { get; set; }

@@ -11,6 +11,7 @@ public interface IMicrosoftAccountService
 {
     Task<MicrosoftAccountSession> SignInAsync(string clientId, IProgress<string>? progress = null, CancellationToken cancellationToken = default);
     Task<MicrosoftAccountSession> RefreshAsync(MicrosoftAccountSession session, IProgress<string>? progress = null, CancellationToken cancellationToken = default);
+    Task<byte[]> DownloadTextureAsync(string url, CancellationToken cancellationToken = default);
 }
 
 public sealed class AccountAuthenticationException : Exception
@@ -132,29 +133,72 @@ public sealed class MicrosoftAccountService : IMicrosoftAccountService, IDisposa
         using var profile = await SendAsync(HttpMethod.Get, ProfileEndpoint, null, minecraftToken, "角色信息读取", ct).ConfigureAwait(false);
         var profileId = OptionalString(profile.RootElement, "id") ?? "";
         var playerName = OptionalString(profile.RootElement, "name") ?? "";
-        string? skinUrl = null;
-        if (profile.RootElement.TryGetProperty("skins", out var skins) && skins.ValueKind == JsonValueKind.Array)
-        {
-            foreach (var skin in skins.EnumerateArray())
-            {
-                if (OptionalString(skin, "state") != "ACTIVE") continue;
-                var raw = OptionalString(skin, "url");
-                if (Uri.TryCreate(raw, UriKind.Absolute, out var uri) && uri.Scheme == Uri.UriSchemeHttp && uri.Host == "textures.minecraft.net" && uri.IsDefaultPort)
-                    raw = new UriBuilder(uri) { Scheme = Uri.UriSchemeHttps, Port = -1 }.Uri.AbsoluteUri;
-                if (MicrosoftAccountSession.IsSafeSkinUrl(raw)) skinUrl = raw;
-                break;
-            }
-        }
+        var (skinUrl, skinVariant) = ActiveTexture(profile.RootElement, "skins");
+        var (capeUrl, _) = ActiveTexture(profile.RootElement, "capes");
         var result = new MicrosoftAccountSession
         {
             ClientId = NormalizeClientId(clientId), RefreshToken = refreshToken, AccessToken = minecraftToken,
             ExpiresAt = issuedAt.AddSeconds(seconds), ProfileId = profileId.ToLowerInvariant(), PlayerName = playerName,
-            SkinUrl = skinUrl, XboxUserId = xuid
+            SkinUrl = skinUrl, SkinVariant = skinVariant, CapeUrl = capeUrl, XboxUserId = xuid
         };
         try { result.Validate(); }
         catch (InvalidDataException) { throw BadResponse(); }
         ct.ThrowIfCancellationRequested();
         return result;
+    }
+
+    private static (string? Url, string? Variant) ActiveTexture(JsonElement profile, string property)
+    {
+        if (!profile.TryGetProperty(property, out var textures) || textures.ValueKind != JsonValueKind.Array)
+            return (null, null);
+        foreach (var texture in textures.EnumerateArray())
+        {
+            if (OptionalString(texture, "state") != "ACTIVE") continue;
+            var url = OptionalString(texture, "url");
+            if (Uri.TryCreate(url, UriKind.Absolute, out var uri) && uri.Scheme == Uri.UriSchemeHttp
+                && uri.Host == "textures.minecraft.net" && uri.IsDefaultPort)
+                url = new UriBuilder(uri) { Scheme = Uri.UriSchemeHttps, Port = -1 }.Uri.AbsoluteUri;
+            if (MicrosoftAccountSession.IsSafeTextureUrl(url))
+                return (url, OptionalString(texture, "variant"));
+        }
+        return (null, null);
+    }
+
+    public async Task<byte[]> DownloadTextureAsync(string url, CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (!MicrosoftAccountSession.IsSafeTextureUrl(url))
+            throw new InvalidDataException("外观地址无效，请刷新角色资料后重试。");
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(TimeSpan.FromSeconds(20));
+        try
+        {
+            using var response = await _client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, timeout.Token).ConfigureAwait(false);
+            response.EnsureSuccessStatusCode();
+            using var buffer = new MemoryStream();
+            await ReadBoundedAsync(response.Content, buffer, timeout.Token).ConfigureAwait(false);
+            return buffer.ToArray();
+        }
+        catch (HttpRequestException)
+        { throw new AccountAuthenticationException("无法从 Minecraft 下载外观，请刷新资料或稍后重试。"); }
+        catch (IOException)
+        { throw new AccountAuthenticationException("下载 Minecraft 外观时连接中断，请重试。"); }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        { throw new AccountAuthenticationException("下载 Minecraft 外观超时，请稍后重试。"); }
+    }
+
+    private static async Task ReadBoundedAsync(HttpContent content, MemoryStream buffer, CancellationToken ct)
+    {
+        if (content.Headers.ContentLength > MaximumResponseBytes) throw BadResponse();
+        await using var stream = await content.ReadAsStreamAsync(ct).ConfigureAwait(false);
+        var block = new byte[8192];
+        while (true)
+        {
+            var count = await stream.ReadAsync(block, ct).ConfigureAwait(false);
+            if (count == 0) break;
+            if (buffer.Length + count > MaximumResponseBytes) throw BadResponse();
+            buffer.Write(block, 0, count);
+        }
     }
 
     private async Task<JsonDocument> SendAsync(HttpMethod method, string endpoint, HttpContent? content, string? bearer,
@@ -172,17 +216,8 @@ public sealed class MicrosoftAccountService : IMicrosoftAccountService, IDisposa
         try
         {
             using var response = await _client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token).ConfigureAwait(false);
-            if (response.Content.Headers.ContentLength > MaximumResponseBytes) throw BadResponse();
-            await using var stream = await response.Content.ReadAsStreamAsync(timeout.Token).ConfigureAwait(false);
             using var buffer = new MemoryStream();
-            var block = new byte[8192];
-            while (true)
-            {
-                var count = await stream.ReadAsync(block, timeout.Token).ConfigureAwait(false);
-                if (count == 0) break;
-                if (buffer.Length + count > MaximumResponseBytes) throw BadResponse();
-                buffer.Write(block, 0, count);
-            }
+            await ReadBoundedAsync(response.Content, buffer, timeout.Token).ConfigureAwait(false);
             JsonDocument? document = null;
             try { document = JsonDocument.Parse(buffer.GetBuffer().AsMemory(0, (int)buffer.Length), new JsonDocumentOptions { MaxDepth = 32 }); }
             catch (JsonException) { if (response.IsSuccessStatusCode) throw BadResponse(); }
@@ -229,7 +264,7 @@ public sealed class MicrosoftAccountService : IMicrosoftAccountService, IDisposa
             return new(message, requiresLogin: true);
         }
         if (endpoint == MinecraftEndpoint && status == HttpStatusCode.Forbidden)
-            return new("Minecraft 服务拒绝了本启动器的登录请求。请先确认本启动器的应用 ID 已通过 Minecraft 官方接入审核；详见项目中的《微软登录接入说明》。");
+            return new("Minecraft 服务拒绝了登录请求。请确认填写的启动器应用 ID 已通过 Minecraft 官方接入审核。");
         if (endpoint == ProfileEndpoint && status == HttpStatusCode.NotFound)
             return new("账号尚未创建 Minecraft Java 版角色，请先在 Minecraft 官网设置角色名，再重新登录。", requiresLogin: true);
         if ((int)status == 429) return new("官方服务请求过于频繁，请稍候再试。");

@@ -75,7 +75,7 @@
                     <RadioButton x:Name="DownloadsNav" Style="{StaticResource NavigationButton}" GroupName="Navigation" Tag="Downloads" Checked="Navigation_Checked" Content="下载游戏" CommandParameter="{StaticResource DownloadIcon}" />
                     <RadioButton x:Name="ModpacksNav" Style="{StaticResource NavigationButton}" GroupName="Navigation" Tag="Modpacks" Checked="Navigation_Checked" Content="导入整合包" CommandParameter="{StaticResource PackIcon}" />
                     <RadioButton x:Name="MultiplayerNav" Style="{StaticResource NavigationButton}" GroupName="Navigation" Tag="Multiplayer" Checked="Navigation_Checked" Content="好友联机" CommandParameter="{StaticResource LinkIcon}" />
-                    <RadioButton x:Name="AccountsNav" Style="{StaticResource NavigationButton}" GroupName="Navigation" Tag="Accounts" Checked="Navigation_Checked" Content="账号管理" CommandParameter="{StaticResource AccountIcon}" />
+                    <RadioButton x:Name="AppearanceNav" Style="{StaticResource NavigationButton}" GroupName="Navigation" Tag="Appearance" Checked="Navigation_Checked" Content="本地角色" CommandParameter="{StaticResource AccountIcon}" />
                     <RadioButton x:Name="SettingsNav" Style="{StaticResource NavigationButton}" GroupName="Navigation" Tag="Settings" Checked="Navigation_Checked" Content="启动设置" CommandParameter="{StaticResource SettingsIcon}" />
                     <RadioButton x:Name="LogsNav" Style="{StaticResource NavigationButton}" GroupName="Navigation" Tag="Logs" Checked="Navigation_Checked" Content="运行日志" CommandParameter="{StaticResource LogsIcon}" />
                 </StackPanel>
@@ -86,8 +86,8 @@
                                 <Path Data="{StaticResource AccountIcon}" Style="{StaticResource ShortcutIcon}" Width="16" Height="16" />
                             </Border>
                             <StackPanel Margin="9,0,0,0" Width="100" VerticalAlignment="Center">
-                                <TextBlock Text="{Binding ActivePlayerName}" FontSize="12" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                                <TextBlock Text="{Binding ActiveAccountLabel}" FontSize="10" Foreground="{StaticResource MutedBrush}" />
+                                <TextBlock Text="{Binding PlayerName}" FontSize="12" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Text="本地档案" FontSize="10" Foreground="{StaticResource MutedBrush}" />
                             </StackPanel>
                         </StackPanel>
                     </Border>
@@ -384,12 +384,10 @@
                             </Border>
                         </StackPanel>
                     </Grid>
-                    <Grid x:Name="AccountsPage" Style="{StaticResource PagePanel}">
+                    <Grid x:Name="AppearancePage" Style="{StaticResource PagePanel}">
                         <StackPanel>
                             <Border Style="{StaticResource Card}" Background="{StaticResource HeroBrush}" Padding="22">
-                                <StackPanel IsEnabled="{Binding CanChooseAccountMode}">
-                                    <TextBlock Text="本地角色" FontSize="23" FontWeight="SemiBold" />
-                                    <TextBlock Text="在本机编辑游戏名和外观，直接使用本地档案启动。" Style="{StaticResource MutedText}" Margin="0,5,0,12" />
+                                <StackPanel IsEnabled="{Binding CanEditLocalAppearance}">
                                     <TextBlock Text="游戏内 ID（玩家名）" FontWeight="SemiBold" Margin="0,0,0,6" />
                                     <TextBox x:Name="LocalPlayerNameBox" Text="{Binding PlayerName, UpdateSourceTrigger=PropertyChanged}" MaxLength="16"
                                              AutomationProperties.Name="游戏内玩家名" />
@@ -440,52 +438,54 @@
                                     <TextBlock Text="首次使用需要联网安装外观组件。自定义皮肤和披风仅在本机显示。" Style="{StaticResource MutedText}"
                                                FontSize="11" Margin="0,4,0,7" />
                                     <WrapPanel>
-                                        <Button Content="保存并使用本地档案" Style="{StaticResource PrimaryButton}" Click="SaveLocalAppearance_Click" />
+                                        <Button Content="保存本地角色" Style="{StaticResource PrimaryButton}" Click="SaveLocalAppearance_Click" />
                                         <TextBlock Text="{Binding LocalAppearanceStatus}" TextWrapping="Wrap" MaxWidth="440"
                                                    VerticalAlignment="Center" Margin="10,3,0,3" FontSize="11" />
                                     </WrapPanel>
                                 </StackPanel>
                             </Border>
-                            <Border Style="{StaticResource Card}" Padding="24" Margin="0,16,0,0">
+                            <Border Style="{StaticResource Card}" Padding="22" Margin="0,16,0,0">
                                 <StackPanel>
-                                    <Grid>
-                                        <Grid.ColumnDefinitions><ColumnDefinition Width="68" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                                        <Border Width="52" Height="52" CornerRadius="10" Background="{StaticResource SoftAccentBrush}" HorizontalAlignment="Left" VerticalAlignment="Top">
-                                            <Grid><TextBlock Text="M" FontSize="25" FontWeight="Bold" Foreground="{StaticResource AccentTextBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" /><Image Source="{Binding AccountAvatar}" Visibility="{Binding HasAccountAvatar, Converter={StaticResource BoolVisibility}}" Width="40" Height="40" RenderOptions.BitmapScalingMode="NearestNeighbor" /></Grid>
-                                        </Border>
-                                        <StackPanel Grid.Column="1"><TextBlock Text="{Binding AccountPlayerName}" FontSize="23" FontWeight="SemiBold" /><TextBlock Text="{Binding AccountStateText}" Foreground="{StaticResource AccentTextBrush}" FontSize="12" Margin="0,5,0,0" /><TextBlock Text="{Binding AccountProfileId}" Style="{StaticResource MutedText}" FontSize="11" Margin="0,7,0,0" /></StackPanel>
-                                    </Grid>
-                                    <TextBlock Text="{Binding AccountMessage}" TextWrapping="Wrap" FontSize="13" LineHeight="23" Margin="0,20,0,17" />
+                                    <TextBlock Text="从正版账号导入" FontSize="17" FontWeight="SemiBold" />
+                                    <TextBlock Text="登录微软账号，获取 Minecraft Java 版角色资料。游戏使用已保存的本地角色启动。"
+                                               Style="{StaticResource MutedText}" TextWrapping="Wrap" Margin="0,5,0,12" />
                                     <WrapPanel>
-                                        <Button x:Name="MicrosoftSignInButton" Content="{Binding SignInButtonText}" Style="{StaticResource PrimaryButton}" IsEnabled="{Binding CanSignIn}" Click="MicrosoftSignIn_Click" Margin="0,0,10,8" />
-                                        <Button x:Name="CancelAccountButton" Content="取消登录" IsEnabled="{Binding CanCancelAccount}" Visibility="{Binding CanCancelAccount, Converter={StaticResource BoolVisibility}}" Click="CancelAccount_Click" Margin="0,0,10,8" />
-                                        <Button x:Name="MicrosoftSignOutButton" Content="退出登录" IsEnabled="{Binding CanSignOut}" Visibility="{Binding HasMicrosoftAccount, Converter={StaticResource BoolVisibility}}" Click="MicrosoftSignOut_Click" Margin="0,0,10,8" />
-                                        <Button Content="申请与接入说明" Click="OpenMicrosoftSetup_Click" Margin="0,0,10,8" />
-                                        <Button Content="前往 Minecraft 官网" Click="OpenMinecraftProfile_Click" Margin="0,0,0,8" />
+                                        <Button x:Name="ProfileSignInButton" Content="登录微软账号" Click="SignInForProfile_Click"
+                                                IsEnabled="{Binding CanSignInForProfile}" Margin="0,0,8,7" />
+                                        <Button x:Name="ProfileRefreshButton" Content="刷新资料" Click="RefreshOnlineProfile_Click"
+                                                IsEnabled="{Binding CanRefreshOnlineProfile}"
+                                                Visibility="{Binding HasOnlineProfile, Converter={StaticResource BoolVisibility}}" Margin="0,0,8,7" />
+                                        <Button x:Name="ProfileClearButton" Content="清除登录" Click="ClearOnlineProfile_Click"
+                                                Visibility="{Binding CanClearOnlineProfile, Converter={StaticResource BoolVisibility}}" Margin="0,0,8,7" />
+                                        <Button Content="取消" Click="CancelProfileOperation_Click"
+                                                Visibility="{Binding CanCancelProfileOperation, Converter={StaticResource BoolVisibility}}" Margin="0,0,0,7" />
                                     </WrapPanel>
-                                    <TextBlock Text="密码和验证码只在微软官方网页输入。MCL 使用 Windows 当前用户加密保护保存登录凭证。" Style="{StaticResource MutedText}" FontSize="11" Margin="0,5,0,0" />
+                                    <StackPanel Visibility="{Binding HasOnlineProfile, Converter={StaticResource BoolVisibility}}" Margin="0,7,0,5">
+                                        <TextBlock Text="{Binding OnlineProfileName}" FontSize="18" FontWeight="SemiBold" />
+                                        <TextBlock Text="角色 UUID" Style="{StaticResource MutedText}" Margin="0,6,0,5" />
+                                        <TextBox Text="{Binding OnlineProfileId, Mode=OneWay}" IsReadOnly="True" AutomationProperties.Name="角色 UUID" />
+                                        <TextBlock Text="{Binding OnlineAppearanceSummary}" Style="{StaticResource MutedText}" Margin="0,8,0,8" />
+                                        <WrapPanel>
+                                            <Button x:Name="ProfileNameButton" Content="使用这个昵称" Click="UseOnlineName_Click"
+                                                    IsEnabled="{Binding CanUseOnlineName}" Margin="0,0,8,7" />
+                                            <Button x:Name="ProfileSkinButton" Content="导入当前皮肤" Click="ImportOnlineSkin_Click"
+                                                    IsEnabled="{Binding CanImportOnlineSkin}" Margin="0,0,8,7" />
+                                            <Button x:Name="ProfileCapeButton" Content="导入当前披风" Click="ImportOnlineCape_Click"
+                                                    IsEnabled="{Binding CanImportOnlineCape}" Margin="0,0,0,7" />
+                                        </WrapPanel>
+                                    </StackPanel>
+                                    <TextBlock Text="{Binding OnlineProfileStatus}" Style="{StaticResource MutedText}"
+                                               TextWrapping="Wrap" Margin="0,0,0,8" />
+                                    <Expander Header="启动器应用 ID" IsEnabled="{Binding CanEditLocalAppearance}">
+                                        <StackPanel Margin="0,10,0,0">
+                                            <TextBlock Text="填写已取得 Minecraft 接口访问许可的应用（客户端）ID。"
+                                                       Style="{StaticResource MutedText}" TextWrapping="Wrap" Margin="0,0,0,6" />
+                                            <TextBox Text="{Binding MicrosoftClientId, UpdateSourceTrigger=PropertyChanged}" MaxLength="64"
+                                                     AutomationProperties.Name="启动器应用 ID" />
+                                        </StackPanel>
+                                    </Expander>
                                 </StackPanel>
                             </Border>
-                            <Border Style="{StaticResource Card}" Padding="22" Margin="0,16,0,0"><StackPanel>
-                                <TextBlock Text="启动时使用的身份" FontSize="15" FontWeight="SemiBold" Margin="0,0,0,16" />
-                                <WrapPanel IsEnabled="{Binding CanChooseAccountMode}">
-                                    <RadioButton x:Name="MicrosoftModeButton" Content="微软账号" GroupName="AccountMode" IsChecked="{Binding UseMicrosoftAccount, Mode=TwoWay}" Margin="0,0,30,8" />
-                                    <RadioButton x:Name="LocalModeButton" Content="本地档案" GroupName="AccountMode" IsChecked="{Binding UseLocalAccount, Mode=TwoWay}" Margin="0,0,0,8" />
-                                </WrapPanel>
-                                <TextBlock Text="{Binding LaunchAccountHint}" Style="{StaticResource MutedText}" FontSize="12" Margin="0,4,0,0" />
-                                <TextBlock Text="微软身份启动前会联网验证。本地档案使用上方设置的游戏内玩家名。" Style="{StaticResource MutedText}" FontSize="11" Margin="0,7,0,0" />
-                            </StackPanel></Border>
-                            <Border Style="{StaticResource Card}" Padding="22" Margin="0,16,0,0"><StackPanel>
-                                <TextBlock Text="{Binding AccountSetupHint}" Style="{StaticResource MutedText}" FontSize="12" Margin="0,0,0,12" />
-                                <Expander x:Name="MicrosoftSetupExpander" Header="登录接入设置" Foreground="{StaticResource TextBrush}" IsExpanded="True">
-                                    <StackPanel Margin="0,16,0,0">
-                                        <TextBlock Text="应用（客户端）ID" FontSize="12" Margin="0,0,0,8" />
-                                        <TextBox x:Name="MicrosoftClientIdInput" Text="{Binding MicrosoftClientId, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding CanEditClientId}" MaxLength="64" ToolTip="填写这个启动器自己申请的应用（客户端）ID" />
-                                        <WrapPanel Margin="0,12,0,0"><Button Content="保存应用编号" IsEnabled="{Binding CanEditClientId}" Click="SaveMicrosoftConfiguration_Click" Margin="0,0,10,8" /><Button Content="查看申请步骤" Click="OpenMicrosoftSetup_Click" Margin="0,0,10,8" /><Button Content="清除保存的登录" Click="MicrosoftSignOut_Click" IsEnabled="{Binding CanChooseAccountMode}" Visibility="{Binding HasNoMicrosoftAccount, Converter={StaticResource BoolVisibility}}" Margin="0,0,0,8" /></WrapPanel>
-                                        <TextBlock Text="由启动器开发者配置，普通玩家无需申请。更换应用编号前，请先退出当前账号。" Style="{StaticResource MutedText}" FontSize="11" Margin="0,3,0,0" />
-                                    </StackPanel>
-                                </Expander>
-                            </StackPanel></Border>
                         </StackPanel>
                     </Grid>
                     <Grid x:Name="SettingsPage" Style="{StaticResource PagePanel}" IsEnabled="{Binding CanInteract}">
@@ -495,7 +495,7 @@
                                 <TextBlock Text="游戏文件夹" FontSize="12" Margin="0,0,0,8" />
                                 <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><TextBox Text="{Binding GameDirectory, UpdateSourceTrigger=PropertyChanged}" ToolTip="选择包含 versions、libraries 和 assets 的游戏目录" /><Button Grid.Column="1" Content="浏览…" Margin="10,0,0,0" Click="BrowseGame_Click" IsEnabled="{Binding CanInteract}" /></Grid>
                                 <TextBlock Text="本地玩家名称" FontSize="12" Margin="0,21,0,8" /><TextBox Text="{Binding PlayerName, UpdateSourceTrigger=PropertyChanged}" MaxLength="16" />
-                                <TextBlock Text="使用 1–16 位英文字母、数字或下划线。本地档案不提供正版服务器身份认证。" Style="{StaticResource MutedText}" FontSize="11" Margin="0,7,0,0" />
+                                <TextBlock Text="使用 1–16 位英文字母、数字或下划线。" Style="{StaticResource MutedText}" FontSize="11" Margin="0,7,0,0" />
                             </StackPanel></Border>
                             <Border Style="{StaticResource Card}" Margin="0,16,0,0"><StackPanel>
                                 <TextBlock Text="运行环境" FontSize="17" FontWeight="SemiBold" Margin="0,0,0,20" />

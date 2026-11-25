@@ -143,11 +143,6 @@ public partial class MainWindow
     private async void HostRoom_Click(object sender, RoutedEventArgs e)
     {
         if (!CanHostRoom || (_runningGame ?? SelectedVersion) is not { } version) return;
-        if (_runningGame is null && UseMicrosoftAccount && (!HasMicrosoftAccount || _accountRequiresLogin))
-        {
-            MultiplayerStatus = "请先登录微软账号，或在「账号管理」选用本地档案。";
-            return;
-        }
         using var cancellation = BeginMultiplayer(hosting: true);
         HostedRelay? automatic = null;
         try
@@ -208,11 +203,6 @@ public partial class MainWindow
         RoomInvite invite;
         try { invite = RoomInvite.Read(InviteInput, RelayEndpoint); }
         catch (InvalidDataException ex) { MultiplayerStatus = ex.Message; return; }
-        if (UseMicrosoftAccount && (!HasMicrosoftAccount || _accountRequiresLogin))
-        {
-            MultiplayerStatus = "请在「账号管理」完成登录，再加入房间。";
-            return;
-        }
         using var cancellation = BeginMultiplayer(hosting: false);
         GuestTunnel? tunnel = null;
         var preparing = true;

@@ -30,7 +30,7 @@ public sealed class SettingsStore
                 if (string.IsNullOrWhiteSpace(settings.GameDirectory)) settings.GameDirectory = new LauncherSettings().GameDirectory;
                 settings.JavaPath ??= "";
                 if (settings.MemoryMb < 512 || settings.MemoryMb > 1_048_576) settings.MemoryMb = 4096;
-                if (string.IsNullOrWhiteSpace(settings.PlayerName)) settings.PlayerName = "Player";
+                if (!MinecraftMetadata.IsValidLocalPlayerName(settings.PlayerName)) settings.PlayerName = "Player";
                 return settings;
             }
             catch (Exception ex) when (ex is JsonException or NotSupportedException)

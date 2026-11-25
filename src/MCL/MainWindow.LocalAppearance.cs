@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Microsoft.Win32;
 using MCL.Models;
@@ -30,6 +31,7 @@ public partial class MainWindow
     }
 
     public BitmapSource? LocalAvatar { get => _localAvatar; private set => Set(ref _localAvatar, value); }
+    public bool CanEditLocalAppearance => !IsBusy && !IsGameRunning;
     public BitmapSource? LocalCapePreview { get => _localCapePreview; private set => Set(ref _localCapePreview, value); }
     public bool HasLocalSkin => _localSkin is not null;
     public bool HasLocalCape => _localCape is not null;
@@ -46,7 +48,7 @@ public partial class MainWindow
         try
         {
             if (_localAppearance.PreviewTexture(_localSkin, cape: false) is { } skin)
-                LocalAvatar = MinecraftAvatarService.CreateAvatar(skin);
+                LocalAvatar = CreateLocalAvatar(skin);
             SetCapePreview(_localAppearance.PreviewTexture(_localCape, cape: true));
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or FormatException or
@@ -64,12 +66,32 @@ public partial class MainWindow
         LocalCapePreview = front;
     }
 
+    private static BitmapSource CreateLocalAvatar(BitmapSource skin)
+    {
+        var visual = new DrawingVisual();
+        using (var drawing = visual.RenderOpen())
+        {
+            drawing.DrawImage(new CroppedBitmap(skin, new Int32Rect(8, 8, 8, 8)), new Rect(0, 0, 8, 8));
+            drawing.DrawImage(new CroppedBitmap(skin, new Int32Rect(40, 8, 8, 8)), new Rect(0, 0, 8, 8));
+        }
+        var avatar = new RenderTargetBitmap(8, 8, 96, 96, PixelFormats.Pbgra32);
+        avatar.Render(visual);
+        avatar.Freeze();
+        return avatar;
+    }
+
+    public void OpenAppearance()
+    {
+        AppearanceNav.IsChecked = true;
+        Navigate("Appearance");
+    }
+
     private void PickLocalSkin_Click(object sender, RoutedEventArgs e) => PickLocalTexture(cape: false);
     private void PickLocalCape_Click(object sender, RoutedEventArgs e) => PickLocalTexture(cape: true);
 
     private void PickLocalTexture(bool cape)
     {
-        if (!CanChooseAccountMode) return;
+        if (!CanEditLocalAppearance) return;
         var dialog = new OpenFileDialog
         {
             Title = cape ? "选择本地披风" : "选择本地皮肤",
@@ -79,19 +101,7 @@ public partial class MainWindow
         if (dialog.ShowDialog(this) != true) return;
         try
         {
-            var texture = _localAppearance.ImportTexture(dialog.FileName, cape);
-            if (cape)
-            {
-                _localCape = texture.Hash;
-                SetCapePreview(texture.Preview);
-            }
-            else
-            {
-                _localSkin = texture.Hash;
-                LocalAvatar = MinecraftAvatarService.CreateAvatar(texture.Preview);
-            }
-            ApplyLocalAppearance = true;
-            NotifyLocalTextures();
+            ApplyLocalTexture(_localAppearance.ImportTexture(dialog.FileName, cape), cape);
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException)
         { LocalAppearanceStatus = ex.Message; }
@@ -99,9 +109,25 @@ public partial class MainWindow
         { LocalAppearanceStatus = "图片无法读取，请重新选择有效的 PNG。"; }
     }
 
+    private void ApplyLocalTexture((string Hash, BitmapSource Preview) texture, bool cape)
+    {
+        if (cape)
+        {
+            SetCapePreview(texture.Preview);
+            _localCape = texture.Hash;
+        }
+        else
+        {
+            LocalAvatar = CreateLocalAvatar(texture.Preview);
+            _localSkin = texture.Hash;
+        }
+        ApplyLocalAppearance = true;
+        NotifyLocalTextures();
+    }
+
     private void ClearLocalSkin_Click(object sender, RoutedEventArgs e)
     {
-        if (!CanChooseAccountMode) return;
+        if (!CanEditLocalAppearance) return;
         _localSkin = null;
         LocalAvatar = null;
         NotifyLocalTextures();
@@ -109,7 +135,7 @@ public partial class MainWindow
 
     private void ClearLocalCape_Click(object sender, RoutedEventArgs e)
     {
-        if (!CanChooseAccountMode) return;
+        if (!CanEditLocalAppearance) return;
         _localCape = null;
         LocalCapePreview = null;
         NotifyLocalTextures();
@@ -119,13 +145,12 @@ public partial class MainWindow
     {
         Notify(nameof(HasLocalSkin), nameof(HasLocalCape), nameof(LocalSkinLabel), nameof(LocalCapeLabel));
         MarkDirty();
-        LocalAppearanceStatus = "已修改外观。点击「保存并使用本地档案」应用。";
+        LocalAppearanceStatus = "已修改外观。点击「保存本地角色」应用。";
     }
 
     private async void SaveLocalAppearance_Click(object sender, RoutedEventArgs e)
     {
-        if (!CanChooseAccountMode) return;
-        UseMicrosoftAccount = false;
+        if (!CanEditLocalAppearance) return;
         await RunBusyAsync(() =>
         {
             SaveCurrentSettings();

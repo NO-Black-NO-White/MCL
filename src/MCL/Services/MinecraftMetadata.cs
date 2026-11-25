@@ -12,6 +12,9 @@ internal static class MinecraftMetadata
 {
     private static readonly Regex Placeholder = new(@"\$\{([^}]+)\}", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
 
+    internal static bool IsValidLocalPlayerName(string? name)
+        => name is not null && Regex.IsMatch(name, @"\A[A-Za-z0-9_]{1,16}\z", RegexOptions.CultureInvariant);
+
     internal static string OfflineUuid(string name)
     {
         var bytes = MD5.HashData(Encoding.UTF8.GetBytes("OfflinePlayer:" + name));

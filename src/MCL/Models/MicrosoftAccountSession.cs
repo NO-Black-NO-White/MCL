@@ -11,6 +11,8 @@ public sealed class MicrosoftAccountSession
     public string ProfileId { get; init; } = "";
     public string PlayerName { get; init; } = "";
     public string? SkinUrl { get; init; }
+    public string? SkinVariant { get; init; }
+    public string? CapeUrl { get; init; }
     public string XboxUserId { get; init; } = "";
     public DateTimeOffset ExpiresAt { get; init; }
 
@@ -25,11 +27,11 @@ public sealed class MicrosoftAccountSession
             || ExpiresAt == default
             || !Regex.IsMatch(XboxUserId ?? "", "\\A[0-9]{0,20}\\z", RegexOptions.CultureInvariant))
             throw new InvalidDataException("保存的账号信息不完整，请重新进行微软登录。");
-        if (SkinUrl is not null && !IsSafeSkinUrl(SkinUrl))
-            throw new InvalidDataException("账号皮肤地址无效，请重新进行微软登录。");
+        if (SkinUrl is not null && !IsSafeTextureUrl(SkinUrl) || CapeUrl is not null && !IsSafeTextureUrl(CapeUrl))
+            throw new InvalidDataException("账号外观地址无效，请重新登录。");
     }
 
-    public static bool IsSafeSkinUrl(string? value) => Uri.TryCreate(value, UriKind.Absolute, out var uri)
+    public static bool IsSafeTextureUrl(string? value) => Uri.TryCreate(value, UriKind.Absolute, out var uri)
         && uri.Scheme == Uri.UriSchemeHttps && uri.Host.Equals("textures.minecraft.net", StringComparison.OrdinalIgnoreCase)
         && uri.IsDefaultPort && string.IsNullOrEmpty(uri.UserInfo) && string.IsNullOrEmpty(uri.Query)
         && string.IsNullOrEmpty(uri.Fragment) && Regex.IsMatch(uri.AbsolutePath, "\\A/texture/[0-9a-fA-F]{32,128}\\z", RegexOptions.CultureInvariant);

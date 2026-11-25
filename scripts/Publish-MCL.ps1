@@ -7,7 +7,12 @@ $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 $relaySdk = (Get-Command $RelayDotnet -CommandType Application).Source
 $clientSdk = (Get-Command dotnet -CommandType Application).Source
-if (!$OutputDirectory) { $OutputDirectory = Join-Path $root 'outputs/MCL' }
+$publishDefault = !$OutputDirectory
+if ($publishDefault) {
+    $project = [xml](Get-Content -LiteralPath (Join-Path $root 'src/MCL/MCL.csproj') -Raw)
+    $version = $project.Project.PropertyGroup.Version
+    $OutputDirectory = Join-Path $root "outputs/MCL-$version"
+}
 $OutputDirectory = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($OutputDirectory)
 
 # The desktop solution pins SDK 9. Give the public relay a separate SDK selection.
@@ -35,3 +40,15 @@ try {
         -p:PublishSingleFile=true -p:DebugType=None -p:DebugSymbols=false "-p:MclRelayBundle=$bundle" -o $OutputDirectory
     if ($LASTEXITCODE -ne 0) { throw '发布 MCL 失败。' }
 } finally { Pop-Location }
+
+if ($publishDefault) {
+    $shortcutPath = Join-Path $root '启动 MCL.lnk'
+    if (Test-Path -LiteralPath $shortcutPath -PathType Leaf) {
+        $shell = New-Object -ComObject WScript.Shell
+        $shortcut = $shell.CreateShortcut($shortcutPath)
+        $shortcut.TargetPath = Join-Path $OutputDirectory 'MCL.exe'
+        $shortcut.WorkingDirectory = $OutputDirectory
+        $shortcut.IconLocation = (Join-Path $root 'src/MCL/Assets/cherry-leaf.ico') + ',0'
+        $shortcut.Save()
+    }
+}

@@ -33,8 +33,11 @@ internal sealed class LocalAppearanceService(string dataDirectory, ModpackImport
     internal static string NormalizeModel(string? value) => value == "slim" ? "slim" : "default";
 
     internal (string Hash, BitmapSource Preview) ImportTexture(string source, bool cape)
+        => ImportTexture(ReadBounded(source, MaximumPngBytes), cape);
+
+    internal (string Hash, BitmapSource Preview) ImportTexture(byte[] source, bool cape)
     {
-        var image = DecodeTexture(ReadBounded(source, MaximumPngBytes), cape);
+        var image = DecodeTexture(source, cape);
         using var output = new MemoryStream();
         var encoder = new PngBitmapEncoder();
         encoder.Frames.Add(BitmapFrame.Create(image));
@@ -73,6 +76,8 @@ internal sealed class LocalAppearanceService(string dataDirectory, ModpackImport
 
     private static BitmapSource DecodeTexture(byte[] bytes, bool cape)
     {
+        if (bytes.Length is < 24 or > MaximumPngBytes)
+            throw new InvalidDataException("外观图片大小无效，需要不超过 1 MB 的 PNG。");
         if (!bytes.AsSpan(0, 8).SequenceEqual(new byte[] { 137, 80, 78, 71, 13, 10, 26, 10 })
             || !bytes.AsSpan(12, 4).SequenceEqual("IHDR"u8))
             throw new InvalidDataException("请选择有效的 PNG 图片。");
@@ -89,7 +94,7 @@ internal sealed class LocalAppearanceService(string dataDirectory, ModpackImport
     internal async Task<LocalAppearanceLaunch> PrepareAsync(LauncherSettings settings, GameVersion version, CancellationToken ct)
     {
         if (!Supports(version))
-            throw new NotSupportedException("这个版本暂不支持本地皮肤和披风。请使用兼容版本，或在账号管理取消「启动时应用外观」。");
+            throw new NotSupportedException("这个版本暂不支持本地皮肤和披风。请使用兼容版本，或在「本地角色」取消勾选「启动时应用外观」。");
         if (!Regex.IsMatch(settings.PlayerName, @"\A[A-Za-z0-9_]{1,16}\z", RegexOptions.CultureInvariant))
             throw new InvalidDataException("请先填写有效的本地玩家名。");
         var minecraft = version.ModpackMinecraft ?? version.Id;

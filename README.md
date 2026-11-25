@@ -1,10 +1,10 @@
-# MCL 0.9
+# MCL 0.9.1
 
 粉白配色的 Minecraft Java 版启动器，使用 C#、WPF 和 .NET 9 开发。
 
 ## 直接运行
 
-双击项目内的“启动 MCL”快捷方式，或运行 `outputs/MCL/MCL.exe`。需要 Windows 64 位及 .NET 9 桌面运行时，当前开发电脑已具备。
+双击项目内的“启动 MCL”快捷方式，或运行 `outputs/MCL-0.9.1/MCL.exe`。需要 Windows 64 位及 .NET 9 桌面运行时，当前开发电脑已具备。
 
 ## 下载一个游戏版本
 
@@ -36,11 +36,13 @@ MCL 会安装或复用校验通过的原版文件，安装清单指定的 Fabric
 
 ## 编辑本地角色
 
-打开“账号管理 → 本地角色”，填写 1–16 位英文字母、数字或下划线的玩家名，可选皮肤（64×64 或 64×32 PNG）和披风（64×32 PNG）。选择图片后会显示预览。点击“保存并使用本地档案”，返回首页启动。改名可能让部分存档把你识别为新玩家，从而读取不同的背包或进度。
+打开侧栏的“本地角色”，填写 1–16 位英文字母、数字或下划线的玩家名，可选皮肤（64×64 或 64×32 PNG）和披风（64×32 PNG）。选择图片后会显示预览。点击“保存本地角色”，返回首页启动。改名可能让部分存档把你识别为新玩家，从而读取不同的背包或进度。
 
 外观使用 [CustomSkinLoader](https://modrinth.com/mod/customskinloader) 的本地文件模式。首次在对应版本使用时，MCL 会下载并校验所需的外观组件。兼容 Java 版 1.14–1.21.11 与 26.1–26.3 的正式原版，以及相同范围内由 MCL 导入的 Fabric 整合包。原版使用单独的模组目录，游戏仍从原有存档目录启动。整合包已有单独的 CustomSkinLoader 配置时，可以关闭“启动时应用外观”以按整合包原配置启动。
 
 皮肤和披风显示在本机客户端。取消勾选“启动时应用外观”可以暂时关掉它，也可以用图片旁的“清除”恢复默认。游戏内如隐藏了披风，可在 Minecraft 的“皮肤自定义”里打开披风显示。
+
+“本地角色 → 从正版账号导入”可读取你自己的 Minecraft Java 版角色名、UUID、当前皮肤和正在佩戴的披风。填写取得 Minecraft 接口访问许可的应用 ID 后，在微软网页登录。可以单独将昵称、皮肤或披风导入本地角色，再点击“保存本地角色”。启动游戏和好友联机使用本地角色，登录记录以当前 Windows 用户加密保存，可用“清除登录”移除。
 
 ## 好友联机
 
@@ -66,16 +68,6 @@ dotnet run --project src/MCL.Relay/MCL.Relay.csproj
 ```powershell
 dotnet run --project tests/MultiplayerValidation/MultiplayerValidation.csproj -- http://127.0.0.1:28470
 ```
-
-## 微软账号登录
-
-侧栏新增“账号管理”。流程为浏览器微软授权、Xbox 与 Minecraft 认证、Java 版游戏资格和角色验证、显示角色名与头像，再使用真实账号身份启动游戏。提供取消、登录续期及退出登录；正版身份启动前会联网验证，验证失败会显示原因，保持所选身份。
-
-本次完成的是接入代码和可配置入口。尚未取得本项目自己的应用编号与 Minecraft 访问许可，未进行真实账号端到端登录验证。当前保留未认证本地启动，按你的选择暂不提交审核；官方当前要求在允许游戏前认证并验证资格，未来申请前需先调整这一行为。
-
-完整步骤见项目根目录“微软登录接入说明.md”，程序中“账号管理 → 申请与接入说明”也能打开。取得自己的 Client ID 后，在“登录接入设置”里填写并保存，再点击“使用微软账号登录”。没有编号时登录按钮不可用；新应用未获准访问 Minecraft 时，网页登录完成后仍可能被服务拒绝。
-
-密码和验证码仅在微软网页输入。登录凭证以 Windows 当前用户 DPAPI 加密保存到 `%LocalAppData%\MCL\account.dat`，启动设置中只保存应用编号和身份选择，日志隐藏凭证。退出登录清除这个启动器保存的记录，浏览器会话由浏览器管理。首次只管理一个微软账号，多账号列表及更换皮肤另行开发。
 
 ## 管理和删除已有版本
 
@@ -104,16 +96,11 @@ dotnet build MCL.sln -c Debug
 dotnet run --project tests/ModpackValidation/ModpackValidation.csproj -c Release
 dotnet run --project work/download-validation/DownloadValidation.csproj -c Release
 dotnet run --project work/validation/Validation.csproj -c Release
-dotnet run --project work/auth-validation/AuthValidation.csproj -c Release
-dotnet run --project work/account-storage-validation/StorageValidation.csproj -c Release
-dotnet run --project work/account-ui-validation/AccountUiValidation.csproj -c Release -- .
 ```
 
 下载回归覆盖首次安装、完整文件复用、损坏文件修复、校验失败重试、取消后恢复、保护已有版本及路径边界。已从空目录实际下载并验证官方 1.20.1 的 3641 个文件，随后验证重复安装全部复用。
 
 整合包验证覆盖独立实例、可选文件、覆盖文件优先级、同名版本保护、校验失败和取消。另在隔离目录实际安装并启动了 Minecraft 1.20.1、Fabric Loader 0.16.14 和 Fabric API。
-
-账号功能已通过 35 项认证与真实本机回调检查、43 项凭证存储和启动参数检查、34 项实际 WPF 窗口及头像检查。认证服务测试使用模拟响应，浏览器测试只在本机回调；启动参数测试使用隔离的假 Java 子进程。这些检查不代表已用真实微软账号登录，也不代表应用已通过审批。
 
 设置和日志保存在 `%LocalAppData%\MCL`。界面预览保存在 `outputs`。游戏和存档位于你选择的游戏文件夹，MCL 的隔离验证使用独立测试目录。
 界面安装验证还覆盖实际取消、重试按钮、进度动画、安装后列表刷新与所选版本持久化。验证入口为 work/ui-install-probe。

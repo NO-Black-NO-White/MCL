@@ -17,21 +17,16 @@ public sealed class GameLaunchService(LogService log) : IDisposable
     public event Action<int?>? LanPortChanged;
 
     public Task LaunchAsync(LauncherSettings settings, GameVersion version, JavaInstallation java, CancellationToken ct = default,
-        GameLaunchIdentity? identity = null, int? quickJoinPort = null)
-        => LaunchCoreAsync(settings, version, java, ct, identity, quickJoinPort, null);
+        int? quickJoinPort = null)
+        => LaunchCoreAsync(settings, version, java, ct, quickJoinPort, null);
 
     internal Task LaunchWithAppearanceAsync(LauncherSettings settings, GameVersion version, JavaInstallation java,
         LocalAppearanceLaunch appearance, CancellationToken ct, int? quickJoinPort)
-        => LaunchCoreAsync(settings, version, java, ct, null, quickJoinPort, appearance);
+        => LaunchCoreAsync(settings, version, java, ct, quickJoinPort, appearance);
 
     private async Task LaunchCoreAsync(LauncherSettings settings, GameVersion version, JavaInstallation java, CancellationToken ct,
-        GameLaunchIdentity? identity, int? quickJoinPort, LocalAppearanceLaunch? appearance)
+        int? quickJoinPort, LocalAppearanceLaunch? appearance)
     {
-        if (identity is not null)
-        {
-            log.RegisterSecret(identity.AccessToken);
-            identity.Validate();
-        }
         lock (_gate)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
@@ -42,9 +37,8 @@ public sealed class GameLaunchService(LogService log) : IDisposable
         string? nativeDirectory = null;
         try
         {
-            var startInfo = await Task.Run(() => BuildStartInfo(settings, version, java, out nativeDirectory, ct, identity, quickJoinPort, appearance), ct).ConfigureAwait(false);
+            var startInfo = await Task.Run(() => BuildStartInfo(settings, version, java, out nativeDirectory, ct, quickJoinPort, appearance), ct).ConfigureAwait(false);
             ct.ThrowIfCancellationRequested();
-            identity?.Validate();
             var process = new Process { StartInfo = startInfo };
             try
             {
@@ -57,9 +51,7 @@ public sealed class GameLaunchService(LogService log) : IDisposable
                 }
             }
             catch { process.Dispose(); throw; }
-            log.Info(identity is null
-                ? $"已启动 {version.DisplayName}（本地档案：{settings.PlayerName}，内存 {settings.MemoryMb} MB）。"
-                : $"已启动 {version.DisplayName}（正版账号：{identity.PlayerName}，内存 {settings.MemoryMb} MB）。");
+            log.Info($"已启动 {version.DisplayName}（本地档案：{settings.PlayerName}，内存 {settings.MemoryMb} MB）。");
             var directoryToClean = nativeDirectory;
             nativeDirectory = null;
             _ = ObserveAsync(process, directoryToClean, quickJoinPort is null);
@@ -74,7 +66,7 @@ public sealed class GameLaunchService(LogService log) : IDisposable
     }
 
     private static ProcessStartInfo BuildStartInfo(LauncherSettings settings, GameVersion version, JavaInstallation java,
-        out string? nativeDirectory, CancellationToken ct, GameLaunchIdentity? identity, int? quickJoinPort,
+        out string? nativeDirectory, CancellationToken ct, int? quickJoinPort,
         LocalAppearanceLaunch? appearance)
     {
         nativeDirectory = null;
@@ -82,8 +74,7 @@ public sealed class GameLaunchService(LogService log) : IDisposable
         if (!version.IsValid) throw new InvalidDataException(version.Issue ?? "所选版本的配置文件不完整。");
         if (!string.IsNullOrWhiteSpace(version.InheritsFrom) && version.ModpackName is null)
             throw new NotSupportedException("当前支持独立原版和由 MCL 导入的整合包。其他启动器的继承版本暂不支持。");
-        identity?.Validate();
-        if (identity is null && !Regex.IsMatch(settings.PlayerName, "^[A-Za-z0-9_]{1,16}$", RegexOptions.CultureInvariant)) throw new InvalidDataException("本地玩家名称需为 1–16 位英文字母、数字或下划线。");
+        if (!MinecraftMetadata.IsValidLocalPlayerName(settings.PlayerName)) throw new InvalidDataException("本地玩家名称需为 1–16 位英文字母、数字或下划线。");
         if (settings.MemoryMb is < 512 or > 65536) throw new InvalidDataException("游戏内存需要在 512–65536 MB 之间。");
         if (!java.Is64Bit && settings.MemoryMb > 1536) throw new InvalidDataException("当前 Java 为 32 位，请使用 64 位 Java，或把内存调低至 1536 MB 以内。");
         if (!File.Exists(java.Path)) throw new FileNotFoundException("找不到所选 Java，请在设置中重新选择。", java.Path);
@@ -195,22 +186,22 @@ public sealed class GameLaunchService(LogService log) : IDisposable
         var assetsId = metadata.TryGetProperty("assetIndex", out var assetIndex) ? assetIndex.GetProperty("id").GetString()! : metadata.GetProperty("assets").GetString()!;
         var replacements = new Dictionary<string, string>(StringComparer.Ordinal)
         {
-            ["auth_player_name"] = identity?.PlayerName ?? settings.PlayerName,
+            ["auth_player_name"] = settings.PlayerName,
             ["version_name"] = version.Id,
             ["game_directory"] = runtimeDirectory,
             ["assets_root"] = assetsDirectory,
             ["assets_index_name"] = assetsId,
-            ["auth_uuid"] = identity?.ProfileId ?? MinecraftMetadata.OfflineUuid(settings.PlayerName),
-            ["auth_access_token"] = identity?.AccessToken ?? "0",
-            ["auth_session"] = identity is null ? "0" : $"token:{identity.AccessToken}:{identity.ProfileId}",
-            ["auth_xuid"] = identity?.XboxUserId ?? "",
-            ["clientid"] = identity?.ClientId ?? "",
-            ["user_type"] = identity is null ? "legacy" : "msa",
+            ["auth_uuid"] = MinecraftMetadata.OfflineUuid(settings.PlayerName),
+            ["auth_access_token"] = "0",
+            ["auth_session"] = "0",
+            ["auth_xuid"] = "",
+            ["clientid"] = "",
+            ["user_type"] = "legacy",
             ["user_properties"] = "{}",
             ["version_type"] = metadata.TryGetProperty("type", out var type) ? type.GetString() ?? "release" : "release",
             ["natives_directory"] = nativeDirectory,
             ["launcher_name"] = "MCL",
-            ["launcher_version"] = "0.9.0",
+            ["launcher_version"] = typeof(GameLaunchService).Assembly.GetName().Version?.ToString(3) ?? "",
             ["classpath"] = string.Join(Path.PathSeparator, classpath),
             ["classpath_separator"] = Path.PathSeparator.ToString(),
             ["library_directory"] = libraryRoot,

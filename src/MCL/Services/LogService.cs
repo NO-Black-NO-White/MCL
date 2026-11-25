@@ -7,7 +7,6 @@ namespace MCL.Services;
 public sealed class LogService
 {
     private readonly object _gate = new();
-    private readonly HashSet<string> _secrets = new(StringComparer.Ordinal);
     private static readonly Regex ArgumentSecrets = new(@"(?i)(--(?:accessToken|refreshToken|clientToken|password|identityToken)\s+)(?:""[^""]*""|'[^']*'|\S+)", RegexOptions.Compiled);
     private static readonly Regex NamedSecrets = new(@"(?i)([""']?(?:access_?token|refresh_?token|client_?token|identity_?token|password|authorization)[""']?\s*[:=]\s*)(?:""[^""]*""|'[^']*'|[^\s,;&}]+)", RegexOptions.Compiled);
     private static readonly Regex BearerSecrets = new(@"(?i)\bBearer\s+[^\s""',;]+", RegexOptions.Compiled);
@@ -24,18 +23,6 @@ public sealed class LogService
     public void Info(string message) => Write("INFO", message);
     public void Warn(string message) => Write("WARN", message);
     public void Error(string message) => Write("ERROR", message);
-
-    public void RegisterSecret(string? value)
-    {
-        if (string.IsNullOrEmpty(value)) return;
-        lock (_gate) _secrets.Add(value);
-    }
-
-    public void RegisterSecrets(IEnumerable<string?> values)
-    {
-        ArgumentNullException.ThrowIfNull(values);
-        foreach (var value in values) RegisterSecret(value);
-    }
 
     public void Write(string level, string message)
     {
@@ -64,13 +51,9 @@ public sealed class LogService
         }
     }
 
-    private string Redact(string message)
+    private static string Redact(string message)
     {
-        string[] secrets;
-        lock (_gate) secrets = _secrets.OrderByDescending(value => value.Length).ToArray();
-        var text = message;
-        foreach (var secret in secrets) text = text.Replace(secret, "[已隐藏]", StringComparison.Ordinal);
-        text = text.Length > 65_536 ? text[..65_536] : text;
+        var text = message.Length > 65_536 ? message[..65_536] : message;
         text = BearerSecrets.Replace(text, "Bearer [已隐藏]");
         text = ArgumentSecrets.Replace(text, "$1[已隐藏]");
         text = NamedSecrets.Replace(text, "$1[已隐藏]");

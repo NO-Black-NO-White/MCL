@@ -3,7 +3,6 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
-using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Interop;
@@ -49,8 +48,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         _store = new SettingsStore(dataDirectory);
         _log = new LogService(_store.DataDirectory);
         _log.EntryAdded += OnLogEntry;
-        _accountService = accountService ?? new MicrosoftAccountService();
-        _accountStore = accountStore ?? new AccountStore(_store.DataDirectory);
+        _profileService = accountService ?? new MicrosoftAccountService();
+        _profileStore = accountStore ?? new AccountStore(_store.DataDirectory);
         _launcher = new GameLaunchService(_log);
         _launcher.RunningChanged += OnRunningChanged;
         _launcher.LanPortChanged += OnLanPortChanged;
@@ -63,11 +62,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         _playerName = settings.PlayerName;
         _memoryMb = Math.Clamp(settings.MemoryMb, 1024, 16384);
         _initialVersionId = settings.SelectedVersionId ?? "";
-        _microsoftClientId = settings.MicrosoftClientId ?? "";
-        _useMicrosoftAccount = settings.UseMicrosoftAccount;
         _relayEndpoint = string.IsNullOrWhiteSpace(settings.RelayEndpoint) ? DefaultRelayEndpoint() : settings.RelayEndpoint;
-        LoadSavedAccount();
         LoadLocalAppearance(settings);
+        LoadOnlineProfile(settings.MicrosoftClientId);
         InitializeComponent();
         DataContext = this;
         HomeNav.IsChecked = true;
@@ -99,7 +96,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
     }
 
-    public string PlayerName { get => _playerName; set { if (Set(ref _playerName, value)) { MarkDirty(); NotifyAccountState(); } } }
+    public string PlayerName { get => _playerName; set { if (Set(ref _playerName, value)) { MarkDirty(); Notify(nameof(SelectedVersionDescription)); } } }
     public int MemoryMb { get => _memoryMb; set { if (Set(ref _memoryMb, value)) { MarkDirty(); Notify(nameof(MemorySummary)); } } }
     public string MemorySummary => $"{MemoryMb:N0} MB";
     public GameVersion? SelectedVersion
@@ -118,7 +115,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     public string SelectedVersionTitle => SelectedVersion?.DisplayName ?? "选择你的第一个版本";
     public string SelectedVersionDescription => SelectedVersion is null
         ? "下载新版本，或选择已有游戏文件夹。"
-        : SelectedVersion.IsValid ? $"{SelectedVersion.Kind} · {ActiveAccountLabel} {ActivePlayerName}" : SelectedVersion.Issue ?? "版本文件需要检查";
+        : SelectedVersion.IsValid ? $"{SelectedVersion.Kind} · 本地档案 {PlayerName}" : SelectedVersion.Issue ?? "版本文件需要检查";
     public string JavaSummary => _java is null ? (IsBusy ? "检测中…" : "待配置") : $"Java {_java.MajorVersion} · {(_java.Is64Bit ? "64 位" : "32 位")}";
     public string JavaDetail => _java is null ? "自动检测本机 Java，或手动选择 java.exe。启动前会再次检查。" : $"已检测：Java {_java.VersionText} · {(_java.Is64Bit ? "64 位" : "32 位")}";
     public string VersionCountLabel => $"{Versions.Count} 个";
@@ -126,15 +123,13 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     public string PageTitle { get => _pageTitle; private set => Set(ref _pageTitle, value); }
     public string StatusMessage { get => _statusMessage; private set => Set(ref _statusMessage, value); }
     public string SettingsStatus => _isDirty ? "有尚未保存的修改" : "当前没有未保存的修改";
-    public bool IsBusy { get => _isBusy; private set { if (Set(ref _isBusy, value)) { Notify(nameof(CanInteract), nameof(CanLaunch), nameof(CanStop), nameof(LaunchButtonText), nameof(ActivityText), nameof(JavaSummary)); NotifyDownloadActions(); NotifyVersionManagement(); NotifyAccountState(); NotifyPackActions(); NotifyMultiplayer(); } } }
+    public bool IsBusy { get => _isBusy; private set { if (Set(ref _isBusy, value)) { Notify(nameof(CanInteract), nameof(CanLaunch), nameof(CanStop), nameof(LaunchButtonText), nameof(ActivityText), nameof(JavaSummary), nameof(CanEditLocalAppearance)); NotifyDownloadActions(); NotifyVersionManagement(); NotifyPackActions(); NotifyMultiplayer(); NotifyOnlineProfile(); } } }
     public bool CanInteract => !IsBusy;
-    public bool CanLaunch => !IsBusy && !IsGameRunning && SelectedVersion is { IsValid: true }
-        && (!UseMicrosoftAccount || (HasMicrosoftAccount && !_accountRequiresLogin));
+    public bool CanLaunch => !IsBusy && !IsGameRunning && SelectedVersion is { IsValid: true };
     public bool CanStop => !IsBusy && IsGameRunning;
-    public string LaunchButtonText => IsBusy ? "正在准备…" : IsGameRunning ? "游戏运行中" : UseMicrosoftAccount
-        ? !HasMicrosoftAccount || _accountRequiresLogin ? "请先登录微软账号" : "▶  使用微软账号启动" : "▶  启动本地游戏";
-    public bool IsGameRunning { get => _isGameRunning; private set { if (Set(ref _isGameRunning, value)) { Notify(nameof(CanLaunch), nameof(CanStop), nameof(LaunchButtonText), nameof(ActivityText)); NotifyVersionManagement(); NotifyAccountState(); NotifyPackActions(); NotifyMultiplayer(); } } }
-    public string ActivityText => PackInProgress ? "正在安装整合包" : IsInstalling ? "正在安装游戏" : _isAuthenticating ? "正在验证账号" : IsBusy ? "正在处理" : IsGameRunning ? "游戏运行中" : "就绪";
+    public string LaunchButtonText => IsBusy ? "正在准备…" : IsGameRunning ? "游戏运行中" : "▶  启动本地游戏";
+    public bool IsGameRunning { get => _isGameRunning; private set { if (Set(ref _isGameRunning, value)) { Notify(nameof(CanLaunch), nameof(CanStop), nameof(LaunchButtonText), nameof(ActivityText), nameof(CanEditLocalAppearance)); NotifyVersionManagement(); NotifyPackActions(); NotifyMultiplayer(); NotifyOnlineProfile(); } } }
+    public string ActivityText => PackInProgress ? "正在安装整合包" : IsInstalling ? "正在安装游戏" : IsBusy ? "正在处理" : IsGameRunning ? "游戏运行中" : "就绪";
 
     public async Task InitializeAsync()
     {
@@ -155,7 +150,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             });
         }
         finally { _loading = false; }
-        if (!_offlinePreview && HasMicrosoftAccount && !_closing) _ = LoadAccountAvatarAsync();
         if (_currentPage == "Downloads" && !_catalogLoaded && !_offlinePreview && !_closing) await LoadRemoteVersionsAsync();
     }
 
@@ -225,11 +219,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         DownloadsPage.Visibility = page == "Downloads" ? Visibility.Visible : Visibility.Collapsed;
         ModpacksPage.Visibility = page == "Modpacks" ? Visibility.Visible : Visibility.Collapsed;
         MultiplayerPage.Visibility = page == "Multiplayer" ? Visibility.Visible : Visibility.Collapsed;
-        AccountsPage.Visibility = page == "Accounts" ? Visibility.Visible : Visibility.Collapsed;
+        AppearancePage.Visibility = page == "Appearance" ? Visibility.Visible : Visibility.Collapsed;
         SettingsPage.Visibility = page == "Settings" ? Visibility.Visible : Visibility.Collapsed;
         LogsPage.Visibility = page == "Logs" ? Visibility.Visible : Visibility.Collapsed;
         FooterSaveButton.Visibility = page == "Settings" ? Visibility.Visible : Visibility.Collapsed;
-        PageTitle = page switch { "Versions" => "游戏版本", "Downloads" => "下载游戏", "Modpacks" => "导入整合包", "Multiplayer" => "好友联机", "Accounts" => "账号管理", "Settings" => "启动设置", "Logs" => "运行日志", _ => "首页" };
+        PageTitle = page switch { "Versions" => "游戏版本", "Downloads" => "下载游戏", "Modpacks" => "导入整合包", "Multiplayer" => "好友联机", "Appearance" => "本地角色", "Settings" => "启动设置", "Logs" => "运行日志", _ => "首页" };
         if (changed)
         {
             PageScroll.ScrollToTop();
@@ -316,7 +310,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private LauncherSettings SnapshotSettings()
     {
         if (string.IsNullOrWhiteSpace(GameDirectory)) throw new InvalidDataException("请先填写或选择游戏文件夹。");
-        if (!UseMicrosoftAccount && !Regex.IsMatch(PlayerName ?? "", "\\A[A-Za-z0-9_]{1,16}\\z", RegexOptions.CultureInvariant)) throw new InvalidDataException("玩家名称需要使用 1–16 位英文字母、数字或下划线。");
+        if (!MinecraftMetadata.IsValidLocalPlayerName(PlayerName)) throw new InvalidDataException("玩家名称需要使用 1–16 位英文字母、数字或下划线。");
         if (MemoryMb is < 1024 or > 16384) throw new InvalidDataException("请把最大游戏内存设置在 1024–16384 MB 之间。");
         return new LauncherSettings
         {
@@ -325,8 +319,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             PlayerName = PlayerName!,
             MemoryMb = MemoryMb,
             SelectedVersionId = SelectedVersion?.Id,
-            MicrosoftClientId = MicrosoftClientId?.Trim() ?? "",
-            UseMicrosoftAccount = UseMicrosoftAccount,
+            MicrosoftClientId = MicrosoftClientId.Trim(),
             RelayEndpoint = RelayEndpoint.Trim(),
             ApplyLocalAppearance = ApplyLocalAppearance,
             LocalSkin = _localSkin,
@@ -368,9 +361,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         Notify(nameof(JavaSummary), nameof(JavaDetail));
         if (_java is null) throw new InvalidDataException("Java 未配置或不可用。请到启动设置中点击自动检测，或选择 java.exe。");
         SaveCurrentSettings();
-        var identity = await PrepareAccountForLaunchAsync();
         LocalAppearanceLaunch? appearance = null;
-        if (identity is null && settings.ApplyLocalAppearance && (settings.LocalSkin is not null || settings.LocalCape is not null))
+        if (settings.ApplyLocalAppearance && (settings.LocalSkin is not null || settings.LocalCape is not null))
         {
             StatusMessage = "正在准备本地皮肤和披风，首次使用需要下载外观组件…";
             appearance = await Task.Run(() => _localAppearance.PrepareAsync(settings, version, ct), ct);
@@ -380,7 +372,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         _runningForGuest = quickJoinPort is not null;
         try
         {
-            if (appearance is null) await _launcher.LaunchAsync(settings, version, _java, ct, identity, quickJoinPort);
+            if (appearance is null) await _launcher.LaunchAsync(settings, version, _java, ct, quickJoinPort);
             else await _launcher.LaunchWithAppearanceAsync(settings, version, _java, appearance, ct, quickJoinPort);
         }
         catch { _runningGame = null; _runningForGuest = false; throw; }
@@ -483,8 +475,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             }
         }
         _closing = true;
-        _accountCancellation?.Cancel();
-        _avatarCancellation?.Cancel();
         _installCancellation?.Cancel();
         _previewCancellation?.Cancel();
         _multiplayerCancellation?.Cancel();
@@ -495,8 +485,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         _launcher.Dispose();
         _modpacks.Dispose();
         _downloads.Dispose();
-        _avatars.Dispose();
-        if (_accountService is IDisposable disposableAccountService) disposableAccountService.Dispose();
+        if (_profileService is IDisposable profileService) profileService.Dispose();
     }
 
     private void Window_SourceInitialized(object? sender, EventArgs e)
@@ -539,10 +528,10 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         SettingsPage.UpdateLayout();
         if (SettingsPage.IsEnabled || VersionList.IsEnabled || RemoteVersionList.IsEnabled || CanStop || CanInstall) throw new InvalidOperationException("Input must be disabled while a task is active.");
         IsBusy = false;
-        foreach (var page in new[] { "Versions", "Downloads", "Modpacks", "Multiplayer", "Accounts", "Settings", "Logs", "Home" })
+        foreach (var page in new[] { "Versions", "Downloads", "Modpacks", "Multiplayer", "Appearance", "Settings", "Logs", "Home" })
         {
             SelectSmokePage(page);
-            var visible = new[] { HomePage, VersionsPage, DownloadsPage, ModpacksPage, MultiplayerPage, AccountsPage, SettingsPage, LogsPage }.Count(panel => panel.Visibility == Visibility.Visible);
+            var visible = new[] { HomePage, VersionsPage, DownloadsPage, ModpacksPage, MultiplayerPage, AppearancePage, SettingsPage, LogsPage }.Count(panel => panel.Visibility == Visibility.Visible);
             if (visible != 1) throw new InvalidOperationException("Navigation did not select exactly one page.");
         }
         SelectSmokePage("Multiplayer");
@@ -573,7 +562,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     public void SelectSmokePage(string page)
     {
-        var button = page switch { "Versions" => VersionsNav, "Downloads" => DownloadsNav, "Modpacks" => ModpacksNav, "Multiplayer" => MultiplayerNav, "Accounts" => AccountsNav, "Settings" => SettingsNav, "Logs" => LogsNav, _ => HomeNav };
+        var button = page switch { "Versions" => VersionsNav, "Downloads" => DownloadsNav, "Modpacks" => ModpacksNav, "Multiplayer" => MultiplayerNav, "Appearance" => AppearanceNav, "Settings" => SettingsNav, "Logs" => LogsNav, _ => HomeNav };
         button.IsChecked = true;
         Navigate(page);
     }
