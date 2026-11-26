@@ -15,9 +15,11 @@ public partial class MainWindow
     private bool _packIndeterminate;
     private bool _packCompleted;
     private bool _includeOptionalPackFiles;
+    private string? _packLocalFilesDirectory;
 
     public bool CanChoosePack => !IsBusy && !IsGameRunning;
     public bool HasPack => _selectedPack is not null;
+    public bool IsCurseForgePack => _selectedPack?.CurseForge == true;
     public bool HasOptionalPackFiles => _selectedPack?.OptionalFiles > 0;
     public bool CanImportPack => CanChoosePack && HasPack && !PackCompleted;
     public bool CanCancelPack => _packCancellation is { IsCancellationRequested: false };
@@ -28,7 +30,7 @@ public partial class MainWindow
         ? $"Minecraft {pack.Minecraft}  ·  {pack.LoaderText}  ·  整合包版本 {pack.Version}" : "";
     public string PackFileSummary => _selectedPack is { } pack
         ? $"{pack.RequiredFiles:N0} 个必需文件，{pack.OptionalFiles:N0} 个可选文件。"
-            + (pack.CurseForge ? "安装时查询 CurseForge 下载大小。" : $"整合包文件最多下载 {FormatBytes(pack.DownloadBytes)}，游戏本体另计。")
+            + (pack.CurseForge ? "通过 MCIM 下载 CurseForge 文件，无需配置密钥。" : $"整合包文件最多下载 {FormatBytes(pack.DownloadBytes)}，游戏本体另计。")
         : "";
     public string PackOptionalText => $"同时安装 {_selectedPack?.OptionalFiles ?? 0} 个可选文件";
     public string PackStatus { get => _packStatus; private set => Set(ref _packStatus, value); }
@@ -73,6 +75,7 @@ public partial class MainWindow
         if (!CanChoosePack) return;
         IsBusy = true;
         _selectedPack = null;
+        _packLocalFilesDirectory = null;
         PackCompleted = false;
         PackPercent = 0;
         IncludeOptionalPackFiles = false;
@@ -98,7 +101,16 @@ public partial class MainWindow
     }
 
     private void NotifyPackSelection() => Notify(nameof(HasPack), nameof(PackName), nameof(PackDetails), nameof(PackFileSummary),
-        nameof(HasOptionalPackFiles), nameof(PackOptionalText), nameof(PackFileName), nameof(CanImportPack));
+        nameof(HasOptionalPackFiles), nameof(PackOptionalText), nameof(PackFileName), nameof(CanImportPack), nameof(IsCurseForgePack));
+
+    private void ChoosePackLocalFiles_Click(object sender, RoutedEventArgs e)
+    {
+        if (!CanImportPack || !IsCurseForgePack) return;
+        var dialog = new OpenFolderDialog { Title = "选择包含原版补充文件的文件夹" };
+        if (dialog.ShowDialog(this) != true) return;
+        _packLocalFilesDirectory = dialog.FolderName;
+        PackStatus = $"已选择补充文件夹「{dialog.FolderName}」。点击「安装整合包」开始校验和安装。";
+    }
 
     private async void InstallPack_Click(object sender, RoutedEventArgs e)
     {
@@ -123,7 +135,8 @@ public partial class MainWindow
                 var count = value.TotalFiles > 0 ? $" · {value.CompletedFiles:N0}/{value.TotalFiles:N0} 个文件" : "";
                 PackStatus = $"{value.Stage} · {value.Detail}{count}";
             });
-            var result = await _modpacks.InstallAsync(pack, directory, IncludeOptionalPackFiles, progress, cancellation.Token, JavaPath);
+            var result = await _modpacks.InstallAsync(pack, directory, IncludeOptionalPackFiles, progress, cancellation.Token,
+                JavaPath, _packLocalFilesDirectory);
             PackCompleted = true;
             PackPercent = 100;
             await ScanVersionsAsync(result.InstanceId);

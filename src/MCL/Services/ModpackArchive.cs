@@ -4,7 +4,7 @@ using MCL.Models;
 
 namespace MCL.Services;
 
-internal sealed record PackFile(string Path, Uri[] Sources, string Sha1, string? Sha512, long Bytes, bool Optional);
+internal sealed record PackFile(string Path, Uri[] Sources, string Sha1, string? Sha512, long Bytes, bool Optional, string? LocalSource = null);
 internal sealed record CurseForgeFile(int Project, int File, bool Optional);
 internal sealed record PackOverride(string Path, ZipArchiveEntry Entry);
 

@@ -53,24 +53,31 @@ WriteCurseForge(cursePath, "overrides/config/sample.txt", [
     new { projectID = 13, fileID = 35, required = true },
     new { projectID = 14, fileID = 36, required = true }
 ], "fabric-0.16.14");
-var previousKey = Environment.GetEnvironmentVariable("MCL_CURSEFORGE_API_KEY");
-try
-{
-    Environment.SetEnvironmentVariable("MCL_CURSEFORGE_API_KEY", null);
-    var cursePreview = await ModpackImportService.PreviewAsync(cursePath);
-    var curseGame = Path.Combine(root, "curse-instance");
-    await Reject<InvalidDataException>(() => importer.InstallAsync(cursePreview, curseGame, false), "CurseForge import asks for credentials before downloading");
-    Environment.SetEnvironmentVariable("MCL_CURSEFORGE_API_KEY", "test-fixture-key");
-    var installed = await importer.InstallAsync(cursePreview, curseGame, false);
-    var installedGame = Path.Combine(curseGame, "versions", installed.InstanceId, "game");
-    Check(File.Exists(Path.Combine(installedGame, "mods", "fixture.jar"))
-        && File.Exists(Path.Combine(installedGame, "resourcepacks", "texture.zip"))
-        && File.Exists(Path.Combine(installedGame, "shaderpacks", "light.zip"))
-        && File.Exists(Path.Combine(installedGame, "config", "sample.txt")), "CurseForge determines folders and installs verified files and bundled settings");
-    fixture.HideCurseForgeDownload = true;
-    await Reject<IOException>(() => importer.InstallAsync(cursePreview, curseGame, false), "A required CurseForge file with no download URL prevents incomplete installation");
-}
-finally { Environment.SetEnvironmentVariable("MCL_CURSEFORGE_API_KEY", previousKey); }
+var cursePreview = await ModpackImportService.PreviewAsync(cursePath);
+var curseGame = Path.Combine(root, "curse-instance");
+var installed = await importer.InstallAsync(cursePreview, curseGame, false);
+var installedGame = Path.Combine(curseGame, "versions", installed.InstanceId, "game");
+Check(File.Exists(Path.Combine(installedGame, "mods", "fixture.jar"))
+    && File.Exists(Path.Combine(installedGame, "resourcepacks", "texture.zip"))
+    && File.Exists(Path.Combine(installedGame, "shaderpacks", "light.zip"))
+    && File.Exists(Path.Combine(installedGame, "config", "sample.txt")), "MCIM installs verified CurseForge files and bundled settings without credentials");
+Check(fixture.Requests.ContainsKey("https://mod.mcimirror.top/files/0/34/fixture.jar")
+    && fixture.Requests.ContainsKey("https://mediafilez.forgecdn.net/files/0/34/fixture.jar"),
+    "MCIM rewrites the upstream file URL and follows an approved CDN redirect");
+fixture.HideCurseForgeDownload = true;
+await Reject<IOException>(() => importer.InstallAsync(cursePreview, curseGame, false), "A required CurseForge file without a download URL prevents incomplete installation");
+var supplements = Directory.CreateDirectory(Path.Combine(root, "supplements")).FullName;
+var supplement = Path.Combine(supplements, "fixture.jar");
+await File.WriteAllBytesAsync(supplement, new byte[FixtureServer.ModBytes.Length]);
+await Reject<IOException>(() => importer.InstallAsync(cursePreview, curseGame, false, localFilesDirectory: supplements),
+    "A local file with the wrong checksum cannot fill a missing CurseForge dependency");
+Check(Directory.GetDirectories(Path.Combine(curseGame, "versions"), "pack-*").Length == 1
+    && !Directory.EnumerateFileSystemEntries(Path.Combine(curseGame, ".mcl-imports")).Any(),
+    "Rejected local supplements leave existing instances intact");
+await File.WriteAllBytesAsync(supplement, FixtureServer.ModBytes);
+var supplemented = await importer.InstallAsync(cursePreview, curseGame, false, localFilesDirectory: supplements);
+Check((await File.ReadAllBytesAsync(Path.Combine(curseGame, "versions", supplemented.InstanceId, "game", "mods", "fixture.jar")))
+    .SequenceEqual(FixtureServer.ModBytes), "A matching local file fills a missing CurseForge dependency");
 var originalSave = Path.Combine(game, "saves", "user-placeholder");
 Directory.CreateDirectory(originalSave);
 var original = Path.Combine(originalSave, "sentinel");
@@ -358,9 +365,9 @@ sealed class FixtureServer : HttpMessageHandler
     {
         var url = request.RequestUri!.AbsoluteUri;
         Requests.AddOrUpdate(url, 1, (_, count) => count + 1);
-        if (url is "https://api.curseforge.com/v1/mods/files" or "https://api.curseforge.com/v1/mods")
+        if (url is "https://mod.mcimirror.top/curseforge/v1/mods/files" or "https://mod.mcimirror.top/curseforge/v1/mods")
         {
-            if (request.Method != HttpMethod.Post || !request.Headers.TryGetValues("x-api-key", out var keys) || keys.Single() != "test-fixture-key")
+            if (request.Method != HttpMethod.Post || request.Headers.Contains("x-api-key"))
                 return new HttpResponseMessage(HttpStatusCode.Forbidden);
             if (url.EndsWith("/files", StringComparison.Ordinal))
             {
@@ -368,16 +375,22 @@ sealed class FixtureServer : HttpMessageHandler
                 var files = new[] { "fixture.jar", "texture.zip", "light.zip" }.Select((name, index) => new
                 {
                     modId = 12 + index, id = 34 + index, fileName = name, fileLength = ModBytes.Length,
-                    downloadUrl = HideCurseForgeDownload && index == 0 ? null : "https://edge.forgecdn.net/" + name,
+                    downloadUrl = HideCurseForgeDownload && index == 0 ? null : $"https://edge.forgecdn.net/files/0/{34 + index}/{name}",
                     hashes = new[] { new { algo = 1, value = sha } }
                 });
                 return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(JsonSerializer.Serialize(new { data = files })) };
             }
             return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("""{"data":[{"id":13,"links":{"websiteUrl":"https://www.curseforge.com/minecraft/texture-packs/test"}},{"id":14,"links":{"websiteUrl":"https://www.curseforge.com/minecraft/shaders/test"}}]}""") };
         }
-        if (url.StartsWith("https://edge.forgecdn.net/", StringComparison.Ordinal))
+        if (request.RequestUri.Host == "mod.mcimirror.top" && request.RequestUri.AbsolutePath.StartsWith("/files/", StringComparison.Ordinal))
         {
-            if (request.Headers.Contains("x-api-key")) throw new InvalidOperationException("API secret was sent to the CDN");
+            var redirect = new HttpResponseMessage(HttpStatusCode.Redirect);
+            redirect.Headers.Location = new UriBuilder(request.RequestUri) { Host = "mediafilez.forgecdn.net" }.Uri;
+            return redirect;
+        }
+        if (request.RequestUri.Host == "mediafilez.forgecdn.net")
+        {
+            if (request.Headers.Contains("x-api-key")) throw new InvalidOperationException("An API key was sent to the CDN");
             return new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(ModBytes) };
         }
         if (url == BlockUrl)

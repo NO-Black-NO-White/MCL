@@ -38,11 +38,12 @@ public sealed partial class ModpackImportService : IDisposable
         }, ct);
 
     public Task<ModpackInstallResult> InstallAsync(ModpackPreview preview, string gameDirectory, bool includeOptional,
-        IProgress<InstallProgress>? progress = null, CancellationToken ct = default, string? javaPath = null) =>
-        Task.Run(() => InstallCoreAsync(preview, gameDirectory, includeOptional, progress, ct, javaPath), ct);
+        IProgress<InstallProgress>? progress = null, CancellationToken ct = default, string? javaPath = null,
+        string? localFilesDirectory = null) =>
+        Task.Run(() => InstallCoreAsync(preview, gameDirectory, includeOptional, progress, ct, javaPath, localFilesDirectory), ct);
 
     private async Task<ModpackInstallResult> InstallCoreAsync(ModpackPreview preview, string gameDirectory,
-        bool includeOptional, IProgress<InstallProgress>? progress, CancellationToken ct, string? javaPath)
+        bool includeOptional, IProgress<InstallProgress>? progress, CancellationToken ct, string? javaPath, string? localFilesDirectory)
     {
         Report(progress, "核对整合包", "正在确认所选文件");
         using var file = OpenArchive(preview.ArchivePath);
@@ -63,7 +64,7 @@ public sealed partial class ModpackImportService : IDisposable
         try
         {
             var plan = pack.Preview.CurseForge
-                ? await ResolveCurseForgeFilesAsync(pack, includeOptional, progress, ct).ConfigureAwait(false)
+                ? await ResolveCurseForgeFilesAsync(pack, includeOptional, localFilesDirectory, progress, ct).ConfigureAwait(false)
                 : pack.Files.Where(f => !f.Optional || includeOptional).ToArray();
             Report(progress, "准备游戏版本", $"Minecraft {pack.Preview.Minecraft}");
             var versions = await _minecraft.GetVersionsAsync(ct).ConfigureAwait(false);
@@ -185,9 +186,12 @@ public sealed partial class ModpackImportService : IDisposable
         await Parallel.ForEachAsync(files, new ParallelOptions { CancellationToken = ct, MaxDegreeOfParallelism = 6 }, async (file, token) =>
         {
             var target = ModpackPaths.SafeTarget(root, file.Path);
-            await DownloadAsync(file.Sources, target, file.Bytes, ModpackArchive.MaximumFileBytes, file.Sha1, file.Sha512,
-                file.Sha512 is null ? IsCurseForgeDownload : uri => ModpackArchive.AllowedPackUri(uri.AbsoluteUri) is not null,
-                token).ConfigureAwait(false);
+            if (file.LocalSource is { } local)
+                await CopyLocalPackFileAsync(local, target, file, token).ConfigureAwait(false);
+            else
+                await DownloadAsync(file.Sources, target, file.Bytes, ModpackArchive.MaximumFileBytes, file.Sha1, file.Sha512,
+                    file.Sha512 is null ? IsCurseForgeDownload : uri => ModpackArchive.AllowedPackUri(uri.AbsoluteUri) is not null,
+                    token).ConfigureAwait(false);
             lock (progressGate)
             {
                 bytes += file.Bytes;
@@ -198,6 +202,24 @@ public sealed partial class ModpackImportService : IDisposable
                     bytes, total, bytes / Math.Max(1, watch.Elapsed.TotalSeconds)));
             }
         }).ConfigureAwait(false);
+    }
+
+    private static async Task CopyLocalPackFileAsync(string source, string target, PackFile file, CancellationToken ct)
+    {
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+            await using var input = File.OpenRead(source);
+            await using var output = File.Create(target);
+            using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA1);
+            await CopyAsync(input, output, file.Bytes, file.Bytes, hash, null, ct).ConfigureAwait(false);
+            if (!Convert.ToHexString(hash.GetHashAndReset()).Equals(file.Sha1, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException("文件校验值不一致。");
+        }
+        catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException)
+        {
+            throw new IOException($"无法使用补充文件 {Path.GetFileName(target)}。请确认它是清单指定的原版本。", ex);
+        }
     }
 
     internal async Task DownloadAsync(IEnumerable<Uri> sources, string target, long? size, long maxBytes,
