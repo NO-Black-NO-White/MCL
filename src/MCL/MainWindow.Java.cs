@@ -19,7 +19,7 @@ public partial class MainWindow
         set
         {
             if (!Set(ref _autoMatchJava, value)) return;
-            MarkDirty();
+            NotifySettingsChanged();
             NotifyJava();
         }
     }
@@ -31,7 +31,7 @@ public partial class MainWindow
         {
             if (!Set(ref _javaPath, value)) return;
             _configuredJava = null;
-            MarkDirty();
+            NotifySettingsChanged();
             NotifyJava();
         }
     }

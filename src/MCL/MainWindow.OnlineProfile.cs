@@ -20,7 +20,7 @@ public partial class MainWindow
         set
         {
             if (!Set(ref _microsoftClientId, value)) return;
-            MarkDirty();
+            NotifySettingsChanged();
             NotifyOnlineProfile();
         }
     }

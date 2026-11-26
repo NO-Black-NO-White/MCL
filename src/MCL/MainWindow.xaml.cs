@@ -27,7 +27,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private GameVersion? _selectedVersion;
     private bool _isBusy;
     private bool _isGameRunning;
-    private bool _isDirty;
+    private LauncherSettings _savedPreferences;
     private bool _loading = true;
     private bool _closing;
     private string _pageTitle = "首页";
@@ -64,6 +64,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         _relayEndpoint = string.IsNullOrWhiteSpace(settings.RelayEndpoint) ? DefaultRelayEndpoint() : settings.RelayEndpoint;
         LoadLocalAppearance(settings);
         LoadOnlineProfile(settings.MicrosoftClientId);
+        _savedPreferences = CaptureSettings().PreferenceSnapshot();
         InitializeComponent();
         UpdateCharacterPreview();
         DataContext = this;
@@ -78,14 +79,14 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         set
         {
             if (!Set(ref _gameDirectory, value)) return;
-            MarkDirty();
+            NotifySettingsChanged();
             // Prevent launching a stale selection from a different directory.
             if (!_loading) { Versions.Clear(); SelectedVersion = null; UpdateVersionState(); }
         }
     }
 
-    public string PlayerName { get => _playerName; set { if (Set(ref _playerName, value)) { MarkDirty(); Notify(nameof(SelectedVersionDescription)); } } }
-    public int MemoryMb { get => _memoryMb; set { if (Set(ref _memoryMb, value)) { MarkDirty(); Notify(nameof(MemorySummary)); NotifyJava(); } } }
+    public string PlayerName { get => _playerName; set { if (Set(ref _playerName, value)) { NotifySettingsChanged(); Notify(nameof(SelectedVersionDescription)); } } }
+    public int MemoryMb { get => _memoryMb; set { if (Set(ref _memoryMb, value)) { NotifySettingsChanged(); Notify(nameof(MemorySummary)); NotifyJava(); } } }
     public string MemorySummary => $"{MemoryMb:N0} MB";
     public GameVersion? SelectedVersion
     {
@@ -93,7 +94,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         set
         {
             if (!Set(ref _selectedVersion, value)) return;
-            MarkDirty();
             Notify(nameof(SelectedVersionTitle), nameof(SelectedVersionDescription), nameof(CanLaunch));
             NotifyVersionManagement();
             NotifyJava();
@@ -111,7 +111,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     public string AppVersionText => typeof(MainWindow).Assembly.GetName().Version?.ToString(3) ?? "";
     public string PageTitle { get => _pageTitle; private set => Set(ref _pageTitle, value); }
     public string StatusMessage { get => _statusMessage; private set => Set(ref _statusMessage, value); }
-    public string SettingsStatus => _isDirty ? "有尚未保存的修改" : "当前没有未保存的修改";
+    private bool HasUnsavedSettings => CaptureSettings().PreferenceSnapshot() != _savedPreferences;
+    public string SettingsStatus => HasUnsavedSettings ? "有尚未保存的修改" : "当前没有未保存的修改";
     public bool IsBusy { get => _isBusy; private set { if (Set(ref _isBusy, value)) { Notify(nameof(CanInteract), nameof(CanLaunch), nameof(CanStop), nameof(LaunchButtonText), nameof(ActivityText), nameof(JavaSummary), nameof(CanEditLocalAppearance)); NotifyDownloadActions(); NotifyVersionManagement(); NotifyPackActions(); NotifyMultiplayer(); NotifyOnlineProfile(); } } }
     public bool CanInteract => !IsBusy;
     public bool CanLaunch => !IsBusy && !IsGameRunning && SelectedVersion is { IsValid: true };
@@ -152,7 +153,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 ?? Versions.FirstOrDefault();
         }
         finally { _loading = wasLoading; }
-        if (!wasLoading && desiredId != SelectedVersion?.Id) MarkDirty();
         UpdateVersionState();
         _log.Info($"扫描完成，发现 {Versions.Count} 个本地版本。");
     }
@@ -250,34 +250,39 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             StatusMessage = "设置已保存。下次打开 MCL 时会自动恢复。";
         });
 
-    private LauncherSettings SnapshotSettings()
+    private LauncherSettings CaptureSettings() => new()
     {
-        if (string.IsNullOrWhiteSpace(GameDirectory)) throw new InvalidDataException("请先填写或选择游戏文件夹。");
-        if (!MinecraftMetadata.IsValidLocalPlayerName(PlayerName)) throw new InvalidDataException("玩家名称需要使用 1–16 位英文字母、数字或下划线。");
-        if (MemoryMb is < 1024 or > 16384) throw new InvalidDataException("请把最大游戏内存设置在 1024–16384 MB 之间。");
-        return new LauncherSettings
-        {
-            GameDirectory = GameDirectoryResolver.Normalize(GameDirectory),
-            JavaPath = JavaPath.Trim().Trim('"'),
-            AutoMatchJava = AutoMatchJava,
-            PlayerName = PlayerName!,
-            MemoryMb = MemoryMb,
-            SelectedVersionId = SelectedVersion?.Id,
-            RecentLaunches = _recentLaunches,
-            MicrosoftClientId = MicrosoftClientId.Trim(),
-            RelayEndpoint = RelayEndpoint.Trim(),
-            ApplyLocalAppearance = ApplyLocalAppearance,
-            LocalSkin = _localSkin,
-            LocalCape = _localCape,
-            LocalSkinModel = UseSlimSkin ? "slim" : "default"
-        };
+        GameDirectory = GameDirectory.Trim().Trim('"'),
+        JavaPath = JavaPath.Trim().Trim('"'),
+        AutoMatchJava = AutoMatchJava,
+        PlayerName = PlayerName,
+        MemoryMb = MemoryMb,
+        SelectedVersionId = SelectedVersion?.Id,
+        RecentLaunches = _recentLaunches,
+        MicrosoftClientId = MicrosoftClientId.Trim(),
+        RelayEndpoint = RelayEndpoint.Trim(),
+        ApplyLocalAppearance = ApplyLocalAppearance,
+        LocalSkin = _localSkin,
+        LocalCape = _localCape,
+        LocalSkinModel = UseSlimSkin ? "slim" : "default"
+    };
+
+    private LauncherSettings SnapshotSettings() => ValidateSettings(CaptureSettings());
+
+    private static LauncherSettings ValidateSettings(LauncherSettings settings)
+    {
+        if (string.IsNullOrWhiteSpace(settings.GameDirectory)) throw new InvalidDataException("请先填写或选择游戏文件夹。");
+        if (!MinecraftMetadata.IsValidLocalPlayerName(settings.PlayerName)) throw new InvalidDataException("玩家名称需要使用 1–16 位英文字母、数字或下划线。");
+        if (settings.MemoryMb is < 1024 or > 16384) throw new InvalidDataException("请把最大游戏内存设置在 1024–16384 MB 之间。");
+        return settings with { GameDirectory = GameDirectoryResolver.Normalize(settings.GameDirectory) };
     }
 
     private void SaveCurrentSettings()
     {
-        _store.Save(SnapshotSettings());
-        _isDirty = false;
-        Notify(nameof(SettingsStatus));
+        var settings = CaptureSettings();
+        _store.Save(ValidateSettings(settings));
+        _savedPreferences = settings.PreferenceSnapshot();
+        NotifySettingsChanged();
         _log.Info("启动设置已保存。");
     }
 
@@ -385,12 +390,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
     }
 
-    private void MarkDirty()
-    {
-        if (_loading) return;
-        _isDirty = true;
-        Notify(nameof(SettingsStatus), nameof(SelectedVersionDescription));
-    }
+    private void NotifySettingsChanged() => Notify(nameof(SettingsStatus));
 
     private void Window_Closing(object? sender, CancelEventArgs e)
     {
@@ -398,11 +398,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (PackInProgress) { e.Cancel = true; OpenModpacks(); StatusMessage = "正在安装整合包，请完成安装或取消后再关闭。"; return; }
         if (IsInstalling && IsVisible && MessageBox.Show(this, "关闭 MCL 会取消当前下载。已下载并校验完成的文件会保留。\n\n现在关闭吗？", "正在下载游戏", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) != MessageBoxResult.Yes)
         { e.Cancel = true; return; }
-        if (_isDirty && IsVisible)
+        if (IsVisible && HasUnsavedSettings)
         {
-            var choice = MessageBox.Show(this, "要保存当前启动设置吗？", "关闭 MCL", MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
-            if (choice == MessageBoxResult.Cancel) { e.Cancel = true; return; }
-            if (choice == MessageBoxResult.Yes)
+            var dialog = new SaveSettingsDialog { Owner = this };
+            dialog.ShowDialog();
+            if (dialog.Choice == SettingsExitChoice.Cancel) { e.Cancel = true; return; }
+            if (dialog.Choice == SettingsExitChoice.Save)
             {
                 try { SaveCurrentSettings(); }
                 catch (Exception ex) { ReportError("设置未保存", ex); e.Cancel = true; return; }
@@ -457,7 +458,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     public async Task ValidateUiAsync()
     {
         if (IsBusy) throw new InvalidOperationException("UI initialization is still busy.");
-        if (_isDirty) throw new InvalidOperationException("Loading existing settings must not mark them as edited.");
+        if (HasUnsavedSettings) throw new InvalidOperationException("Loading existing settings must not mark them as edited.");
         IsBusy = true;
         SettingsPage.UpdateLayout();
         if (SettingsPage.IsEnabled || HomeVersionPicker.IsEnabled || VersionList.IsEnabled || RemoteVersionList.IsEnabled || LaunchSelectedVersionButton.IsEnabled
@@ -476,6 +477,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             HomeVersionPicker.SetCurrentValue(System.Windows.Controls.Primitives.Selector.SelectedItemProperty, homeAlternative);
             if (SelectedVersion != homeAlternative || !Equals(VersionList.SelectedItem, homeAlternative) || CanLaunch != homeAlternative.IsValid)
                 throw new InvalidOperationException("Choosing a version on Home must update the selected version and launch action.");
+            if (HasUnsavedSettings) throw new InvalidOperationException("Choosing a version must not mark launch settings as edited.");
             HomeVersionPicker.SetCurrentValue(System.Windows.Controls.Primitives.Selector.SelectedItemProperty, homeSelection);
         }
         SelectSmokePage("Versions");
@@ -516,14 +518,18 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             || HostRoomCard.Visibility != Visibility.Visible || GuestRoomCard.Visibility != Visibility.Collapsed)
             throw new InvalidOperationException("Hosting must show only the host setup.");
         var oldPlayer = PlayerName;
-        PlayerName = "MCL_Smoke";
+        var smokePlayer = oldPlayer == "MCL_Smoke" ? "MCL_Test" : "MCL_Smoke";
+        PlayerName = smokePlayer;
+        if (!HasUnsavedSettings) throw new InvalidOperationException("Editing the player name must mark settings as edited.");
+        PlayerName = oldPlayer;
+        if (HasUnsavedSettings) throw new InvalidOperationException("Reverting the edit must clear unsaved settings.");
+        PlayerName = smokePlayer;
         SaveCurrentSettings();
-        if (_store.Load().PlayerName != "MCL_Smoke") throw new InvalidOperationException("Settings did not persist.");
+        if (HasUnsavedSettings || _store.Load().PlayerName != smokePlayer) throw new InvalidOperationException("Settings did not persist.");
         PlayerName = oldPlayer;
         SaveCurrentSettings();
         await ScanVersionsAsync();
-        _isDirty = false;
-        Notify(nameof(SettingsStatus));
+        if (HasUnsavedSettings) throw new InvalidOperationException("Refreshing the local versions must not mark settings as edited.");
         HomeNav.IsChecked = true;
         Navigate("Home");
         await RefreshHomeSavesAsync();

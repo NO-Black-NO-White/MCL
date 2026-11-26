@@ -1,6 +1,6 @@
 namespace MCL.Models;
 
-public sealed class LauncherSettings
+public sealed record LauncherSettings
 {
     public string GameDirectory { get; set; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), ".minecraft");
     public string JavaPath { get; set; } = "";
@@ -15,6 +15,12 @@ public sealed class LauncherSettings
     public string? LocalSkin { get; set; }
     public string? LocalCape { get; set; }
     public string LocalSkinModel { get; set; } = "default";
+
+    internal LauncherSettings PreferenceSnapshot() => this with
+    {
+        SelectedVersionId = null,
+        RecentLaunches = Array.Empty<RecentGameLaunch>()
+    };
 }
 
 public sealed record RecentGameLaunch(string GameDirectory, string VersionId, DateTimeOffset LaunchedAt);

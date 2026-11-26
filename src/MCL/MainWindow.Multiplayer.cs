@@ -34,7 +34,7 @@ public partial class MainWindow
     public string RelayEndpoint
     {
         get => _relayEndpoint;
-        set { if (Set(ref _relayEndpoint, value)) { MarkDirty(); NotifyMultiplayer(); } }
+        set { if (Set(ref _relayEndpoint, value)) { NotifySettingsChanged(); NotifyMultiplayer(); } }
     }
 
     public string InviteInput

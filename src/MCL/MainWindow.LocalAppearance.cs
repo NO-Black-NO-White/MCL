@@ -24,7 +24,7 @@ public partial class MainWindow
     public bool ApplyLocalAppearance
     {
         get => _applyLocalAppearance;
-        set { if (Set(ref _applyLocalAppearance, value)) MarkDirty(); }
+        set { if (Set(ref _applyLocalAppearance, value)) NotifySettingsChanged(); }
     }
 
     public bool UseSlimSkin
@@ -35,7 +35,7 @@ public partial class MainWindow
             if (!Set(ref _useSlimSkin, value)) return;
             SetPublicPreview(false);
             UpdateCharacterPreview();
-            MarkDirty();
+            NotifySettingsChanged();
         }
     }
 
@@ -196,7 +196,7 @@ public partial class MainWindow
         SetPublicPreview(false);
         UpdateCharacterPreview();
         Notify(nameof(HasLocalSkin), nameof(HasLocalCape), nameof(LocalSkinLabel), nameof(LocalCapeLabel));
-        MarkDirty();
+        NotifySettingsChanged();
         LocalAppearanceStatus = "已修改外观。点击「保存本地角色」应用。";
     }
 
