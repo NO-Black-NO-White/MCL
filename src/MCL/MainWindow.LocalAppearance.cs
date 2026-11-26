@@ -33,6 +33,7 @@ public partial class MainWindow
         set
         {
             if (!Set(ref _useSlimSkin, value)) return;
+            SetPublicPreview(false);
             UpdateCharacterPreview();
             MarkDirty();
         }
@@ -78,7 +79,9 @@ public partial class MainWindow
     }
 
     private void UpdateCharacterPreview() =>
-        CharacterVisual.Content = CharacterPreviewModel.Create(_localSkinTexture, _localCapeTexture, UseSlimSkin);
+        CharacterVisual.Content = _previewingPublicAppearance && _publicAppearance is { } preview
+            ? CharacterPreviewModel.Create(preview.Skin, preview.Cape, preview.Profile.Slim)
+            : CharacterPreviewModel.Create(_localSkinTexture, _localCapeTexture, UseSlimSkin);
 
     private void ShowCharacterFront_Click(object sender, RoutedEventArgs e) => SetCharacterView(18);
     private void ShowCharacterBack_Click(object sender, RoutedEventArgs e) => SetCharacterView(180);
@@ -190,6 +193,7 @@ public partial class MainWindow
 
     private void NotifyLocalTextures()
     {
+        SetPublicPreview(false);
         UpdateCharacterPreview();
         Notify(nameof(HasLocalSkin), nameof(HasLocalCape), nameof(LocalSkinLabel), nameof(LocalCapeLabel));
         MarkDirty();

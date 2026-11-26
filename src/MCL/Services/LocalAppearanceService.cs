@@ -74,7 +74,7 @@ internal sealed class LocalAppearanceService(string dataDirectory, ModpackImport
         return bytes;
     }
 
-    private static BitmapSource DecodeTexture(byte[] bytes, bool cape)
+    internal static BitmapSource DecodeTexture(byte[] bytes, bool cape)
     {
         if (bytes.Length is < 24 or > MaximumPngBytes)
             throw new InvalidDataException("外观图片大小无效，需要不超过 1 MB 的 PNG。");

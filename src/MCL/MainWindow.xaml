@@ -490,7 +490,7 @@
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="42*" /><ColumnDefinition Width="12" /><ColumnDefinition Width="58*" />
                                         </Grid.ColumnDefinitions>
-                                        <Border Style="{StaticResource Card}" Padding="12">
+                                        <Border Style="{StaticResource Card}" Padding="12" VerticalAlignment="Top">
                                             <StackPanel>
                                                 <Border x:Name="CharacterStage" CornerRadius="10" Cursor="Hand"
                                                         MouseLeftButtonDown="CharacterPreview_MouseDown" MouseMove="CharacterPreview_MouseMove"
@@ -540,6 +540,10 @@
                                                 </WrapPanel>
                                                 <TextBlock Text="拖动角色旋转" Style="{StaticResource MutedText}" FontSize="11"
                                                            HorizontalAlignment="Center" Margin="0,6,0,0" />
+                                                <TextBlock Text="{Binding PublicAppearanceName, StringFormat=正在预览 · {0}}"
+                                                           Visibility="{Binding IsPreviewingPublicAppearance, Converter={StaticResource BoolVisibility}}"
+                                                           Foreground="{StaticResource AccentTextBrush}" FontSize="11"
+                                                           HorizontalAlignment="Center" Margin="0,5,0,0" />
                                             </StackPanel>
                                         </Border>
                                         <StackPanel Grid.Column="2">
@@ -564,6 +568,34 @@
                                                         <Button Content="选择 PNG" Click="PickLocalCape_Click" Padding="11,6" Margin="0,0,6,0" />
                                                         <Button Content="清除" Click="ClearLocalCape_Click" Padding="9,6" IsEnabled="{Binding HasLocalCape}" />
                                                     </WrapPanel>
+                                                </StackPanel>
+                                            </Border>
+                                            <Border Style="{StaticResource Card}" Padding="13" Margin="0,10,0,0">
+                                                <StackPanel>
+                                                    <TextBlock Text="按 Java 玩家名导入" FontWeight="SemiBold" />
+                                                    <Grid Margin="0,7,0,0">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBox Text="{Binding PublicPlayerName, UpdateSourceTrigger=PropertyChanged}"
+                                                                 MaxLength="16" KeyDown="PublicPlayerNameBox_KeyDown"
+                                                                 AutomationProperties.Name="要查询的 Java 玩家名" />
+                                                        <Button Grid.Column="1" Content="查询" Click="LookupPublicAppearance_Click" Margin="8,0,0,0" />
+                                                    </Grid>
+                                                    <TextBlock Text="{Binding PublicAppearanceStatus}" Style="{StaticResource MutedText}" FontSize="11"
+                                                               TextWrapping="Wrap" Margin="0,5,0,0" />
+                                                    <StackPanel Visibility="{Binding HasPublicAppearance, Converter={StaticResource BoolVisibility}}" Margin="0,6,0,0">
+                                                        <TextBlock Text="{Binding PublicAppearanceName}" FontWeight="SemiBold" />
+                                                        <TextBox Text="{Binding PublicAppearanceUuid, Mode=OneWay}" IsReadOnly="True"
+                                                                 FontSize="11" Margin="0,5,0,0" AutomationProperties.Name="公开角色 UUID" />
+                                                        <WrapPanel Margin="0,7,0,0">
+                                                            <Button Content="导入外观" Click="ImportPublicAppearance_Click" IsEnabled="{Binding HasPublicTextures}"
+                                                                    Padding="9,5" Margin="0,0,6,5" />
+                                                            <Button Content="使用玩家名" Click="UsePublicPlayerName_Click" Padding="9,5" Margin="0,0,6,5" />
+                                                            <Button Content="{Binding PublicPreviewButtonLabel}" Click="TogglePublicAppearancePreview_Click"
+                                                                    IsEnabled="{Binding HasPublicTextures}" Padding="9,5" Margin="0,0,0,5" />
+                                                        </WrapPanel>
+                                                    </StackPanel>
                                                 </StackPanel>
                                             </Border>
                                         </StackPanel>
