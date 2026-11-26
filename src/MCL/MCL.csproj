@@ -16,6 +16,10 @@
     <Resource Include="Assets/spring-valley.jpg" />
     <Resource Include="Assets/autumn-camp.jpg" />
     <Resource Include="Assets/canyon-riders.jpg" />
+    <Resource Include="Assets/cherry-trails.jpg" />
+    <Resource Include="Assets/wild-marsh.jpg" />
+    <Resource Include="Assets/nether-cavern.jpg" />
+    <Resource Include="Assets/closing-song-twilight.jpg" />
     <Resource Include="Assets/mcl.ico" />
     <Resource Include="$(MclRelayBundle)" Link="Assets/relay.exe"
               Condition="'$(MclRelayBundle)' != ''" />

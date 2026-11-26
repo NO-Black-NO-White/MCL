@@ -13,10 +13,14 @@ public partial class MainWindow
     public bool CanDeleteVersion => !IsBusy && !_isDeletingVersion && !IsGameRunning && !_launcher.IsRunning && SelectedVersion is not null;
     public string ManagedVersionTitle => SelectedVersion?.DisplayName ?? "选择一个版本";
     public string ManagedMinecraftVersion => SelectedVersion?.ModpackMinecraft ?? SelectedVersion?.Id ?? "";
-    public string ManagedVersionArtwork => ManagedMinecraftVersion switch
+    public string ManagedVersionArtwork => (SelectedVersion?.ModpackName, ManagedMinecraftVersion) switch
     {
-        "26.3" => "/MCL;component/Assets/autumn-camp.jpg",
-        "1.21.11" => "/MCL;component/Assets/canyon-riders.jpg",
+        ("Closing Song1.6.8", "1.20.1") => "/MCL;component/Assets/closing-song-twilight.jpg",
+        (_, "26.3") => "/MCL;component/Assets/autumn-camp.jpg",
+        (_, "1.21.11") => "/MCL;component/Assets/canyon-riders.jpg",
+        (_, "1.20.1") => "/MCL;component/Assets/cherry-trails.jpg",
+        (_, "1.19.4") => "/MCL;component/Assets/wild-marsh.jpg",
+        (_, "1.16.3") => "/MCL;component/Assets/nether-cavern.jpg",
         _ => "/MCL;component/Assets/spring-valley.jpg"
     };
     public string ManagedVersionLoader => SelectedVersion?.ModpackLoader ?? SelectedVersion?.Kind ?? "";
