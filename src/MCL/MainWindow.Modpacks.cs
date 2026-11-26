@@ -19,7 +19,7 @@ public partial class MainWindow
 
     public bool CanChoosePack => !IsBusy && !IsGameRunning;
     public bool HasPack => _selectedPack is not null;
-    public bool IsCurseForgePack => _selectedPack?.CurseForge == true;
+    public bool IsCurseForgePack => _selectedPack is { CurseForge: true, MclShare: false };
     public bool HasOptionalPackFiles => _selectedPack?.OptionalFiles > 0;
     public bool CanImportPack => CanChoosePack && HasPack && !PackCompleted;
     public bool CanCancelPack => _packCancellation is { IsCancellationRequested: false };
@@ -29,7 +29,8 @@ public partial class MainWindow
     public string PackDetails => _selectedPack is { } pack
         ? $"Minecraft {pack.Minecraft}  ·  {pack.LoaderText}  ·  整合包版本 {pack.Version}" : "";
     public string PackFileSummary => _selectedPack is { } pack
-        ? $"{pack.RequiredFiles:N0} 个必需文件，{pack.OptionalFiles:N0} 个可选文件。"
+        ? pack.MclShare ? $"分享 ZIP 已包含 {pack.RequiredFiles:N0} 个文件。游戏本体和加载器会单独准备。"
+        : $"{pack.RequiredFiles:N0} 个必需文件，{pack.OptionalFiles:N0} 个可选文件。"
             + (pack.CurseForge ? "优先使用 Curse.Tools，必要时尝试 MCIM 或 Modrinth，无需配置密钥。" : $"整合包文件最多下载 {FormatBytes(pack.DownloadBytes)}，游戏本体另计。")
         : "";
     public string PackOptionalText => $"同时安装 {_selectedPack?.OptionalFiles ?? 0} 个可选文件";

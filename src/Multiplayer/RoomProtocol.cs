@@ -5,10 +5,11 @@ using System.Text.Json;
 
 namespace MCL.Multiplayer;
 
-internal sealed record RoomGame(string Minecraft, string? Pack, string? PackVersion, string? Loader)
+internal sealed record RoomGame(string Minecraft, string? Pack, string? PackVersion, string? Loader, string? ModsSha256 = null)
 {
     internal bool IsSupported => Minecraft is { Length: <= 24 } && Version.TryParse(Minecraft, out var version)
-        && version >= new Version(1, 20) && Label(Pack, 120) && Label(PackVersion, 120) && Label(Loader, 32);
+        && version >= new Version(1, 20) && Label(Pack, 120) && Label(PackVersion, 120) && Label(Loader, 32)
+        && (ModsSha256 is null || ModsSha256.Length == 64 && ModsSha256.All(Uri.IsHexDigit));
 
     private static bool Label(string? value, int length) => value is null || (value.Length <= length && !value.Any(char.IsControl));
 }

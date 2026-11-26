@@ -3,7 +3,7 @@ namespace MCL.Models;
 public sealed record ModpackPreview(
     string ArchivePath, string ArchiveHash, string Name, string Version,
     string Minecraft, string? Fabric, int RequiredFiles, int OptionalFiles, long DownloadBytes,
-    string? Forge = null, bool CurseForge = false)
+    string? Forge = null, bool CurseForge = false, bool MclShare = false)
 {
     public string LoaderText => Forge is not null ? $"Forge {Forge}" : Fabric is null ? "原版" : $"Fabric {Fabric}";
 }

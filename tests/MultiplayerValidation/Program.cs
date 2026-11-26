@@ -31,17 +31,19 @@ var world = new TcpListener(IPAddress.Loopback, 0);
 world.Start();
 try
 {
-    var game = new RoomGame("1.20.1", "Multiplayer QA", "1", "0.16.14");
+    var game = new RoomGame("1.20.1", "Multiplayer QA", "1", "0.16.14", new string('A', 64));
     var worldPort = ((IPEndPoint)world.LocalEndpoint).Port;
     if (hostKey is not null)
     {
         try { await service.HostAsync(game, worldPort, ct); throw new Exception("An unauthenticated host was allowed."); }
         catch (WebSocketException) { Check(true, "A managed relay rejects hosts without its private host key"); }
     }
-    var room = await service.HostAsync(game, worldPort, hostLifetime.Token, hostKey);
+    var forwarded = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    var room = await service.HostAsync(game, worldPort, hostLifetime.Token, hostKey, () => forwarded.TrySetResult());
     Check(RoomProtocol.IsToken(room.Code) && await service.FindAsync(room.Code, ct) == game, "The invite resolves to the host's game and modpack");
     await CheckMissingAsync(RoomProtocol.Token());
-    var tunnel = service.StartGuest(room.Code, () => { }, guestLifetime.Token);
+    var connected = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+    var tunnel = service.StartGuest(room.Code, () => { }, guestLifetime.Token, () => connected.TrySetResult());
     Task discovery;
     using (var beaconReceiver = new UdpClient(new IPEndPoint(IPAddress.Loopback, GuestTunnel.LanDiscoveryPort)))
     {
@@ -63,6 +65,7 @@ try
     var secondHost = secondWorldConnection.GetStream();
     await Task.WhenAll(TransferAsync(firstGuest, firstHost), TransferAsync(secondHost, secondGuest));
     await Task.WhenAll(TransferAsync(firstHost, firstGuest), TransferAsync(secondGuest, secondHost));
+    await Task.WhenAll(forwarded.Task, connected.Task).WaitAsync(ct);
     Check(true, "Two simultaneous game connections passed large byte streams in both directions");
 
     firstClient.Dispose();
@@ -74,6 +77,13 @@ try
     await ObserveCancellationAsync(room.Completion);
     Check(await secondGuest.ReadAsync(new byte[1].AsMemory(), ct) == 0, "Closing the host room disconnects guests");
     await CheckMissingAsync(room.Code);
+    using (var retryLifetime = CancellationTokenSource.CreateLinkedTokenSource(ct))
+    {
+        var retry = await service.HostAsync(game, worldPort, retryLifetime.Token, hostKey);
+        Check(retry.Code != room.Code && await service.FindAsync(retry.Code, ct) == game, "Room can be recreated using the same running world");
+        retryLifetime.Cancel();
+        await ObserveCancellationAsync(retry.Completion);
+    }
     guestLifetime.Cancel();
     await ObserveCancellationAsync(tunnel.Completion);
     await ObserveCancellationAsync(discovery);

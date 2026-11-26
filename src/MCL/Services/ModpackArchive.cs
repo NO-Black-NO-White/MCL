@@ -145,6 +145,8 @@ internal sealed class ModpackArchive
         // Some exporters leave version empty. The ZIP digest gives such exports a stable identity.
         version = string.IsNullOrEmpty(version) ? $"ZIP-{hash[..12]}" : Label(root, "version");
         var declarations = root.GetProperty("files");
+        var shared = root.TryGetProperty("mclShare", out var marker) && marker.ValueKind == JsonValueKind.Number
+            && marker.TryGetInt32(out var format) && format == 1 && declarations.GetArrayLength() == 0;
         if (declarations.GetArrayLength() > 20000) throw new InvalidDataException("整合包要求下载的文件过多。");
         var ids = new HashSet<int>();
         var files = new List<CurseForgeFile>();
@@ -159,8 +161,8 @@ internal sealed class ModpackArchive
         var folder = ModpackPaths.Relative(root.GetProperty("overrides").GetString() ?? "");
         var overrides = ReadOverrides(zip, index.FullName[..^"manifest.json".Length], folder + '/', false, 0, ct);
         CheckPaths([], overrides);
-        return new(new(path, hash, name, version, minecraft!, fabric, files.Count(f => !f.Optional),
-            files.Count(f => f.Optional), 0, forge, true), [], overrides, files.ToArray());
+        return new(new(path, hash, name, version, minecraft!, fabric, shared ? overrides.Length : files.Count(f => !f.Optional),
+            files.Count(f => f.Optional), 0, forge, true, shared), [], overrides, files.ToArray());
     }
 
     private static PackOverride[] ReadOverrides(ZipArchive zip, string prefix, string folder, bool hasClientLayer,
@@ -233,7 +235,7 @@ internal sealed class ModpackArchive
     private static bool IsIndex(string path, string name) => path == name
         || (path.EndsWith("/" + name, StringComparison.Ordinal) && path.Count(c => c == '/') == 1);
 
-    private static void EnsureRegularFile(ZipArchiveEntry entry)
+    internal static void EnsureRegularFile(ZipArchiveEntry entry)
     {
         if (((entry.ExternalAttributes >> 16) & 0xF000) == 0xA000
             || (entry.ExternalAttributes & (int)FileAttributes.ReparsePoint) != 0)

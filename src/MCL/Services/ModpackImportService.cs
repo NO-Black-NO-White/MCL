@@ -309,8 +309,8 @@ public sealed partial class ModpackImportService : IDisposable
         throw new IOException("整合包下载的跳转次数过多。");
     }
 
-    private static async Task CopyAsync(Stream input, Stream output, long maxBytes, long? size,
-        IncrementalHash? sha1, IncrementalHash? sha512, CancellationToken ct)
+    internal static async Task CopyAsync(Stream input, Stream output, long maxBytes, long? size,
+        IncrementalHash? hash, IncrementalHash? secondaryHash, CancellationToken ct)
     {
         var buffer = new byte[65536];
         long written = 0;
@@ -320,14 +320,14 @@ public sealed partial class ModpackImportService : IDisposable
         {
             written += read;
             if (written > limit) throw new InvalidDataException("文件大小超过清单中的限制。");
-            sha1?.AppendData(buffer, 0, read);
-            sha512?.AppendData(buffer, 0, read);
+            hash?.AppendData(buffer, 0, read);
+            secondaryHash?.AppendData(buffer, 0, read);
             await output.WriteAsync(buffer.AsMemory(0, read), ct).ConfigureAwait(false);
         }
         if (size is not null && written != size) throw new InvalidDataException("文件大小与清单中的记录不一致。");
     }
 
-    private static FileStream OpenArchive(string path)
+    internal static FileStream OpenArchive(string path)
     {
         var extension = Path.GetExtension(path);
         if (!extension.Equals(".mrpack", StringComparison.OrdinalIgnoreCase) && !extension.Equals(".zip", StringComparison.OrdinalIgnoreCase))

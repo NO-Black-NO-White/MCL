@@ -61,6 +61,46 @@ Check(File.Exists(Path.Combine(installedGame, "mods", "fixture.jar"))
     && File.Exists(Path.Combine(installedGame, "resourcepacks", "texture.zip"))
     && File.Exists(Path.Combine(installedGame, "shaderpacks", "light.zip"))
     && File.Exists(Path.Combine(installedGame, "config", "sample.txt")), "CurseForge installs verified files and bundled settings without credentials");
+var sourceVersion = (await new VersionCatalog().ScanAsync(curseGame)).Single(version => version.Id == installed.InstanceId);
+var savePath = Path.Combine(Directory.CreateDirectory(Path.Combine(installedGame, "saves", "TestWorld")).FullName, "level.dat");
+await File.WriteAllTextAsync(savePath, "backup state");
+await File.WriteAllTextAsync(Path.Combine(installedGame, "options.txt"), "local preferences");
+var sharedArchive = Path.Combine(root, "shared.zip");
+await LocalContentArchive.ExportPackAsync(curseGame, sourceVersion, sharedArchive, default);
+var sharedPreview = await ModpackImportService.PreviewAsync(sharedArchive);
+Check(sharedPreview is { MclShare: true, Minecraft: "1.20.1", Fabric: "0.16.14" }, "Share export preserves the matching Minecraft version and loader");
+var friendGame = Path.Combine(root, "friend");
+var sharedInstall = await importer.InstallAsync(sharedPreview, friendGame, false);
+var friendVersion = (await new VersionCatalog().ScanAsync(friendGame)).Single(version => version.Id == sharedInstall.InstanceId);
+var friendRuntime = Path.Combine(friendVersion.VersionDirectory, "game");
+Check(!Directory.Exists(Path.Combine(friendRuntime, "saves")) && !File.Exists(Path.Combine(friendRuntime, "options.txt"))
+    && File.Exists(Path.Combine(friendRuntime, "config", "sample.txt")), "Shared pack preserves configuration and excludes saves and personal preferences");
+Check(await ModpackComparison.FingerprintAsync(curseGame, sourceVersion, default)
+    == await ModpackComparison.FingerprintAsync(friendGame, friendVersion, default), "Shared pack installs with the same mod fingerprint");
+await File.WriteAllTextAsync(Path.Combine(friendRuntime, "mods", "fixture.jar"), "modified mod");
+await File.WriteAllTextAsync(Path.Combine(friendRuntime, "mods", "extra.jar"), "extra mod");
+var comparison = await ModpackComparison.CompareAsync(friendGame, friendVersion, sharedArchive, default);
+Check(comparison.Contains("文件内容不同") && comparison.Contains("fixture.jar") && comparison.Contains("extra.jar"), "Share comparison lists changed and extra mods");
+File.Delete(Path.Combine(friendRuntime, "mods", "fixture.jar"));
+Check((await ModpackComparison.CompareAsync(friendGame, friendVersion, sharedArchive, default)).Contains("缺少"), "Share comparison reports missing mods");
+var savesBackup = Path.Combine(root, "saves.zip");
+await LocalContentArchive.BackupSavesAsync(curseGame, sourceVersion, savesBackup, default);
+await File.WriteAllTextAsync(savePath, "new state");
+var previousSaves = await LocalContentArchive.RestoreSavesAsync(curseGame, sourceVersion, savesBackup, default);
+Check(previousSaves is not null && File.ReadAllText(savePath) == "backup state"
+    && File.ReadAllText(Path.Combine(previousSaves, "TestWorld", "level.dat")) == "new state", "Save restoration keeps the pre-restore world");
+await Reject<InvalidDataException>(() => LocalContentArchive.RestoreSavesAsync(curseGame, sourceVersion, sharedArchive, default),
+    "A share archive cannot be mistaken for a save backup");
+Check(File.ReadAllText(savePath) == "backup state", "Rejected restoration leaves the current world intact");
+using (var tampered = ZipFile.Open(savesBackup, ZipArchiveMode.Update))
+{
+    var entry = tampered.GetEntry("saves/TestWorld/level.dat")!;
+    using var stream = entry.Open();
+    await stream.WriteAsync(Encoding.UTF8.GetBytes("broken state"));
+}
+await Reject<InvalidDataException>(() => LocalContentArchive.RestoreSavesAsync(curseGame, sourceVersion, savesBackup, default),
+    "A modified backup file is rejected even when its size is unchanged");
+Check(File.ReadAllText(savePath) == "backup state", "Checksum failure leaves the current world intact");
 Check(fixture.Requests.ContainsKey("https://api.curse.tools/v1/mods/files")
     && fixture.Requests.ContainsKey("https://edge.forgecdn.net/files/0/34/fixture.jar")
     && !fixture.Requests.ContainsKey("https://mod.mcimirror.top/files/0/34/fixture.jar"),

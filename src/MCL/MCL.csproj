@@ -26,4 +26,7 @@
     <Resource Include="$(MclCloudflaredBundle)" Link="Assets/cloudflared.exe"
               Condition="'$(MclCloudflaredBundle)' != ''" />
   </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="ModpackValidation" />
+  </ItemGroup>
 </Project>

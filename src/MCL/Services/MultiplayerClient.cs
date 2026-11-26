@@ -46,7 +46,7 @@ internal sealed class MultiplayerClient
         _endpoint = address;
     }
 
-    internal async Task<HostRoom> HostAsync(RoomGame game, int port, CancellationToken ct, string? hostKey = null)
+    internal async Task<HostRoom> HostAsync(RoomGame game, int port, CancellationToken ct, string? hostKey = null, Action? guestConnected = null)
     {
         if (!game.IsSupported || port is <= 0 or > 65535) throw new InvalidDataException("当前游戏无法创建联机房间。");
         using var timeout = Deadline(ct);
@@ -56,7 +56,7 @@ internal sealed class MultiplayerClient
             await RoomProtocol.SendTextAsync(control, JsonSerializer.Serialize(game, RoomProtocol.Json), timeout.Token);
             var code = await RoomProtocol.ReadTextAsync(control, timeout.Token);
             if (!RoomProtocol.IsToken(code)) throw new IOException("中转服务未能创建房间。");
-            return new HostRoom(code!, RunHostAsync(control, port, ct));
+            return new HostRoom(code!, RunHostAsync(control, port, guestConnected, ct));
         }
         catch
         {
@@ -81,14 +81,14 @@ internal sealed class MultiplayerClient
         return game;
     }
 
-    internal GuestTunnel StartGuest(string code, Action connectionFailed, CancellationToken ct)
+    internal GuestTunnel StartGuest(string code, Action connectionFailed, CancellationToken ct, Action? connected = null)
     {
         var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start(RoomProtocol.MaximumGuests * 2);
-        return new(((IPEndPoint)listener.LocalEndpoint).Port, RunGuestAsync(listener, code, connectionFailed, ct));
+        return new(((IPEndPoint)listener.LocalEndpoint).Port, RunGuestAsync(listener, code, connectionFailed, connected, ct));
     }
 
-    private async Task RunHostAsync(ClientWebSocket control, int port, CancellationToken ct)
+    private async Task RunHostAsync(ClientWebSocket control, int port, Action? guestConnected, CancellationToken ct)
     {
         using (control)
         using (var lifetime = CancellationTokenSource.CreateLinkedTokenSource(ct))
@@ -101,7 +101,7 @@ internal sealed class MultiplayerClient
                     if (!RoomProtocol.IsToken(ticket)) throw new InvalidDataException("联机服务发出了无效的连接请求。");
                     active.RemoveAll(item => item.IsCompletedSuccessfully);
                     if (active.Count < RoomProtocol.MaximumGuests * 2)
-                        active.Add(ConnectToWorldAsync(ticket, port, lifetime.Token));
+                        active.Add(ConnectToWorldAsync(ticket, port, guestConnected, lifetime.Token));
                 }
             }
             finally
@@ -112,7 +112,7 @@ internal sealed class MultiplayerClient
         }
     }
 
-    private async Task ConnectToWorldAsync(string ticket, int port, CancellationToken ct)
+    private async Task ConnectToWorldAsync(string ticket, int port, Action? guestConnected, CancellationToken ct)
     {
         try
         {
@@ -120,12 +120,13 @@ internal sealed class MultiplayerClient
             using var game = new TcpClient(AddressFamily.InterNetwork) { NoDelay = true };
             await game.ConnectAsync(IPAddress.Loopback, port, timeout.Token);
             using var socket = await ConnectAsync("/connect", ticket, timeout.Token);
+            guestConnected?.Invoke();
             await RoomProtocol.BridgeAsync(socket, game.GetStream(), ct);
         }
         catch (Exception ex) when (ex is SocketException or WebSocketException or IOException or OperationCanceledException) { }
     }
 
-    private async Task RunGuestAsync(TcpListener listener, string code, Action connectionFailed, CancellationToken ct)
+    private async Task RunGuestAsync(TcpListener listener, string code, Action connectionFailed, Action? connected, CancellationToken ct)
     {
         using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(ct);
         var active = new List<Task>();
@@ -136,7 +137,7 @@ internal sealed class MultiplayerClient
                 var game = await listener.AcceptTcpClientAsync(lifetime.Token);
                 active.RemoveAll(item => item.IsCompletedSuccessfully);
                 if (active.Count < RoomProtocol.MaximumGuests * 2)
-                    active.Add(ConnectToRoomAsync(game, code, connectionFailed, lifetime.Token));
+                    active.Add(ConnectToRoomAsync(game, code, connectionFailed, connected, lifetime.Token));
                 else game.Dispose();
             }
         }
@@ -148,7 +149,7 @@ internal sealed class MultiplayerClient
         }
     }
 
-    private async Task ConnectToRoomAsync(TcpClient game, string code, Action connectionFailed, CancellationToken ct)
+    private async Task ConnectToRoomAsync(TcpClient game, string code, Action connectionFailed, Action? connected, CancellationToken ct)
     {
         using (game)
         {
@@ -159,6 +160,7 @@ internal sealed class MultiplayerClient
                 using var socket = await ConnectAsync("/guest", code, timeout.Token);
                 if (await RoomProtocol.ReadTextAsync(socket, timeout.Token) != "ready")
                     throw new IOException("房主的游戏连接不可用。");
+                connected?.Invoke();
                 await RoomProtocol.BridgeAsync(socket, game.GetStream(), ct);
             }
             catch (Exception ex) when (ex is SocketException or WebSocketException or IOException or OperationCanceledException)

@@ -26,6 +26,10 @@ public partial class MainWindow
     private string _inviteInput = "";
     private string _roomCode = "";
     private string _multiplayerStatus = "";
+    private string _multiplayerStage = "";
+    private bool _retryHost;
+    private bool _retryJoin;
+    private bool _rejoinRequested;
 
     public string RelayEndpoint
     {
@@ -36,7 +40,12 @@ public partial class MainWindow
     public string InviteInput
     {
         get => _inviteInput;
-        set { if (Set(ref _inviteInput, value)) Notify(nameof(CanJoinRoom)); }
+        set
+        {
+            if (!Set(ref _inviteInput, value)) return;
+            _retryJoin = false;
+            Notify(nameof(CanJoinRoom), nameof(JoinRoomButtonText));
+        }
     }
 
     public string RoomCode { get => _roomCode; private set { if (Set(ref _roomCode, value)) Notify(nameof(HasRoomCode)); } }
@@ -49,6 +58,7 @@ public partial class MainWindow
             if (!value || !CanEditRelay || !Set(ref _showHostSetup, true)) return;
             Notify(nameof(ShowGuestSetup));
             MultiplayerStatus = "";
+            MultiplayerStage = "";
         }
     }
     public bool ShowGuestSetup
@@ -59,6 +69,7 @@ public partial class MainWindow
             if (!value || !CanEditRelay || !Set(ref _showHostSetup, false, nameof(ShowHostSetup))) return;
             Notify(nameof(ShowGuestSetup));
             MultiplayerStatus = "";
+            MultiplayerStage = "";
         }
     }
     public bool UseSharedRelay
@@ -67,12 +78,15 @@ public partial class MainWindow
         set { if (Set(ref _useSharedRelay, value)) NotifyMultiplayer(); }
     }
     public string MultiplayerStatus { get => _multiplayerStatus; private set => Set(ref _multiplayerStatus, value); }
+    public string MultiplayerStage { get => _multiplayerStage; private set => Set(ref _multiplayerStage, value); }
     public bool MultiplayerActive => _multiplayerCancellation is not null;
     public bool CanEditRelay => !MultiplayerActive && !IsBusy;
     public bool CanHostRoom => CanEditRelay && !_runningForGuest
         && (IsGameRunning ? _runningGame : SelectedVersion) is { IsValid: true } game && Describe(game).IsSupported;
-    public bool CanJoinRoom => CanEditRelay && (!IsGameRunning || _runningGame is not null) && InviteInput.Trim().Length != 0;
-    public string JoinRoomButtonText => IsGameRunning ? "加入房间" : "加入并启动";
+    public bool CanJoinRoom => (CanEditRelay || _retryJoin && _multiplayerCancellation is { IsCancellationRequested: false } && !_hostingRoom && !IsBusy)
+        && (!IsGameRunning || _runningGame is not null) && InviteInput.Trim().Length != 0;
+    public string HostRoomButtonText => IsGameRunning ? _retryHost ? "重试开房" : "创建房间" : "启动并创建房间";
+    public string JoinRoomButtonText => _retryJoin ? "重试加入" : IsGameRunning ? "加入房间" : "加入并启动";
     public string LanRoomStatus => _runningForGuest ? "请先退出正在加入的游戏，再创建自己的房间。"
         : (_runningGame ?? SelectedVersion) is not { IsValid: true } version
         ? "请先在「游戏版本」里选择可启动的版本。"
@@ -82,10 +96,15 @@ public partial class MainWindow
         : "已识别局域网房间。";
 
     private void NotifyMultiplayer() => Notify(nameof(MultiplayerActive), nameof(CanEditRelay), nameof(CanHostRoom),
-        nameof(CanJoinRoom), nameof(JoinRoomButtonText), nameof(LanRoomStatus));
+        nameof(CanJoinRoom), nameof(HostRoomButtonText), nameof(JoinRoomButtonText), nameof(LanRoomStatus),
+        nameof(CanManageSaves), nameof(CanShareModpack), nameof(CanCompareModpack));
 
     private static RoomGame Describe(GameVersion version) =>
         new(version.ModpackMinecraft ?? version.Id, version.ModpackName, version.ModpackVersion, version.ModpackLoader);
+
+    private static Task<string> RoomModsAsync(GameVersion version, CancellationToken ct) =>
+        Task.Run(() => ModpackComparison.FingerprintAsync(
+            Path.GetDirectoryName(Path.GetDirectoryName(version.VersionDirectory))!, version, ct), ct);
 
     private static string DefaultRelayEndpoint()
     {
@@ -108,7 +127,10 @@ public partial class MainWindow
         {
             if (_closing || _runningGame is null) return;
             if (_hostingRoom && _lanPort is not null && _lanPort != port)
+            {
+                MultiplayerStage = "局域网已关闭";
                 EndMultiplayer("局域网房间已关闭，请重新开放后再开房。");
+            }
             _lanPort = port;
             if (port is { } ready) _lanReady?.TrySetResult(ready);
             NotifyMultiplayer();
@@ -145,6 +167,7 @@ public partial class MainWindow
     {
         if (!CanHostRoom || (_runningGame ?? SelectedVersion) is not { } version) return;
         using var cancellation = BeginMultiplayer(hosting: true);
+        MultiplayerStage = "准备开房";
         HostedRelay? automatic = null;
         try
         {
@@ -154,28 +177,42 @@ public partial class MainWindow
             if (_runningGame is null)
             {
                 IsBusy = true;
+                MultiplayerStage = "启动游戏";
                 MultiplayerStatus = $"正在启动 {version.DisplayName}…";
                 try { await LaunchGameAsync(version, cancellation.Token); }
                 finally { IsBusy = false; }
                 if (!_launcher.IsRunning) throw new IOException("游戏未能保持运行。请查看运行日志后重试。");
             }
-            MultiplayerStatus = "请进入单人存档，按 Esc 选择「对局域网开放」。MCL 识别后会继续开房。";
+            MultiplayerStage = "识别局域网房间";
+            MultiplayerStatus = _lanPort is null ? "请进入单人存档，按 Esc 选择「对局域网开放」。MCL 识别后会继续开房。" : "已识别当前存档的局域网房间。";
             var port = await _lanReady.Task.WaitAsync(cancellation.Token);
+            MultiplayerStage = "核对房主模组";
+            MultiplayerStatus = "正在读取当前游戏目录的模组文件…";
+            var game = Describe(version) with { ModsSha256 = await RoomModsAsync(version, cancellation.Token) };
+            MultiplayerStage = "连接中转";
             if (sharedClient is null)
             {
                 var progress = new Progress<string>(message =>
                 {
-                    if (!cancellation.IsCancellationRequested) MultiplayerStatus = message;
+                    if (ReferenceEquals(_multiplayerCancellation, cancellation) && !cancellation.IsCancellationRequested)
+                        MultiplayerStatus = message;
                 });
                 MultiplayerStatus = "正在检查和准备本机联机组件…";
                 automatic = await Task.Run(() => new AutomaticRoomHost(_store.DataDirectory)
                     .StartAsync(progress, cancellation.Token), cancellation.Token);
             }
             var client = sharedClient ?? new MultiplayerClient(automatic!.Relay.AbsoluteUri);
-            var room = await client.HostAsync(Describe(version), port, cancellation.Token, automatic?.Key);
+            MultiplayerStatus = "正在通过中转服务注册房间…";
+            var room = await client.HostAsync(game, port, cancellation.Token, automatic?.Key, () => Dispatcher.BeginInvoke(() =>
+            {
+                if (ReferenceEquals(_multiplayerCancellation, cancellation) && !cancellation.IsCancellationRequested)
+                    MultiplayerStage = "已转发好友的连接";
+            }));
             if (!cancellation.IsCancellationRequested)
             {
                 RoomCode = automatic is null ? room.Code : RoomInvite.Create(automatic.Public, room.Code);
+                _retryHost = false;
+                MultiplayerStage = "房间已开放";
                 MultiplayerStatus = "房间已开启。复制邀请码发给好友，保持 MCL 和游戏运行。";
                 if (automatic is { PublicAddressVerified: false })
                 {
@@ -188,15 +225,24 @@ public partial class MainWindow
                 && !cancellation.IsCancellationRequested)
             {
                 MultiplayerStatus = "本机中转或公网隧道已退出，请重新开房。";
+                _retryHost = true;
+                MultiplayerStage = "中转已断开";
                 cancellation.Cancel();
             }
             await room.Completion;
-            if (!cancellation.IsCancellationRequested) MultiplayerStatus = "联机服务已断开，可以重新开房。";
+            if (!cancellation.IsCancellationRequested)
+            {
+                _retryHost = true;
+                MultiplayerStage = "中转已断开";
+                MultiplayerStatus = "联机服务已断开，可以重新开房。";
+            }
         }
         catch (Exception ex) when (IsMultiplayerError(ex))
         {
             if (!cancellation.IsCancellationRequested)
             {
+                _retryHost = true;
+                MultiplayerStage += "失败";
                 MultiplayerStatus = MultiplayerError(ex);
                 _log.Warn($"创建联机房间失败：{MultiplayerStatus}");
             }
@@ -211,33 +257,56 @@ public partial class MainWindow
     private async void JoinRoom_Click(object sender, RoutedEventArgs e)
     {
         if (!CanJoinRoom) return;
+        if (MultiplayerActive)
+        {
+            _rejoinRequested = true;
+            EndMultiplayer("正在重新连接当前房间…");
+            NotifyMultiplayer();
+            return;
+        }
         var runningGame = _runningGame;
         RoomInvite invite;
         try { invite = RoomInvite.Read(InviteInput, RelayEndpoint); }
-        catch (InvalidDataException ex) { MultiplayerStatus = ex.Message; return; }
+        catch (InvalidDataException ex) { MultiplayerStage = "邀请码有误"; MultiplayerStatus = ex.Message; return; }
         using var cancellation = BeginMultiplayer(hosting: false);
         _guestUsesGame = runningGame is not null;
         GuestTunnel? tunnel = null;
         Task? discovery = null;
         var preparing = true;
         IsBusy = true;
+        MultiplayerStage = "查找好友房间";
         MultiplayerStatus = "正在查找好友房间…";
         try
         {
             var client = new MultiplayerClient(invite.Address);
             var game = await client.FindAsync(invite.Code, cancellation.Token);
             cancellation.Token.ThrowIfCancellationRequested();
-            var version = ResolveJoiningVersion(game, runningGame);
+            MultiplayerStage = "检查版本和模组";
+            MultiplayerStatus = "正在核对 Minecraft 版本、整合包、加载器和模组文件…";
+            var version = await ResolveJoiningVersionAsync(game, runningGame, cancellation.Token);
             if (version.ModpackName is null && version.InheritsFrom is not null)
                 throw new InvalidDataException("请选择原版游戏或由 MCL 导入的整合包。");
             tunnel = client.StartGuest(invite.Code, () => Dispatcher.BeginInvoke(() =>
             {
                 if (ReferenceEquals(_multiplayerCancellation, cancellation) && !cancellation.IsCancellationRequested)
-                    MultiplayerStatus = "连接房间失败。请确认房间仍开放，再重新加入。";
-            }), cancellation.Token);
+                {
+                    _retryJoin = true;
+                    MultiplayerStage = "连接房间失败";
+                    MultiplayerStatus = "请确认房间仍开放，点「重试加入」即可用当前邀请码再连接。";
+                    NotifyMultiplayer();
+                }
+            }), cancellation.Token, () => Dispatcher.BeginInvoke(() =>
+            {
+                if (!ReferenceEquals(_multiplayerCancellation, cancellation) || cancellation.IsCancellationRequested) return;
+                _retryJoin = false;
+                MultiplayerStage = "已连通房主游戏";
+                MultiplayerStatus = "中转已连通。若游戏内仍无法进入，请查看 Minecraft 的提示。";
+                NotifyMultiplayer();
+            }));
             if (runningGame is null)
             {
                 SelectedVersion = version;
+                MultiplayerStage = "启动游戏";
                 MultiplayerStatus = $"正在启动 {version.DisplayName}…";
                 await LaunchGameAsync(version, cancellation.Token, joiningFriend: true);
                 _guestUsesGame = true;
@@ -248,11 +317,15 @@ public partial class MainWindow
                 return;
             }
             cancellation.Token.ThrowIfCancellationRequested();
-            InviteInput = "";
+            _retryJoin = false;
             preparing = false;
             IsBusy = false;
             if (!cancellation.IsCancellationRequested)
-                MultiplayerStatus = $"请在 Minecraft 的「多人游戏」中选择局域网列表里的「{GuestTunnel.LanRoomName}」。";
+            {
+                MultiplayerStage = "等待从游戏内加入";
+                MultiplayerStatus = $"请在 Minecraft 的「多人游戏」中选择局域网列表里的「{GuestTunnel.LanRoomName}」。"
+                    + (game.ModsSha256 is null ? " 此房间未提供模组校验信息。" : " 版本、加载器和模组已核对。");
+            }
             discovery = tunnel.AdvertiseLanRoomAsync(cancellation.Token);
             var completed = await Task.WhenAny(tunnel.Completion, discovery);
             if (completed == discovery && discovery.IsFaulted)
@@ -261,7 +334,13 @@ public partial class MainWindow
         }
         catch (Exception ex) when (IsMultiplayerError(ex) || ex is InvalidOperationException)
         {
-            if (!cancellation.IsCancellationRequested) MultiplayerStatus = MultiplayerError(ex);
+            if (!cancellation.IsCancellationRequested)
+            {
+                _retryJoin = true;
+                MultiplayerStage += "失败";
+                MultiplayerStatus = MultiplayerError(ex);
+                _log.Warn($"加入好友房间失败：{MultiplayerStatus}");
+            }
         }
         finally
         {
@@ -277,23 +356,34 @@ public partial class MainWindow
                 catch (Exception ex) when (IsMultiplayerError(ex)) { }
             }
             if (preparing) IsBusy = false;
+            var rejoin = _rejoinRequested;
+            _rejoinRequested = false;
             ResetMultiplayer();
+            if (rejoin && !_closing) _ = Dispatcher.BeginInvoke(() => JoinRoom_Click(this, new RoutedEventArgs()));
         }
     }
 
-    private GameVersion ResolveJoiningVersion(RoomGame room, GameVersion? runningGame)
+    private async Task<GameVersion> ResolveJoiningVersionAsync(RoomGame room, GameVersion? runningGame, CancellationToken ct)
     {
-        var required = room.Pack is null ? $"Minecraft {room.Minecraft} 原版" : $"整合包「{room.Pack}」{room.PackVersion}";
+        var required = room.Pack is null ? $"Minecraft {room.Minecraft} 原版"
+            : $"Minecraft {room.Minecraft} · 整合包「{room.Pack}」{room.PackVersion} · {room.Loader ?? "原版"}";
+        var identity = room with { ModsSha256 = null };
         if (runningGame is not null)
         {
-            if (Describe(runningGame) != room)
+            if (Describe(runningGame) != identity)
                 throw new InvalidDataException($"当前运行的是「{runningGame.DisplayName}」。房间需要 {required}。请先退出当前游戏，再加入房间。");
-            return runningGame;
         }
-
-        if (SelectedVersion is { IsValid: true } selected && Describe(selected) == room) return selected;
-        return Versions.FirstOrDefault(candidate => candidate.IsValid && Describe(candidate) == room)
-            ?? throw new InvalidDataException($"请先安装房间需要的 {required}。");
+        var candidates = runningGame is null
+            ? Versions.Where(candidate => candidate.IsValid && Describe(candidate) == identity).OrderByDescending(candidate => candidate == SelectedVersion).ToArray()
+            : [runningGame];
+        if (candidates.Length == 0) throw new InvalidDataException($"请先安装房间需要的 {required}。");
+        if (room.ModsSha256 is null) return candidates[0];
+        foreach (var candidate in candidates)
+        {
+            var hash = await RoomModsAsync(candidate, ct);
+            if (hash.Equals(room.ModsSha256, StringComparison.OrdinalIgnoreCase)) return candidate;
+        }
+        throw new InvalidDataException("本机模组和房主不同。请让房主发来整合包分享 ZIP，再点「对比好友分享包」查看缺少、多出或文件不同的模组。");
     }
 
     private static bool IsMultiplayerError(Exception ex) => ex is InvalidDataException or IOException or
@@ -314,7 +404,11 @@ public partial class MainWindow
         catch (COMException) { MultiplayerStatus = "剪贴板暂时不可用，可以选中邀请码手动复制。"; }
     }
 
-    private void CloseRoom_Click(object sender, RoutedEventArgs e) => EndMultiplayer(_hostingRoom ? "房间已关闭。" : "已结束联机。");
+    private void CloseRoom_Click(object sender, RoutedEventArgs e)
+    {
+        MultiplayerStage = "联机已结束";
+        EndMultiplayer(_hostingRoom ? "房间已关闭。" : "已结束联机。");
+    }
 
     public void OpenMultiplayer() => MultiplayerNav.IsChecked = true;
 }

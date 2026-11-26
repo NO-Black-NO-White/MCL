@@ -487,10 +487,10 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         _runningGame = runningGame;
         IsGameRunning = true;
         if (!JoinRoomButton.IsEnabled || !Equals(JoinRoomButton.Content, "加入房间")
-            || !ReferenceEquals(ResolveJoiningVersion(Describe(runningGame), runningGame), runningGame))
+            || !ReferenceEquals(await ResolveJoiningVersionAsync(Describe(runningGame), runningGame, _lifetime.Token), runningGame))
             throw new InvalidOperationException("Joining with a matching game must reuse the running instance.");
         var rejectedMismatch = false;
-        try { ResolveJoiningVersion(Describe(runningGame) with { Pack = "Smoke Pack", PackVersion = "1" }, runningGame); }
+        try { await ResolveJoiningVersionAsync(Describe(runningGame) with { Pack = "Smoke Pack", PackVersion = "1" }, runningGame, _lifetime.Token); }
         catch (InvalidDataException) { rejectedMismatch = true; }
         if (!rejectedMismatch) throw new InvalidOperationException("Joining must reject a mismatched running game.");
         _runningGame = null;

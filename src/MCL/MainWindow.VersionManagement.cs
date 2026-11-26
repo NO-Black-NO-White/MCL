@@ -25,6 +25,7 @@ public partial class MainWindow
     };
     public string ManagedVersionLoader => SelectedVersion?.ModpackLoader ?? SelectedVersion?.Kind ?? "";
     public bool ManagedVersionNeedsAttention => SelectedVersion is { IsValid: false };
+    public bool ManagedVersionIsModpack => SelectedVersion?.ModpackName is not null;
     public bool ManagedVersionHasPackVersion => SelectedVersion?.ModpackVersion is { Length: > 0 } version
         && !version.StartsWith("ZIP-", StringComparison.Ordinal);
     public string ManagedVersionPath => SelectedVersion is { } version
@@ -33,9 +34,9 @@ public partial class MainWindow
 
     private void NotifyVersionManagement()
     {
-        Notify(nameof(CanOpenVersionFolder), nameof(CanDeleteVersion), nameof(ManagedVersionTitle), nameof(ManagedVersionPath),
+        Notify(nameof(CanOpenVersionFolder), nameof(CanDeleteVersion), nameof(CanManageSaves), nameof(CanShareModpack), nameof(ManagedVersionTitle), nameof(ManagedVersionPath),
             nameof(ManagedMinecraftVersion), nameof(ManagedVersionArtwork), nameof(ManagedVersionLoader), nameof(ManagedVersionHasPackVersion),
-            nameof(ManagedVersionNeedsAttention), nameof(VersionManagementHint));
+            nameof(ManagedVersionNeedsAttention), nameof(ManagedVersionIsModpack), nameof(VersionManagementHint));
         if (VersionManagementCard is not null) VersionManagementCard.Visibility = SelectedVersion is null ? Visibility.Collapsed : Visibility.Visible;
     }
 
