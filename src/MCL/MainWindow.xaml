@@ -87,9 +87,11 @@
                 </Setter.Value>
             </Setter>
         </Style>
-        <Style x:Key="HomeVersionSelector" TargetType="ComboBox">
+        <Style x:Key="HomePicker" TargetType="ComboBox">
             <Setter Property="IsEnabled" Value="{Binding CanInteract}" />
             <Setter Property="MaxDropDownHeight" Value="304" />
+            <Setter Property="Padding" Value="13,8" />
+            <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="ScrollViewer.CanContentScroll" Value="True" />
             <Setter Property="ItemsPanel">
                 <Setter.Value><ItemsPanelTemplate><VirtualizingStackPanel /></ItemsPanelTemplate></Setter.Value>
@@ -124,11 +126,12 @@
                     <ControlTemplate TargetType="ComboBox">
                         <Grid>
                             <ToggleButton x:Name="DropToggle" Focusable="False" ClickMode="Press"
+                                          Padding="{TemplateBinding Padding}"
                                           IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
                                 <ToggleButton.Template>
                                     <ControlTemplate TargetType="ToggleButton">
                                         <Border x:Name="PickerSurface" Background="{StaticResource SidebarBrush}" BorderBrush="{StaticResource HeroBorderBrush}"
-                                                BorderThickness="1" CornerRadius="12" Padding="13,8">
+                                                BorderThickness="1" CornerRadius="10" Padding="{TemplateBinding Padding}">
                                             <ContentPresenter />
                                         </Border>
                                         <ControlTemplate.Triggers>
@@ -145,7 +148,7 @@
                                     <Path DockPanel.Dock="Right" Data="M 0,0 L 5,5 10,0" Stroke="{StaticResource AccentTextBrush}"
                                           StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
                                           VerticalAlignment="Center" Margin="13,0,0,0" />
-                                    <TextBlock Text="{Binding SelectedVersionTitle}" FontSize="25" FontWeight="Bold"
+                                    <TextBlock Text="{TemplateBinding Tag}" FontSize="{TemplateBinding FontSize}" FontWeight="{TemplateBinding FontWeight}"
                                                Foreground="{StaticResource TextBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                                 </DockPanel>
                             </ToggleButton>
@@ -167,6 +170,21 @@
             <Style.Triggers>
                 <Trigger Property="HasItems" Value="False"><Setter Property="IsEnabled" Value="False" /></Trigger>
             </Style.Triggers>
+        </Style>
+        <Style x:Key="HomeVersionSelector" TargetType="ComboBox" BasedOn="{StaticResource HomePicker}">
+            <Setter Property="Tag" Value="{Binding SelectedVersionTitle}" />
+            <Setter Property="FontSize" Value="25" />
+            <Setter Property="FontWeight" Value="Bold" />
+        </Style>
+        <Style x:Key="SavePreviewLabel" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Foreground" Value="{StaticResource MutedBrush}" />
+        </Style>
+        <Style x:Key="SavePreviewValue" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+            <Setter Property="Margin" Value="0,5,0,0" />
         </Style>
         <Style x:Key="PagePanel" TargetType="Grid"><Setter Property="Visibility" Value="Collapsed" /></Style>
         <Style x:Key="VersionActionButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
@@ -235,7 +253,10 @@
                 <Grid x:Name="PageContent">
                     <Grid.RenderTransform><TranslateTransform x:Name="PageShift" /></Grid.RenderTransform>
                     <Grid x:Name="HomePage" Style="{StaticResource PagePanel}">
-                        <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
                         <Border CornerRadius="21" BorderBrush="{StaticResource HeroBorderBrush}" BorderThickness="1" MinHeight="326">
                             <Border.Background>
                                 <ImageBrush ImageSource="/MCL;component/Assets/spring-valley.jpg" Stretch="UniformToFill" AlignmentY="Center" />
@@ -282,6 +303,82 @@
                         </Border>
                         <Border Grid.Row="1" Style="{StaticResource Card}" Margin="0,17,0,0" Padding="18,14">
                             <StackPanel>
+                                <DockPanel LastChildFill="False">
+                                    <TextBlock Text="存档预览" FontSize="15" FontWeight="SemiBold" />
+                                    <TextBlock DockPanel.Dock="Right" Text="{Binding HomeSaveCount}" Style="{StaticResource SavePreviewLabel}" VerticalAlignment="Center" />
+                                </DockPanel>
+                                <TextBlock Text="{Binding HomeSavesMessage}" Margin="0,8,0,0">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock" BasedOn="{StaticResource SavePreviewLabel}">
+                                            <Setter Property="FontSize" Value="12" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding HasHomeSave}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                                <Grid Margin="0,10,0,0" Visibility="{Binding HasHomeSave, Converter={StaticResource BoolVisibility}}">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="30*" /><ColumnDefinition Width="70*" /></Grid.ColumnDefinitions>
+                                    <Grid Margin="0,0,15,0" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding SelectedHomeSave.Name}" ToolTip="{Binding SelectedHomeSave.Name}"
+                                                   FontSize="17" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Margin="0,0,0,1">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding HasMultipleHomeSaves}" Value="True"><Setter Property="Visibility" Value="Collapsed" /></DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                        <ComboBox x:Name="HomeSavePicker" Style="{StaticResource HomePicker}" Padding="10,7" FontSize="15"
+                                                  ItemsSource="{Binding HomeSaves}" SelectedItem="{Binding SelectedHomeSave, Mode=TwoWay}"
+                                                  Tag="{Binding SelectedHomeSave.Name}" ToolTip="{Binding SelectedHomeSave.Name}"
+                                                  AutomationProperties.Name="切换预览的存档"
+                                                  Visibility="{Binding HasMultipleHomeSaves, Converter={StaticResource BoolVisibility}}">
+                                            <ComboBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <StackPanel ToolTip="{Binding Folder}">
+                                                        <TextBlock Text="{Binding Name}" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                                        <TextBlock Text="{Binding LastPlayedDetail}" Style="{StaticResource SavePreviewLabel}" Margin="0,2,0,0" />
+                                                    </StackPanel>
+                                                </DataTemplate>
+                                            </ComboBox.ItemTemplate>
+                                        </ComboBox>
+                                    </Grid>
+                                    <Border Grid.Column="1" Background="{StaticResource SidebarBrush}" BorderBrush="{StaticResource DividerBrush}"
+                                            BorderThickness="1" CornerRadius="11" Padding="13,9" DataContext="{Binding SelectedHomeSave}">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="1.2*" />
+                                                <ColumnDefinition Width="1.55*" /><ColumnDefinition Width="1.55*" />
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Margin="0,0,6,0">
+                                                <TextBlock Text="模式" Style="{StaticResource SavePreviewLabel}" />
+                                                <TextBlock Text="{Binding Mode}" Style="{StaticResource SavePreviewValue}" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="1" Margin="0,0,6,0">
+                                                <TextBlock Text="难度" Style="{StaticResource SavePreviewLabel}" />
+                                                <TextBlock Text="{Binding Difficulty}" Style="{StaticResource SavePreviewValue}" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="2" Margin="0,0,6,0" ToolTip="按世界昼夜时钟计算，初始为 0 天。">
+                                                <TextBlock Text="游戏天数" Style="{StaticResource SavePreviewLabel}" />
+                                                <TextBlock Text="{Binding DayText}" Style="{StaticResource SavePreviewValue}" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="3" Margin="0,0,6,0" ToolTip="{Binding CreatedDetail}">
+                                                <TextBlock Text="目录创建" Style="{StaticResource SavePreviewLabel}" />
+                                                <TextBlock Text="{Binding CreatedText}" Style="{StaticResource SavePreviewValue}" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="4" ToolTip="{Binding LastPlayedDetail}">
+                                                <TextBlock Text="最近游玩" Style="{StaticResource SavePreviewLabel}" />
+                                                <TextBlock Text="{Binding LastPlayedText}" Style="{StaticResource SavePreviewValue}" />
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+                        <Border Grid.Row="2" Style="{StaticResource Card}" Margin="0,17,0,0" Padding="18,14">
+                            <StackPanel>
                                 <TextBlock Text="最近启动" FontSize="15" FontWeight="SemiBold" />
                                 <ItemsControl x:Name="RecentGamesList" ItemsSource="{Binding RecentGames}" Margin="0,9,0,0">
                                     <ItemsControl.ItemsPanel>
@@ -322,7 +419,7 @@
                                 </TextBlock>
                             </StackPanel>
                         </Border>
-                        <Border Grid.Row="2" Style="{StaticResource Card}" Margin="0,17,0,12" Padding="19,15">
+                        <Border Grid.Row="3" Style="{StaticResource Card}" Margin="0,17,0,12" Padding="19,15">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="1.15*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" />

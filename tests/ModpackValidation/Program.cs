@@ -101,6 +101,7 @@ using (var tampered = ZipFile.Open(savesBackup, ZipArchiveMode.Update))
 await Reject<InvalidDataException>(() => LocalContentArchive.RestoreSavesAsync(curseGame, sourceVersion, savesBackup, default),
     "A modified backup file is rejected even when its size is unchanged");
 Check(File.ReadAllText(savePath) == "backup state", "Checksum failure leaves the current world intact");
+SavePreviewValidation.Run(curseGame, sourceVersion);
 Check(fixture.Requests.ContainsKey("https://api.curse.tools/v1/mods/files")
     && fixture.Requests.ContainsKey("https://edge.forgecdn.net/files/0/34/fixture.jar")
     && !fixture.Requests.ContainsKey("https://mod.mcimirror.top/files/0/34/fixture.jar"),

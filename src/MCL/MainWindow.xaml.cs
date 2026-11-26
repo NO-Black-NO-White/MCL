@@ -99,6 +99,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             NotifyJava();
             NotifyMultiplayer();
             AnimateVersionArtwork();
+            _ = RefreshHomeSavesAsync();
         }
     }
 
@@ -192,6 +193,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             PageScroll.ScrollToTop();
             AnimatePage();
             RevealSelectedVersion();
+            _ = RefreshHomeSavesAsync();
         }
         if (page == "Logs" && Logs.Count > 0) LogList.ScrollIntoView(Logs[^1]);
     }
@@ -378,6 +380,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             _lanPort = null;
             if (_hostingRoom || _guestUsesGame) EndMultiplayer("游戏已退出，联机已结束。");
             NotifyMultiplayer();
+            _ = RefreshHomeSavesAsync();
             StatusMessage = "游戏进程已结束，详细信息可在运行日志中查看。";
         }
     }
@@ -523,6 +526,18 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         Notify(nameof(SettingsStatus));
         HomeNav.IsChecked = true;
         Navigate("Home");
+        await RefreshHomeSavesAsync();
+        if (HomeSavePicker.Items.Count != HomeSaves.Count || !Equals(HomeSavePicker.SelectedItem, SelectedHomeSave))
+            throw new InvalidOperationException("Home save picker must display the selected game's worlds.");
+        if (HomeSaves.Count > 1 && SelectedHomeSave is { } firstSave)
+        {
+            var launchTarget = SelectedVersion;
+            var otherSave = HomeSaves.First(save => save != firstSave);
+            HomeSavePicker.SetCurrentValue(System.Windows.Controls.Primitives.Selector.SelectedItemProperty, otherSave);
+            if (SelectedHomeSave != otherSave || SelectedVersion != launchTarget)
+                throw new InvalidOperationException("Changing the save preview must leave the launch target unchanged.");
+            HomeSavePicker.SetCurrentValue(System.Windows.Controls.Primitives.Selector.SelectedItemProperty, firstSave);
+        }
     }
 
     public void WriteSmokeResult(string text)
