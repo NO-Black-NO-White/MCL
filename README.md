@@ -1,4 +1,4 @@
-# MCL 0.9.1
+# MCL 0.9.2
 
 粉白配色的 Minecraft Java 版启动器，使用 C#、WPF 和 .NET 9 开发。
 
@@ -6,7 +6,7 @@ MCL 是非官方项目，未获 Mojang 或 Microsoft 批准，也与两者无关
 
 ## 直接运行
 
-下载 Windows x64 发布包，解压后双击 `MCL.exe`。需要 64 位 Windows 和 [.NET 9 桌面运行时](https://dotnet.microsoft.com/download/dotnet/9.0)。从源码构建时，程序位于 `outputs/MCL-0.9.1/MCL.exe`。
+下载 Windows x64 发布包，解压后双击 `MCL.exe`。需要 64 位 Windows 和 [.NET 9 桌面运行时](https://dotnet.microsoft.com/download/dotnet/9.0)。从源码构建时，程序位于 `outputs/MCL-0.9.2/MCL.exe`。
 
 ## 下载一个游戏版本
 
@@ -28,9 +28,9 @@ MCL 是非官方项目，未获 Mojang 或 Microsoft 批准，也与两者无关
 
 Modrinth 支持原版和 Fabric。CurseForge ZIP 支持原版、Fabric 和 Minecraft 1.20.1 的 Forge 47.x，Forge 安装需要 64 位 Java 17 或更高版本。MCL 优先通过 Curse.Tools 查询文件并下载，失败时尝试 [MCIM](https://www.mcimirror.top/guide/platform/curseforge)，再通过 [Modrinth](https://docs.modrinth.com/api/operations/versionsfromhashes/) 匹配内容相同的文件。安装会校验文件大小和 SHA-1，无需配置 CurseForge API 密钥。如果都无法下载，可以从整合包作者或 CurseForge 取得对应版本的文件，放进同一个文件夹，然后在导入页点「选择补充文件夹」并重试。也可以选择已安装整合包的游戏目录，MCL 会在它的 `mods`、`resourcepacks` 和 `shaderpacks` 内查找对应文件。
 
-MCL 会安装或复用校验通过的原版文件，安装清单指定的 Fabric Loader，下载并核对模组文件，然后应用客户端配置。安装完成后，整合包会加入“游戏版本”并成为当前选择，回首页即可启动。`versions/pack-…/game` 保存该整合包的模组、配置和存档。如果已有同名版本的配置与官方不同，MCL 会保留该版本，并缓存一份整合包使用的官方版本文件。如果整合包使用版本列表中的基础版本，MCL 会阻止误删该基础版本。
+MCL 会安装或复用校验通过的原版文件，按清单安装所需的加载器，下载并核对模组文件，然后应用客户端配置。安装完成后，整合包会加入“游戏版本”并成为当前选择，回首页即可启动。`versions/pack-…/game` 保存该整合包的模组、配置和存档。如果已有同名版本的配置与官方不同，MCL 会保留该版本，并缓存一份整合包使用的官方版本文件。如果整合包使用版本列表中的基础版本，MCL 会阻止误删该基础版本。
 
-当前支持 Minecraft 1.13 及以后的原版正式版与 Fabric 整合包，所选版本还须能通过当前原版安装器安装。CurseForge、Forge、NeoForge、Quilt 和其他格式会显示不支持的原因。取消或失败时，已经完成的基础游戏文件可复用，整合包实例在全部安装成功后才出现。
+整合包所需的 Minecraft 版本须能通过当前原版安装器安装。遇到 NeoForge、Quilt 或其他暂未支持的组合时，MCL 会显示具体原因。取消或失败时，已经完成的基础游戏文件可复用，整合包实例在全部安装成功后才出现。
 
 ## 已有游戏与本地档案
 
