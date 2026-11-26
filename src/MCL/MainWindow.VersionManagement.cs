@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Windows;
+using System.Windows.Media.Animation;
 using MCL.Services;
 
 namespace MCL;
@@ -11,14 +12,38 @@ public partial class MainWindow
     public bool CanOpenVersionFolder => !IsBusy && SelectedVersion is not null;
     public bool CanDeleteVersion => !IsBusy && !_isDeletingVersion && !IsGameRunning && !_launcher.IsRunning && SelectedVersion is not null;
     public string ManagedVersionTitle => SelectedVersion?.DisplayName ?? "选择一个版本";
+    public string ManagedMinecraftVersion => SelectedVersion?.ModpackMinecraft ?? SelectedVersion?.Id ?? "";
+    public string ManagedVersionLoader => SelectedVersion?.ModpackLoader ?? SelectedVersion?.Kind ?? "";
+    public bool ManagedVersionNeedsAttention => SelectedVersion is { IsValid: false };
+    public bool ManagedVersionHasPackVersion => SelectedVersion?.ModpackVersion is { Length: > 0 } version
+        && !version.StartsWith("ZIP-", StringComparison.Ordinal);
     public string ManagedVersionPath => SelectedVersion is { } version
         ? version.ModpackName is null ? version.VersionDirectory : Path.Combine(version.VersionDirectory, "game") : "";
     public string VersionManagementHint => IsGameRunning || _launcher.IsRunning ? "游戏运行中，退出游戏后可以删除版本。" : "删除前会显示确认窗口，所选版本文件夹将移入回收站。";
 
     private void NotifyVersionManagement()
     {
-        Notify(nameof(CanOpenVersionFolder), nameof(CanDeleteVersion), nameof(ManagedVersionTitle), nameof(ManagedVersionPath), nameof(VersionManagementHint));
+        Notify(nameof(CanOpenVersionFolder), nameof(CanDeleteVersion), nameof(ManagedVersionTitle), nameof(ManagedVersionPath),
+            nameof(ManagedMinecraftVersion), nameof(ManagedVersionLoader), nameof(ManagedVersionHasPackVersion),
+            nameof(ManagedVersionNeedsAttention), nameof(VersionManagementHint));
         if (VersionManagementCard is not null) VersionManagementCard.Visibility = SelectedVersion is null ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    private void AnimateVersionIdentity()
+    {
+        if (_currentPage != "Versions" || _loading || IsBusy || SelectedVersion is null
+            || !IsLoaded || _offlinePreview || !SystemParameters.ClientAreaAnimation) return;
+
+        var duration = TimeSpan.FromMilliseconds(160);
+        var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
+        VersionIdentity.BeginAnimation(OpacityProperty, new DoubleAnimation(0.76, 1, duration)
+        {
+            EasingFunction = ease, FillBehavior = FillBehavior.Stop
+        }, HandoffBehavior.SnapshotAndReplace);
+        VersionIdentityShift.BeginAnimation(System.Windows.Media.TranslateTransform.XProperty, new DoubleAnimation(7, 0, duration)
+        {
+            EasingFunction = ease, FillBehavior = FillBehavior.Stop
+        }, HandoffBehavior.SnapshotAndReplace);
     }
 
     private async void DeleteSelectedVersion_Click(object sender, RoutedEventArgs e)

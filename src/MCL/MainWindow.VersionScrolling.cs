@@ -17,6 +17,19 @@ public partial class MainWindow
     private double _versionScrollStart;
     private double _versionScrollTarget;
 
+    private void RevealSelectedVersion()
+    {
+        if (_currentPage != "Versions" || SelectedVersion is null) return;
+        Dispatcher.BeginInvoke(DispatcherPriority.Render, () =>
+        {
+            if (!VersionList.IsVisible || SelectedVersion is not { } selected) return;
+            _versionScrollTimer?.Stop();
+            VersionList.UpdateLayout();
+            VersionList.ScrollIntoView(selected);
+            VersionList.UpdateLayout();
+        });
+    }
+
     private void VersionList_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
     {
         _versionScrollViewer ??= FindVersionScrollViewer(VersionList);

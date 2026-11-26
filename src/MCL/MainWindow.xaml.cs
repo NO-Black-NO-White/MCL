@@ -109,6 +109,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             Notify(nameof(SelectedVersionTitle), nameof(SelectedVersionDescription), nameof(CanLaunch));
             NotifyVersionManagement();
             NotifyMultiplayer();
+            AnimateVersionIdentity();
         }
     }
 
@@ -178,6 +179,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     {
         Notify(nameof(VersionCountLabel));
         if (EmptyVersions is not null) EmptyVersions.Visibility = Versions.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        if (VersionsWorkspace is not null) VersionsWorkspace.Visibility = Versions.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
+        RevealSelectedVersion();
     }
 
     private async Task DetectJavaAsync()
@@ -228,6 +231,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             PageScroll.ScrollToTop();
             AnimatePage();
+            RevealSelectedVersion();
         }
         if (page == "Logs" && Logs.Count > 0) LogList.ScrollIntoView(Logs[^1]);
     }
@@ -387,11 +391,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         catch (Exception ex) { ReportError("停止失败", ex); }
     }
 
-    private void VersionList_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        if (SelectedVersion is not null && !IsBusy) StatusMessage = $"已选择 {SelectedVersion.DisplayName}。可回到首页启动。";
-    }
-
     private void CopyLogs_Click(object sender, RoutedEventArgs e)
     {
         try { Clipboard.SetText(string.Join(Environment.NewLine, Logs.Select(entry => entry.ToString()))); StatusMessage = "日志已复制。"; }
@@ -526,13 +525,26 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (_isDirty) throw new InvalidOperationException("Loading existing settings must not mark them as edited.");
         IsBusy = true;
         SettingsPage.UpdateLayout();
-        if (SettingsPage.IsEnabled || VersionList.IsEnabled || RemoteVersionList.IsEnabled || CanStop || CanInstall) throw new InvalidOperationException("Input must be disabled while a task is active.");
+        if (SettingsPage.IsEnabled || VersionList.IsEnabled || RemoteVersionList.IsEnabled || LaunchSelectedVersionButton.IsEnabled
+            || CanStop || CanInstall) throw new InvalidOperationException("Input must be disabled while a task is active.");
         IsBusy = false;
         foreach (var page in new[] { "Versions", "Downloads", "Modpacks", "Multiplayer", "Appearance", "Settings", "Logs", "Home" })
         {
             SelectSmokePage(page);
             var visible = new[] { HomePage, VersionsPage, DownloadsPage, ModpacksPage, MultiplayerPage, AppearancePage, SettingsPage, LogsPage }.Count(panel => panel.Visibility == Visibility.Visible);
             if (visible != 1) throw new InvalidOperationException("Navigation did not select exactly one page.");
+        }
+        SelectSmokePage("Versions");
+        if ((Versions.Count == 0) != (EmptyVersions.Visibility == Visibility.Visible)
+            || (Versions.Count > 0) != (VersionsWorkspace.Visibility == Visibility.Visible))
+            throw new InvalidOperationException("The list and empty version views must be mutually exclusive.");
+        if (SelectedVersion is { } selected && Versions.FirstOrDefault(version => version != selected) is { } other)
+        {
+            VersionList.SetCurrentValue(System.Windows.Controls.Primitives.Selector.SelectedItemProperty, other);
+            if (SelectedVersion != other || ManagedMinecraftVersion != (other.ModpackMinecraft ?? other.Id)
+                || VersionManagementCard.Visibility != Visibility.Visible || LaunchSelectedVersionButton.IsEnabled != other.IsValid)
+                throw new InvalidOperationException("Version details and actions must follow the current selection.");
+            VersionList.SetCurrentValue(System.Windows.Controls.Primitives.Selector.SelectedItemProperty, selected);
         }
         SelectSmokePage("Multiplayer");
         GuestRoleButton.SetCurrentValue(System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty, true);

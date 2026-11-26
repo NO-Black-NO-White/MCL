@@ -203,35 +203,126 @@
                         </Border>
                     </Grid>
                     <Grid x:Name="VersionsPage" Style="{StaticResource PagePanel}">
-                        <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-                        <Border Style="{StaticResource Card}" Padding="20">
-                            <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                <StackPanel><TextBlock Text="游戏文件夹" FontWeight="SemiBold" /><TextBlock Text="{Binding GameDirectory}" ToolTip="{Binding GameDirectory}" TextTrimming="CharacterEllipsis" Style="{StaticResource MutedText}" Margin="0,7,16,0" /></StackPanel>
-                                <Button Grid.Column="1" Content="选择文件夹" VerticalAlignment="Center" Click="BrowseGame_Click" IsEnabled="{Binding CanInteract}" /><Button Grid.Column="2" Content="刷新" VerticalAlignment="Center" Margin="9,0,0,0" Click="RefreshVersions_Click" IsEnabled="{Binding CanInteract}" />
+                        <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                        <Border Style="{StaticResource Card}" Padding="18,12">
+                            <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center" Margin="0,0,14,0">
+                                    <TextBlock Text="游戏文件夹" FontWeight="SemiBold" FontSize="13" />
+                                    <TextBlock Text="{Binding GameDirectory}" ToolTip="{Binding GameDirectory}" TextTrimming="CharacterEllipsis"
+                                               Foreground="{StaticResource MutedBrush}" FontSize="11" Margin="0,5,0,0" />
+                                </StackPanel>
+                                <Button Grid.Column="1" Content="选择文件夹" Click="BrowseGame_Click" IsEnabled="{Binding CanInteract}" VerticalAlignment="Center" />
+                                <Button Grid.Column="2" Content="刷新" Click="RefreshVersions_Click" IsEnabled="{Binding CanInteract}" VerticalAlignment="Center" Margin="8,0,0,0" />
                             </Grid>
                         </Border>
-                        <Grid Grid.Row="1" Margin="2,20,2,14"><TextBlock Text="已安装的版本" FontWeight="SemiBold" /><TextBlock Text="选中后可启动或管理版本" Style="{StaticResource MutedText}" HorizontalAlignment="Right" FontSize="11" /></Grid>
-                        <Grid Grid.Row="2">
-                            <ListBox x:Name="VersionList" ItemsSource="{Binding Versions}" SelectedItem="{Binding SelectedVersion, Mode=TwoWay}" IsEnabled="{Binding CanInteract}" MinHeight="180" MaxHeight="265"
-                                     VirtualizingPanel.ScrollUnit="Pixel" PreviewMouseWheel="VersionList_PreviewMouseWheel"
-                                     PreviewMouseDown="VersionList_CancelWheelAnimation" PreviewKeyDown="VersionList_CancelWheelAnimation"
-                                     SelectionChanged="VersionList_SelectionChanged">
-                                <ListBox.ItemTemplate><DataTemplate><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="48" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                    <Border Width="36" Height="36" Background="{StaticResource SoftAccentBrush}" CornerRadius="9" HorizontalAlignment="Left"><Path Data="{StaticResource VersionsIcon}" Style="{StaticResource ShortcutIcon}" /></Border>
-                                    <StackPanel Grid.Column="1"><TextBlock Text="{Binding DisplayName}" FontSize="16" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" /><TextBlock Text="{Binding Description}" Style="{StaticResource MutedText}" FontSize="11" Margin="0,4,0,0" /></StackPanel>
-                                    <StackPanel Grid.Column="2" Margin="16,0,0,0"><TextBlock Text="{Binding Kind}" Foreground="{StaticResource AccentTextBrush}" HorizontalAlignment="Right" FontSize="12" /><TextBlock Text="{Binding StatusText}" Foreground="{StaticResource MutedBrush}" FontSize="10" Margin="0,5,0,0" HorizontalAlignment="Right" /></StackPanel>
-                                </Grid></DataTemplate></ListBox.ItemTemplate>
-                            </ListBox>
-                            <Border x:Name="EmptyVersions" Style="{StaticResource Card}" MinHeight="270"><StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"><TextBlock Text="＋" Foreground="{StaticResource AccentTextBrush}" FontSize="38" HorizontalAlignment="Center" /><TextBlock Text="还没有发现游戏版本" FontSize="19" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,12,0,10" /><TextBlock Text="下载一个新的原版版本，或选择已有游戏的文件夹。" Style="{StaticResource MutedText}" TextAlignment="Center" /><StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,20,0,0"><Button Content="下载游戏" Style="{StaticResource PrimaryButton}" Click="ShowDownloads_Click" /><Button Content="选择文件夹" Margin="10,0,0,0" Click="BrowseGame_Click" IsEnabled="{Binding CanInteract}" /></StackPanel></StackPanel></Border>
+                        <Grid x:Name="VersionsWorkspace" Grid.Row="1" Margin="0,16,0,0" Visibility="Collapsed">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="34*" /><ColumnDefinition Width="16" /><ColumnDefinition Width="66*" /></Grid.ColumnDefinitions>
+                            <Border Style="{StaticResource Card}" Padding="12,15,12,5">
+                                <StackPanel>
+                                    <Grid Margin="5,0,5,12">
+                                        <TextBlock Text="已安装版本" FontSize="15" FontWeight="SemiBold" />
+                                        <TextBlock Text="{Binding VersionCountLabel}" FontSize="11" Foreground="{StaticResource MutedBrush}" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                                    </Grid>
+                                    <ListBox x:Name="VersionList" ItemsSource="{Binding Versions}" SelectedItem="{Binding SelectedVersion, Mode=TwoWay}"
+                                             IsEnabled="{Binding CanInteract}" MinHeight="320" MaxHeight="385" AutomationProperties.Name="已安装版本"
+                                             VirtualizingPanel.ScrollUnit="Pixel" VirtualizingPanel.VirtualizationMode="Recycling"
+                                             PreviewMouseWheel="VersionList_PreviewMouseWheel" PreviewMouseDown="VersionList_CancelWheelAnimation"
+                                             PreviewKeyDown="VersionList_CancelWheelAnimation">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <Grid ToolTip="{Binding DisplayName}">
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="34" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                                    <Path x:Name="VersionRowIcon" Style="{StaticResource ShortcutIcon}" Data="{StaticResource PackIcon}" HorizontalAlignment="Left" />
+                                                    <StackPanel Grid.Column="1">
+                                                        <TextBlock Text="{Binding DisplayName}" FontSize="14" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                                        <TextBlock x:Name="VersionRowKind" Text="{Binding Kind}" Foreground="{StaticResource MutedBrush}" FontSize="11" Margin="0,4,0,0" TextTrimming="CharacterEllipsis" />
+                                                    </StackPanel>
+                                                </Grid>
+                                                <DataTemplate.Triggers>
+                                                    <DataTrigger Binding="{Binding ModpackName}" Value="{x:Null}">
+                                                        <Setter TargetName="VersionRowIcon" Property="Path.Data" Value="{StaticResource VersionsIcon}" />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding IsValid}" Value="False">
+                                                        <Setter TargetName="VersionRowKind" Property="TextBlock.Foreground" Value="{StaticResource AccentTextBrush}" />
+                                                        <Setter TargetName="VersionRowKind" Property="TextBlock.Text" Value="需要检查" />
+                                                    </DataTrigger>
+                                                </DataTemplate.Triggers>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                </StackPanel>
+                            </Border>
+                            <Border x:Name="VersionManagementCard" Grid.Column="2" Style="{StaticResource Card}" Padding="14" Visibility="Collapsed">
+                                <StackPanel>
+                                    <StackPanel x:Name="VersionIdentity">
+                                        <StackPanel.RenderTransform><TranslateTransform x:Name="VersionIdentityShift" /></StackPanel.RenderTransform>
+                                        <Border BorderBrush="{StaticResource HeroBorderBrush}" BorderThickness="1" CornerRadius="12">
+                                            <Border.Background>
+                                                <ImageBrush ImageSource="/MCL;component/Assets/spring-valley.jpg" Stretch="UniformToFill" AlignmentY="Center" />
+                                            </Border.Background>
+                                            <Border CornerRadius="11" MinHeight="146" Padding="18,15">
+                                                <Border.Background>
+                                                    <LinearGradientBrush StartPoint="0,0.5" EndPoint="1,0.5">
+                                                        <GradientStop Color="#FFFFF7FA" Offset="0" /><GradientStop Color="#F9FFF4F9" Offset="0.43" />
+                                                        <GradientStop Color="#CFFFF3F8" Offset="0.62" /><GradientStop Color="#00FFF1F6" Offset="1" />
+                                                    </LinearGradientBrush>
+                                                </Border.Background>
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions><ColumnDefinition Width="68*" /><ColumnDefinition Width="32*" /></Grid.ColumnDefinitions>
+                                                    <StackPanel VerticalAlignment="Center">
+                                                        <TextBlock Text="{Binding SelectedVersion.Kind}" Foreground="{StaticResource AccentTextBrush}" FontWeight="SemiBold" FontSize="12" />
+                                                        <TextBlock Text="{Binding ManagedVersionTitle}" ToolTip="{Binding ManagedVersionTitle}" FontSize="28" FontWeight="Bold"
+                                                                   TextWrapping="Wrap" TextTrimming="CharacterEllipsis" MaxHeight="78" Margin="0,5,0,0" />
+                                                    </StackPanel>
+                                                </Grid>
+                                            </Border>
+                                        </Border>
+                                        <UniformGrid Rows="1" Margin="4,14,4,8">
+                                            <StackPanel Margin="0,0,8,0">
+                                                <TextBlock Text="Minecraft 版本" Foreground="{StaticResource MutedBrush}" FontSize="11" />
+                                                <TextBlock Text="{Binding ManagedMinecraftVersion}" ToolTip="{Binding ManagedMinecraftVersion}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Margin="0,4,0,0" />
+                                            </StackPanel>
+                                            <StackPanel>
+                                                <TextBlock Text="加载器" Foreground="{StaticResource MutedBrush}" FontSize="11" />
+                                                <TextBlock Text="{Binding ManagedVersionLoader}" ToolTip="{Binding ManagedVersionLoader}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Margin="0,4,0,0" />
+                                            </StackPanel>
+                                            <StackPanel Margin="8,0,0,0" Visibility="{Binding ManagedVersionHasPackVersion, Converter={StaticResource BoolVisibility}}">
+                                                <TextBlock Text="整合包版本" Foreground="{StaticResource MutedBrush}" FontSize="11" />
+                                                <TextBlock Text="{Binding SelectedVersion.ModpackVersion}" ToolTip="{Binding SelectedVersion.ModpackVersion}"
+                                                           FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Margin="0,4,0,0" />
+                                            </StackPanel>
+                                        </UniformGrid>
+                                        <TextBlock Text="{Binding SelectedVersion.Issue}" Style="{StaticResource MutedText}" Foreground="{StaticResource AccentTextBrush}"
+                                                   Visibility="{Binding ManagedVersionNeedsAttention, Converter={StaticResource BoolVisibility}}" Margin="4,0,4,8" />
+                                    </StackPanel>
+                                    <Button x:Name="LaunchSelectedVersionButton" Content="{Binding LaunchButtonText}" Style="{StaticResource PrimaryButton}"
+                                            HorizontalAlignment="Left" Margin="4,5,4,15" MinWidth="126" Click="Launch_Click" IsEnabled="{Binding CanLaunch}" />
+                                    <Border BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,1,0,0" Padding="4,12,4,0">
+                                        <StackPanel>
+                                            <TextBlock Text="版本管理" FontSize="13" FontWeight="SemiBold" />
+                                            <TextBlock Text="{Binding ManagedVersionPath}" ToolTip="{Binding ManagedVersionPath}" Foreground="{StaticResource MutedBrush}"
+                                                       FontSize="11" TextTrimming="CharacterEllipsis" Margin="0,5,0,9" />
+                                            <WrapPanel>
+                                                <Button Content="打开文件夹" Click="OpenVersionFolder_Click" IsEnabled="{Binding CanOpenVersionFolder}" Margin="0,0,8,0" />
+                                                <Button x:Name="DeleteVersionButton" Content="删除版本" Foreground="#A22A4C" Background="#FFF1F5" BorderBrush="#E7B5C8"
+                                                        Click="DeleteSelectedVersion_Click" IsEnabled="{Binding CanDeleteVersion}" />
+                                            </WrapPanel>
+                                            <TextBlock Text="{Binding VersionManagementHint}" Style="{StaticResource MutedText}" FontSize="11" Margin="0,7,0,0" />
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+                            </Border>
                         </Grid>
-                        <Border x:Name="VersionManagementCard" Grid.Row="3" Style="{StaticResource Card}" Padding="20" Margin="0,16,0,0" Visibility="Collapsed">
-                            <StackPanel>
-                                <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                                    <StackPanel><TextBlock Text="版本管理" Style="{StaticResource MutedText}" FontSize="11" /><TextBlock Text="{Binding ManagedVersionTitle}" FontSize="20" FontWeight="SemiBold" Margin="0,5,16,0" TextTrimming="CharacterEllipsis" /></StackPanel>
-                                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center"><Button Content="打开文件夹" Click="OpenVersionFolder_Click" IsEnabled="{Binding CanOpenVersionFolder}" /><Button x:Name="DeleteVersionButton" Content="删除版本" Foreground="#A22A4C" Background="#FFF1F5" BorderBrush="#E7B5C8" Click="DeleteSelectedVersion_Click" IsEnabled="{Binding CanDeleteVersion}" Margin="10,0,0,0" /></StackPanel>
-                                </Grid>
-                                <TextBlock Text="{Binding ManagedVersionPath}" ToolTip="{Binding ManagedVersionPath}" Style="{StaticResource MutedText}" FontSize="11" Margin="0,12,0,5" TextTrimming="CharacterEllipsis" />
-                                <TextBlock Text="{Binding VersionManagementHint}" Style="{StaticResource MutedText}" FontSize="11" />
+                        <Border x:Name="EmptyVersions" Grid.Row="1" Style="{StaticResource Card}" MinHeight="290" Margin="0,16,0,0">
+                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <Path Data="{StaticResource VersionsIcon}" Style="{StaticResource ShortcutIcon}" Width="26" Height="26" />
+                                <TextBlock Text="还没有发现游戏版本" FontSize="19" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,12,0,5" />
+                                <TextBlock Text="下载一个原版版本，或导入你已有的整合包。" Style="{StaticResource MutedText}" TextAlignment="Center" />
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,16,0,0">
+                                    <Button Content="下载游戏" Style="{StaticResource PrimaryButton}" Click="ShowDownloads_Click" />
+                                    <Button Content="导入整合包" Click="ShowModpacks_Click" Margin="8,0,0,0" />
+                                </StackPanel>
                             </StackPanel>
                         </Border>
                     </Grid>
