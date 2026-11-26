@@ -30,7 +30,7 @@ public partial class MainWindow
         ? $"Minecraft {pack.Minecraft}  ·  {pack.LoaderText}  ·  整合包版本 {pack.Version}" : "";
     public string PackFileSummary => _selectedPack is { } pack
         ? $"{pack.RequiredFiles:N0} 个必需文件，{pack.OptionalFiles:N0} 个可选文件。"
-            + (pack.CurseForge ? "通过 MCIM 下载 CurseForge 文件，无需配置密钥。" : $"整合包文件最多下载 {FormatBytes(pack.DownloadBytes)}，游戏本体另计。")
+            + (pack.CurseForge ? "优先使用 Curse.Tools，必要时尝试 MCIM 或 Modrinth，无需配置密钥。" : $"整合包文件最多下载 {FormatBytes(pack.DownloadBytes)}，游戏本体另计。")
         : "";
     public string PackOptionalText => $"同时安装 {_selectedPack?.OptionalFiles ?? 0} 个可选文件";
     public string PackStatus { get => _packStatus; private set => Set(ref _packStatus, value); }

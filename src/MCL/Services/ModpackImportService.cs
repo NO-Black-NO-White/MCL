@@ -188,10 +188,11 @@ public sealed partial class ModpackImportService : IDisposable
             var target = ModpackPaths.SafeTarget(root, file.Path);
             if (file.LocalSource is { } local)
                 await CopyLocalPackFileAsync(local, target, file, token).ConfigureAwait(false);
+            else if (file.Sha512 is null)
+                await DownloadCurseForgePackFileAsync(file, target, token).ConfigureAwait(false);
             else
                 await DownloadAsync(file.Sources, target, file.Bytes, ModpackArchive.MaximumFileBytes, file.Sha1, file.Sha512,
-                    file.Sha512 is null ? IsCurseForgeDownload : uri => ModpackArchive.AllowedPackUri(uri.AbsoluteUri) is not null,
-                    token).ConfigureAwait(false);
+                    uri => ModpackArchive.AllowedPackUri(uri.AbsoluteUri) is not null, token).ConfigureAwait(false);
             lock (progressGate)
             {
                 bytes += file.Bytes;

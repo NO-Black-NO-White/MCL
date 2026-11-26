@@ -60,10 +60,19 @@ var installedGame = Path.Combine(curseGame, "versions", installed.InstanceId, "g
 Check(File.Exists(Path.Combine(installedGame, "mods", "fixture.jar"))
     && File.Exists(Path.Combine(installedGame, "resourcepacks", "texture.zip"))
     && File.Exists(Path.Combine(installedGame, "shaderpacks", "light.zip"))
-    && File.Exists(Path.Combine(installedGame, "config", "sample.txt")), "MCIM installs verified CurseForge files and bundled settings without credentials");
-Check(fixture.Requests.ContainsKey("https://mod.mcimirror.top/files/0/34/fixture.jar")
-    && fixture.Requests.ContainsKey("https://mediafilez.forgecdn.net/files/0/34/fixture.jar"),
-    "MCIM rewrites the upstream file URL and follows an approved CDN redirect");
+    && File.Exists(Path.Combine(installedGame, "config", "sample.txt")), "CurseForge installs verified files and bundled settings without credentials");
+Check(fixture.Requests.ContainsKey("https://api.curse.tools/v1/mods/files")
+    && fixture.Requests.ContainsKey("https://edge.forgecdn.net/files/0/34/fixture.jar")
+    && !fixture.Requests.ContainsKey("https://mod.mcimirror.top/files/0/34/fixture.jar"),
+    "Curse.Tools metadata and a working direct file take priority");
+Check(fixture.Requests.ContainsKey("https://edge.forgecdn.net/files/0/35/texture.zip")
+    && fixture.Requests.ContainsKey("https://mod.mcimirror.top/files/0/35/texture.zip")
+    && fixture.Requests.ContainsKey("https://mediafilez.forgecdn.net/files/0/35/texture.zip"),
+    "A failed direct download falls back to MCIM and follows an approved CDN redirect");
+Check(fixture.Requests.ContainsKey("https://edge.forgecdn.net/files/0/36/light.zip")
+    && fixture.Requests.ContainsKey("https://mod.mcimirror.top/files/0/36/light.zip")
+    && fixture.Requests.ContainsKey("https://cdn.modrinth.com/data/fixture/versions/1/light.zip"),
+    "A hash-matched Modrinth download fills in when both CurseForge file routes fail");
 fixture.HideCurseForgeDownload = true;
 await Reject<IOException>(() => importer.InstallAsync(cursePreview, curseGame, false), "A required CurseForge file without a download URL prevents incomplete installation");
 var supplements = Directory.CreateDirectory(Path.Combine(root, "supplements")).FullName;
@@ -78,6 +87,13 @@ await File.WriteAllBytesAsync(supplement, FixtureServer.ModBytes);
 var supplemented = await importer.InstallAsync(cursePreview, curseGame, false, localFilesDirectory: supplements);
 Check((await File.ReadAllBytesAsync(Path.Combine(curseGame, "versions", supplemented.InstanceId, "game", "mods", "fixture.jar")))
     .SequenceEqual(FixtureServer.ModBytes), "A matching local file fills a missing CurseForge dependency");
+fixture.HideCurseForgeDownload = false;
+fixture.PrimaryMetadataUnavailable = true;
+var mirrorOnly = await importer.InstallAsync(cursePreview, curseGame, false);
+Check(File.Exists(Path.Combine(curseGame, "versions", mirrorOnly.InstanceId, "game", "mods", "fixture.jar"))
+    && fixture.Requests.ContainsKey("https://mod.mcimirror.top/files/0/34/fixture.jar"),
+    "An outage in Curse.Tools metadata falls back to MCIM");
+fixture.PrimaryMetadataUnavailable = false;
 var originalSave = Path.Combine(game, "saves", "user-placeholder");
 Directory.CreateDirectory(originalSave);
 var original = Path.Combine(originalSave, "sentinel");
@@ -322,6 +338,8 @@ sealed class FixtureServer : HttpMessageHandler
     public static readonly byte[] ModBytes = Encoding.UTF8.GetBytes("mod fixture");
     public ConcurrentDictionary<string, int> Requests { get; } = new();
     public bool HideCurseForgeDownload { get; set; }
+    public bool PrimaryMetadataUnavailable { get; set; }
+    private static readonly byte[] LightBytes = Encoding.ASCII.GetBytes("fixture shader");
     public TaskCompletionSource BlockStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly Dictionary<string, byte[]> _data = new();
 
@@ -365,25 +383,49 @@ sealed class FixtureServer : HttpMessageHandler
     {
         var url = request.RequestUri!.AbsoluteUri;
         Requests.AddOrUpdate(url, 1, (_, count) => count + 1);
-        if (url is "https://mod.mcimirror.top/curseforge/v1/mods/files" or "https://mod.mcimirror.top/curseforge/v1/mods")
+        if (url is "https://api.curse.tools/v1/mods/files" or "https://api.curse.tools/v1/mods"
+            or "https://mod.mcimirror.top/curseforge/v1/mods/files" or "https://mod.mcimirror.top/curseforge/v1/mods")
         {
             if (request.Method != HttpMethod.Post || request.Headers.Contains("x-api-key"))
                 return new HttpResponseMessage(HttpStatusCode.Forbidden);
+            if (PrimaryMetadataUnavailable && request.RequestUri.Host == "api.curse.tools")
+                return new HttpResponseMessage(HttpStatusCode.ServiceUnavailable);
             if (url.EndsWith("/files", StringComparison.Ordinal))
             {
-                var sha = Convert.ToHexString(SHA1.HashData(ModBytes));
-                var files = new[] { "fixture.jar", "texture.zip", "light.zip" }.Select((name, index) => new
+                var files = new[] { "fixture.jar", "texture.zip", "light.zip" }.Select((name, index) =>
                 {
-                    modId = 12 + index, id = 34 + index, fileName = name, fileLength = ModBytes.Length,
-                    downloadUrl = HideCurseForgeDownload && index == 0 ? null : $"https://edge.forgecdn.net/files/0/{34 + index}/{name}",
-                    hashes = new[] { new { algo = 1, value = sha } }
+                    var bytes = index == 2 ? LightBytes : ModBytes;
+                    return new
+                    {
+                        modId = 12 + index, id = 34 + index, fileName = name, fileLength = bytes.Length,
+                        downloadUrl = HideCurseForgeDownload && index == 0 ? null : $"https://edge.forgecdn.net/files/0/{34 + index}/{name}",
+                        hashes = new[] { new { algo = 1, value = Convert.ToHexString(SHA1.HashData(bytes)) } }
+                    };
                 });
                 return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(JsonSerializer.Serialize(new { data = files })) };
             }
             return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("""{"data":[{"id":13,"links":{"websiteUrl":"https://www.curseforge.com/minecraft/texture-packs/test"}},{"id":14,"links":{"websiteUrl":"https://www.curseforge.com/minecraft/shaders/test"}}]}""") };
         }
+        if (url == "https://api.modrinth.com/v2/version_files")
+        {
+            var hash = Convert.ToHexString(SHA1.HashData(LightBytes)).ToLowerInvariant();
+            var hashLookup = await request.Content!.ReadAsStringAsync(ct);
+            var result = new Dictionary<string, object>();
+            if (hashLookup.Contains(hash, StringComparison.Ordinal))
+                result[hash] = new { files = new[] { new { hashes = new { sha1 = hash }, size = LightBytes.Length,
+                    url = "https://cdn.modrinth.com/data/fixture/versions/1/light.zip" } } };
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(JsonSerializer.Serialize(result)) };
+        }
+        if (url == "https://cdn.modrinth.com/data/fixture/versions/1/light.zip")
+            return new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(LightBytes) };
+        if (request.RequestUri.Host == "edge.forgecdn.net")
+            return request.RequestUri.AbsolutePath.EndsWith("/fixture.jar", StringComparison.Ordinal)
+                ? new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(ModBytes) }
+                : new HttpResponseMessage(HttpStatusCode.NotFound);
         if (request.RequestUri.Host == "mod.mcimirror.top" && request.RequestUri.AbsolutePath.StartsWith("/files/", StringComparison.Ordinal))
         {
+            if (request.RequestUri.AbsolutePath.EndsWith("/light.zip", StringComparison.Ordinal))
+                return new HttpResponseMessage(HttpStatusCode.NotFound);
             var redirect = new HttpResponseMessage(HttpStatusCode.Redirect);
             redirect.Headers.Location = new UriBuilder(request.RequestUri) { Host = "mediafilez.forgecdn.net" }.Uri;
             return redirect;
