@@ -85,7 +85,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     }
 
     public string PlayerName { get => _playerName; set { if (Set(ref _playerName, value)) { MarkDirty(); Notify(nameof(SelectedVersionDescription)); } } }
-    public int MemoryMb { get => _memoryMb; set { if (Set(ref _memoryMb, value)) { MarkDirty(); Notify(nameof(MemorySummary)); } } }
+    public int MemoryMb { get => _memoryMb; set { if (Set(ref _memoryMb, value)) { MarkDirty(); Notify(nameof(MemorySummary)); NotifyJava(); } } }
     public string MemorySummary => $"{MemoryMb:N0} MB";
     public GameVersion? SelectedVersion
     {

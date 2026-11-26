@@ -169,6 +169,12 @@
             </Style.Triggers>
         </Style>
         <Style x:Key="PagePanel" TargetType="Grid"><Setter Property="Visibility" Value="Collapsed" /></Style>
+        <Style x:Key="VersionActionButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Width" Value="140" />
+            <Setter Property="Height" Value="36" />
+            <Setter Property="Padding" Value="8,5" />
+            <Setter Property="Margin" Value="0,0,8,4" />
+        </Style>
     </Window.Resources>
     <Grid x:Name="RootLayout" Background="{StaticResource BackgroundBrush}" UseLayoutRounding="True" TextOptions.TextFormattingMode="Display">
         <Grid.ColumnDefinitions><ColumnDefinition Width="196" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
@@ -427,33 +433,55 @@
                                                 <TextBlock Text="{Binding SelectedVersion.ModpackVersion}" ToolTip="{Binding SelectedVersion.ModpackVersion}"
                                                            FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Margin="0,4,0,0" />
                                             </StackPanel>
+                                            <StackPanel>
+                                                <TextBlock Text="Java 环境" Foreground="{StaticResource MutedBrush}" FontSize="11" />
+                                                <TextBlock Text="{Binding VersionJavaText}" ToolTip="{Binding VersionJavaText}"
+                                                           FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Margin="0,4,0,0">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding VersionNeedsJava}" Value="True">
+                                                                    <Setter Property="Foreground" Value="{StaticResource AccentTextBrush}" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                            </StackPanel>
                                         </UniformGrid>
                                         <TextBlock Text="{Binding SelectedVersion.Issue}" Style="{StaticResource MutedText}" Foreground="{StaticResource AccentTextBrush}"
                                                    Visibility="{Binding ManagedVersionNeedsAttention, Converter={StaticResource BoolVisibility}}" Margin="4,0,4,8" />
                                     </StackPanel>
-                                    <Button x:Name="LaunchSelectedVersionButton" Content="{Binding LaunchButtonText}" Style="{StaticResource PrimaryButton}"
-                                            HorizontalAlignment="Left" Margin="4,5,4,15" MinWidth="126" Click="Launch_Click" IsEnabled="{Binding CanLaunch}" />
+                                    <WrapPanel Margin="4,5,4,15">
+                                        <Button x:Name="LaunchSelectedVersionButton" Content="{Binding LaunchButtonText}" Style="{StaticResource PrimaryButton}"
+                                                Height="46" MinWidth="154" Click="Launch_Click" IsEnabled="{Binding CanLaunch}" Margin="0,0,8,4" />
+                                        <Button x:Name="InstallVersionJavaButton" Content="{Binding InstallJavaButtonText}" Height="46" MinWidth="138"
+                                                Click="InstallVersionJava_Click" IsEnabled="{Binding CanInteract}" Margin="0,0,8,4"
+                                                Visibility="{Binding VersionNeedsJava, Converter={StaticResource BoolVisibility}}"
+                                                ToolTip="从 Minecraft 官方下载运行环境，安装到 MCL 的专用目录。" />
+                                    </WrapPanel>
                                     <Border BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,1,0,0" Padding="4,12,4,0">
                                         <StackPanel>
                                             <TextBlock Text="版本文件" FontSize="13" FontWeight="SemiBold" />
-                                            <TextBlock Text="{Binding ManagedVersionPath}" ToolTip="{Binding ManagedVersionPath}" Foreground="{StaticResource MutedBrush}"
-                                                       FontSize="11" TextTrimming="CharacterEllipsis" Margin="0,5,0,9" />
+                                            <TextBlock Text="{Binding ManagedVersionPath}" Foreground="{StaticResource MutedBrush}"
+                                                       FontSize="11" TextTrimming="CharacterEllipsis" Margin="0,5,0,9">
+                                                <TextBlock.ToolTip><TextBlock Text="{Binding ManagedVersionPath}" MaxWidth="380" TextWrapping="Wrap" /></TextBlock.ToolTip>
+                                            </TextBlock>
                                             <WrapPanel>
-                                                <Button Content="打开版本文件夹" Click="OpenVersionFolder_Click" IsEnabled="{Binding CanOpenVersionFolder}" Padding="11,6" Margin="0,0,8,4" />
-                                                <Button Content="导出整合包" Click="ExportModpack_Click" IsEnabled="{Binding CanShareModpack}"
-                                                        Visibility="{Binding ManagedVersionIsModpack, Converter={StaticResource BoolVisibility}}" Padding="11,6" Margin="0,0,0,4"
+                                                <Button Content="打开版本文件夹" Style="{StaticResource VersionActionButton}" Click="OpenVersionFolder_Click" IsEnabled="{Binding CanOpenVersionFolder}" />
+                                                <Button Content="导出整合包" Style="{StaticResource VersionActionButton}" Click="ExportModpack_Click" IsEnabled="{Binding CanShareModpack}"
+                                                        Visibility="{Binding ManagedVersionIsModpack, Converter={StaticResource BoolVisibility}}"
                                                         ToolTip="分享包包含模组、配置和资源包。请在发送前检查打包内容。" />
                                             </WrapPanel>
                                             <TextBlock Text="存档" FontSize="13" FontWeight="SemiBold" Margin="0,12,0,0" />
                                             <TextBlock Text="{Binding SaveScopeHint}" Foreground="{StaticResource MutedBrush}"
                                                        TextWrapping="Wrap" FontSize="11" Margin="0,4,0,7" />
                                             <WrapPanel>
-                                                <Button Content="备份为 ZIP" Click="BackupSaves_Click" IsEnabled="{Binding CanManageSaves}"
-                                                        Padding="11,6" Margin="0,0,8,4" ToolTip="将存档保存为 ZIP，可在保存窗口选择位置。" />
-                                                <Button Content="从 ZIP 恢复" Click="RestoreSaves_Click" IsEnabled="{Binding CanManageSaves}"
-                                                        Padding="11,6" Margin="0,0,8,4" ToolTip="还原备份中的存档，并在旁边保留恢复前的存档。" />
-                                                <Button Content="打开默认备份目录" Click="OpenSaveBackups_Click" ToolTip="{Binding SaveBackupDirectory}"
-                                                        Padding="10,6" Background="Transparent" BorderThickness="0" Margin="0,0,0,4" />
+                                                <Button Content="备份为 ZIP" Style="{StaticResource VersionActionButton}" Click="BackupSaves_Click" IsEnabled="{Binding CanManageSaves}"
+                                                        ToolTip="将存档保存为 ZIP，可在保存窗口选择位置。" />
+                                                <Button Content="从 ZIP 恢复" Style="{StaticResource VersionActionButton}" Click="RestoreSaves_Click" IsEnabled="{Binding CanManageSaves}"
+                                                        ToolTip="还原备份中的存档，并在旁边保留恢复前的存档。" />
+                                                <Button Content="打开默认备份目录" Style="{StaticResource VersionActionButton}" Click="OpenSaveBackups_Click" ToolTip="{Binding SaveBackupDirectory}" />
                                             </WrapPanel>
                                             <Border BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,1,0,0" Padding="0,5,0,0" Margin="0,8,0,0">
                                                 <Button x:Name="DeleteVersionButton" Content="删除版本" Foreground="#A22A4C" Background="Transparent"

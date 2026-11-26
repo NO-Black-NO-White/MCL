@@ -150,13 +150,14 @@ public partial class MainWindow
         InstallPercent = 0;
         InstallStage = "准备安装";
         InstalledShortcut.Visibility = Visibility.Collapsed;
+        var gameInstalled = false;
         try
         {
             var directory = GameDirectoryResolver.Normalize(GameDirectory);
             GameDirectory = directory;
             var progress = new Progress<InstallProgress>(update =>
             {
-                if (_closing || !ReferenceEquals(_installCancellation, cancellation)) return;
+                if (_closing || gameInstalled || !ReferenceEquals(_installCancellation, cancellation)) return;
                 InstallStage = update.Stage;
                 InstallDetail = update.Detail;
                 InstallPercent = update.Percent;
@@ -166,29 +167,43 @@ public partial class MainWindow
                 InstallSpeed = update.BytesPerSecond > 0 ? FormatBytes((long)update.BytesPerSecond) + "/s" : "";
             });
             var result = await _downloads.InstallAsync(version, directory, progress, cancellation.Token);
+            gameInstalled = true;
             await ScanVersionsAsync(result.VersionId);
             try { SaveCurrentSettings(); }
             catch (Exception ex) { _log.Warn("游戏已安装，但启动设置未能保存：" + ex.Message); }
+            InstalledShortcut.Visibility = Visibility.Visible;
+            InstallStage = "检查 Java";
+            InstallDetail = $"正在检查可供 {result.VersionId} 使用的 Java {result.RequiredJava}…";
+            InstallIndeterminate = true;
+            InstallFiles = InstallTransfer = InstallSpeed = "";
+            var javaProgress = new Progress<string>(message =>
+            {
+                if (_closing || cancellation.IsCancellationRequested || !ReferenceEquals(_installCancellation, cancellation)
+                    || InstallStage is not ("检查 Java" or "补全 Java")) return;
+                InstallStage = "补全 Java";
+                InstallDetail = message;
+            });
+            var java = await EnsureJavaAsync(result.RequiredJava, javaProgress, cancellation.Token);
             InstallStage = "安装完成";
             InstallIndeterminate = false;
             InstallPercent = 100;
             InstallDetail = $"{result.VersionId} 已加入已安装列表。下载 {result.DownloadedFiles} 个文件，复用 {result.ReusedFiles} 个文件。";
-            StatusMessage = $"安装完成，已设为当前版本。{FormatRemoteJava(result.RequiredJava)}。";
-            InstalledShortcut.Visibility = Visibility.Visible;
+            StatusMessage = $"安装完成，{DescribeJava(java)} 已就绪，可返回首页启动。";
             _log.Info($"原版 {result.VersionId} 安装完成，下载 {result.DownloadedFiles}，复用 {result.ReusedFiles}。");
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
         {
             InstallStage = "已取消";
-            InstallDetail = "已完成且校验通过的文件会保留，再次安装时可以复用。";
+            InstallDetail = gameInstalled ? "游戏已安装。可在「游戏版本」页检查并安装 Java。"
+                : "已完成且校验通过的文件会保留，再次安装时可以复用。";
             StatusMessage = "下载已取消，可重新尝试安装。";
             _log.Info($"已取消安装 {version.Id}。");
         }
         catch (Exception ex)
         {
-            InstallStage = "安装失败";
+            InstallStage = gameInstalled ? "游戏已安装 · Java 未就绪" : "安装失败";
             InstallDetail = ex.Message;
-            StatusMessage = "安装未完成，请查看提示后重新尝试。";
+            StatusMessage = gameInstalled ? "游戏文件已保留。可在「游戏版本」页重试安装 Java。" : "安装未完成，请查看提示后重新尝试。";
             _log.Error($"安装 {version.Id} 失败：{ex}");
         }
         finally
@@ -227,7 +242,7 @@ public partial class MainWindow
         VersionSearch = version.Id;
         SelectedRemoteVersion = version;
         _selectedInstallInfo = MinecraftDownloadService.ParseVersionInfo(version, bytes);
-        RemoteJava = $"Java {_selectedInstallInfo.RequiredJava} · 64 位";
+        RemoteJava = FormatRemoteJava(_selectedInstallInfo.RequiredJava);
         RemoteSize = FormatBytes(_selectedInstallInfo.EstimatedBytes);
         NotifyDownloadActions();
     }
@@ -237,8 +252,9 @@ public partial class MainWindow
     private string FormatRemoteJava(int required)
     {
         var matched = FindMatchingJava(required);
-        if (matched is null) return $"需要 Java {required}（{(AutoMatchJava ? "暂未检测到对应的 64 位版本" : "请检查手动配置")}）";
-        return AutoMatchJava ? $"{DescribeJava(matched)} · 已匹配" : $"需要 Java {required} · 手动：{DescribeJava(matched)}";
+        if (matched is null) return $"需要 Java {required}（安装游戏时会自动补全）";
+        return !AutoMatchJava && ReferenceEquals(matched, _configuredJava)
+            ? $"需要 Java {required} · 手动：{DescribeJava(matched)}" : $"{DescribeJava(matched)} · 已匹配";
     }
 
     private static string FormatBytes(long bytes)

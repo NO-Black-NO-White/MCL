@@ -12,9 +12,9 @@ public sealed class JavaDiscovery
     internal static bool Matches(JavaInstallation? java, int requiredMajor) =>
         java is { Is64Bit: true } && java.MajorVersion == requiredMajor;
 
-    public async Task<IReadOnlyList<JavaInstallation>> FindAsync(CancellationToken ct = default)
+    public async Task<IReadOnlyList<JavaInstallation>> FindAsync(CancellationToken ct = default, string? managedRoot = null)
     {
-        var paths = await Task.Run(() => FindCandidates(ct), ct);
+        var paths = await Task.Run(() => FindCandidates(managedRoot, ct), ct);
         var found = new List<JavaInstallation>();
         using var concurrency = new SemaphoreSlim(2);
         var tasks = paths.Select(async path =>
@@ -86,7 +86,7 @@ public sealed class JavaDiscovery
         }
     }
 
-    private static IReadOnlyList<string> FindCandidates(CancellationToken ct)
+    private static IReadOnlyList<string> FindCandidates(string? managedRoot, CancellationToken ct)
     {
         var candidates = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         void Add(string? candidate)
@@ -95,6 +95,21 @@ public sealed class JavaDiscovery
             if (candidates.Count >= 48 || string.IsNullOrWhiteSpace(candidate)) return;
             var executable = NormalizeExecutable(candidate);
             if (executable is not null) candidates.Add(executable);
+        }
+        if (managedRoot is not null && Directory.Exists(managedRoot))
+        {
+            try
+            {
+                var options = new EnumerationOptions { AttributesToSkip = FileAttributes.ReparsePoint, IgnoreInaccessible = true };
+                foreach (var folder in Directory.EnumerateDirectories(managedRoot, "java-*", options).Take(48))
+                {
+                    var name = Path.GetFileName(folder);
+                    if (!int.TryParse(name.AsSpan(5), out var major) || name != $"java-{major}") continue;
+                    try { Add(ModpackPaths.SafeTarget(managedRoot, $"{name}/bin/java.exe")); }
+                    catch (IOException) { }
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
         }
         var javaHome = Environment.GetEnvironmentVariable("JAVA_HOME");
         if (!string.IsNullOrWhiteSpace(javaHome)) Add(Path.Combine(javaHome.Trim('"'), "bin", "java.exe"));

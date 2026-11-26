@@ -41,6 +41,12 @@ public partial class MainWindow
             : AutoMatchJava ? $"需要 Java {version.RequiredJava}" : "检查手动配置"
         : "选择游戏版本后匹配";
 
+    public bool VersionNeedsJava => SelectedVersion is { IsValid: true } version && FindMatchingJava(version.RequiredJava) is null;
+    public string VersionJavaText => SelectedVersion is { IsValid: true } version
+        ? FindMatchingJava(version.RequiredJava) is { } installation ? DescribeJava(installation) : $"缺少 Java {version.RequiredJava}"
+        : "—";
+    public string InstallJavaButtonText => SelectedVersion is { } version ? $"安装 Java {version.RequiredJava}" : "安装 Java";
+
     public string JavaDetail
     {
         get
@@ -60,17 +66,24 @@ public partial class MainWindow
     private JavaInstallation? FindMatchingJava(int required) => AutoMatchJava
         ? JavaDiscovery.Matches(_configuredJava, required) ? _configuredJava
             : _installedJava.FirstOrDefault(candidate => JavaDiscovery.Matches(candidate, required))
-        : _configuredJava is { } configured && configured.MajorVersion >= required ? configured : null;
+        : ConfiguredJavaFits(required) ? _configuredJava
+            : _installedJava.FirstOrDefault(candidate => JavaDiscovery.Matches(candidate, required)
+                && candidate.Path.Equals(JavaRuntimeInstaller.Executable(ManagedJavaRoot, required), StringComparison.OrdinalIgnoreCase));
+
+    private bool ConfiguredJavaFits(int major) => _configuredJava is { } java && java.MajorVersion >= major
+        && (java.Is64Bit || MemoryMb <= 1536);
+
+    private string ManagedJavaRoot => JavaRuntimeInstaller.RuntimeRoot(_store.DataDirectory);
 
     private void NotifyJava()
     {
-        Notify(nameof(JavaSummary), nameof(JavaDetail));
+        Notify(nameof(JavaSummary), nameof(JavaDetail), nameof(VersionNeedsJava), nameof(VersionJavaText), nameof(InstallJavaButtonText));
         if (_selectedInstallInfo is { } info) RemoteJava = FormatRemoteJava(info.RequiredJava);
     }
 
     private async Task ScanJavaAsync(CancellationToken ct)
     {
-        var scan = _javaDiscovery.FindAsync(ct);
+        var scan = _javaDiscovery.FindAsync(ct, ManagedJavaRoot);
         var configured = _javaDiscovery.InspectAsync(JavaPath, ct);
         await Task.WhenAll(scan, configured);
         _installedJava = await scan;
@@ -79,23 +92,48 @@ public partial class MainWindow
     }
 
     private async Task<JavaInstallation> ResolveJavaForLaunchAsync(GameVersion version, CancellationToken ct)
+        => await FindUsableJavaAsync(version.RequiredJava, ct)
+            ?? throw new InvalidDataException($"「{version.DisplayName}」需要 Java {version.RequiredJava}。请在「游戏版本」页安装对应的 Java，或在「启动设置」选择已有的 Java。");
+
+    private async Task<JavaInstallation?> FindUsableJavaAsync(int major, CancellationToken ct)
     {
         if (!AutoMatchJava)
         {
             _configuredJava = await _javaDiscovery.InspectAsync(JavaPath, ct);
             NotifyJava();
-            if (FindMatchingJava(version.RequiredJava) is { } manual) return manual;
-            throw new InvalidDataException($"「{version.DisplayName}」需要 Java {version.RequiredJava}。请检查手动路径，或在「启动设置」开启自动匹配。");
+            if (ConfiguredJavaFits(major)) return _configuredJava;
         }
 
-        var candidate = FindMatchingJava(version.RequiredJava);
+        var candidate = FindMatchingJava(major);
         if (candidate is not null && await _javaDiscovery.InspectAsync(candidate.Path, ct) is { } verified
-            && JavaDiscovery.Matches(verified, version.RequiredJava))
+            && JavaDiscovery.Matches(verified, major))
             return verified;
 
         await ScanJavaAsync(ct);
-        return FindMatchingJava(version.RequiredJava)
-            ?? throw new InvalidDataException($"「{version.DisplayName}」需要 64 位 Java {version.RequiredJava}。MCL 未找到该版本，请安装后重试，或在「启动设置」浏览已有的 java.exe。");
+        return FindMatchingJava(major);
+    }
+
+    private async Task<JavaInstallation> EnsureJavaAsync(int major, IProgress<string> progress, CancellationToken ct)
+    {
+        if (await FindUsableJavaAsync(major, ct) is { } existing) return existing;
+        var installer = new JavaRuntimeInstaller(_store.DataDirectory, _javaDiscovery);
+        var installed = await Task.Run(() => installer.InstallAsync(major, progress, ct), ct);
+        _installedJava = _installedJava.Where(item => !item.Path.Equals(installed.Path, StringComparison.OrdinalIgnoreCase))
+            .Prepend(installed).ToArray();
+        NotifyJava();
+        return installed;
+    }
+
+    private async void InstallVersionJava_Click(object sender, RoutedEventArgs e)
+    {
+        if (IsBusy || !VersionNeedsJava || SelectedVersion is not { } version) return;
+        await RunBusyAsync(async () =>
+        {
+            var progress = new Progress<string>(message => { if (!_closing && IsBusy) StatusMessage = message; });
+            StatusMessage = $"正在检查 64 位 Java {version.RequiredJava}…";
+            var java = await EnsureJavaAsync(version.RequiredJava, progress, _lifetime.Token);
+            StatusMessage = $"{DescribeJava(java)} 已就绪，可以启动 {version.DisplayName}。";
+        });
     }
 
     private async void DetectJava_Click(object sender, RoutedEventArgs e) => await RunBusyAsync(async () =>
