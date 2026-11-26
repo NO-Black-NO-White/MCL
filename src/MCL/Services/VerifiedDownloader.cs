@@ -9,7 +9,7 @@ internal sealed class VerifiedDownloader(HttpClient client)
     private static readonly HashSet<string> Hosts = new(StringComparer.OrdinalIgnoreCase)
     {
         "piston-meta.mojang.com", "launchermeta.mojang.com", "piston-data.mojang.com", "launcher.mojang.com",
-        "libraries.minecraft.net", "resources.download.minecraft.net"
+        "libraries.minecraft.net", "resources.download.minecraft.net", "assets.mojang.com"
     };
 
     internal static Uri CheckedUri(string value)

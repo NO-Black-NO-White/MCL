@@ -154,6 +154,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
         finally { _loading = wasLoading; }
         UpdateVersionState();
+        QueueDefaultAvatarLoad();
         _log.Info($"扫描完成，发现 {Versions.Count} 个本地版本。");
     }
 
@@ -532,6 +533,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (HasUnsavedSettings) throw new InvalidOperationException("Refreshing the local versions must not mark settings as edited.");
         HomeNav.IsChecked = true;
         Navigate("Home");
+        await _defaultAvatarTask;
+        if (!Equals(SidebarAvatarImage.Source, SidebarAvatar))
+            throw new InvalidOperationException("The sidebar must display the local skin avatar or the available default.");
         await RefreshHomeSavesAsync();
         if (HomeSavePicker.Items.Count != HomeSaves.Count || !Equals(HomeSavePicker.SelectedItem, SelectedHomeSave))
             throw new InvalidOperationException("Home save picker must display the selected game's worlds.");

@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.IO.Compression;
+using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -14,6 +15,10 @@ internal sealed class LocalAppearanceService(string dataDirectory, ModpackImport
     private const string Loader = "0.20.1";
     private const int MaximumPngBytes = 1024 * 1024;
     private const string OwnershipMarker = ".mcl-local-appearance";
+    private const string DefaultSkinSha1 = "641094577EE247344AFBFD7DF3BD01E8B291A5A7";
+    private const int DefaultSkinBytes = 1350;
+    private static readonly Uri DefaultSkinUrl = new("https://assets.mojang.com/SkinTemplates/steve.png");
+    private static readonly VerifiedDownloader DefaultSkinDownloader = new(new HttpClient(new HttpClientHandler { AllowAutoRedirect = false }));
     private static readonly SkinMod Classic = new("14.28",
         "https://cdn.modrinth.com/data/idMHQ4n2/versions/2C8mIbK2/CustomSkinLoader_Fabric-14.28.jar", 189001,
         "243fdcc6ad067c3586805527fa64a6389cc4cbff",
@@ -50,6 +55,63 @@ internal sealed class LocalAppearanceService(string dataDirectory, ModpackImport
 
     internal BitmapSource? PreviewTexture(string? hash, bool cape) =>
         hash is null ? null : DecodeTexture(ReadSavedTexture(hash), cape);
+
+    internal async Task<BitmapSource?> LoadDefaultSkinAsync(string[] jars, bool allowDownload, CancellationToken ct)
+    {
+        var installed = await Task.Run(() => ReadDefaultSkinFromGame(jars, ct), ct);
+        if (installed is not null) return installed;
+
+        string? cache = null;
+        try
+        {
+            cache = ModpackPaths.SafeTarget(dataDirectory, "appearance/default-steve.png");
+            if (await VerifiedDownloader.IsValidAsync(cache, DefaultSkinSha1, DefaultSkinBytes, ct))
+                return DecodeTexture(ReadBounded(cache, DefaultSkinBytes), cape: false);
+        }
+        catch (Exception ex) when (IsDefaultSkinReadError(ex)) { }
+        if (!allowDownload) return null;
+
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeout.CancelAfter(TimeSpan.FromSeconds(6));
+        try
+        {
+            var bytes = await DefaultSkinDownloader.GetBytesAsync(DefaultSkinUrl, DefaultSkinBytes, DefaultSkinSha1, timeout.Token);
+            var bitmap = DecodeTexture(bytes, cape: false);
+            if (cache is not null)
+            {
+                try { WriteAtomically(cache, bytes); }
+                catch (Exception ex) when (IsDefaultSkinReadError(ex)) { }
+            }
+            return bitmap;
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested) { return null; }
+        catch (Exception ex) when (ex is HttpRequestException || IsDefaultSkinReadError(ex)) { return null; }
+    }
+
+    private static BitmapSource? ReadDefaultSkinFromGame(string[] jars, CancellationToken ct)
+    {
+        foreach (var path in jars)
+        {
+            ct.ThrowIfCancellationRequested();
+            try
+            {
+                using var archive = ZipFile.OpenRead(path);
+                var entry = archive.GetEntry("assets/minecraft/textures/entity/player/wide/steve.png")
+                    ?? archive.GetEntry("assets/minecraft/textures/entity/steve.png");
+                if (entry is null || entry.Length is < 24 or > MaximumPngBytes) continue;
+                using var input = entry.Open();
+                var bytes = new byte[(int)entry.Length];
+                input.ReadExactly(bytes);
+                return DecodeTexture(bytes, cape: false);
+            }
+            catch (Exception ex) when (IsDefaultSkinReadError(ex)) { }
+        }
+        return null;
+    }
+
+    private static bool IsDefaultSkinReadError(Exception ex) => ex is IOException or InvalidDataException
+        or UnauthorizedAccessException or FormatException or NotSupportedException or ArgumentException
+        or System.Security.SecurityException or System.Runtime.InteropServices.COMException;
 
     private string TexturePath(string hash)
     {

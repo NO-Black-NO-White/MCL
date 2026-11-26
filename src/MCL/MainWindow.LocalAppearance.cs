@@ -16,6 +16,8 @@ public partial class MainWindow
     private string? _localSkin;
     private string? _localCape;
     private BitmapSource? _localAvatar;
+    private BitmapSource? _defaultAvatar;
+    private Task _defaultAvatarTask = Task.CompletedTask;
     private BitmapSource? _localSkinTexture;
     private BitmapSource? _localCapeTexture;
     private Point _appearanceDragPoint;
@@ -39,7 +41,7 @@ public partial class MainWindow
         }
     }
 
-    public BitmapSource? LocalAvatar { get => _localAvatar; private set => Set(ref _localAvatar, value); }
+    public BitmapSource? SidebarAvatar => _localAvatar ?? _defaultAvatar;
     public bool CanEditLocalAppearance => !IsBusy && !IsGameRunning;
     public bool HasLocalSkin => _localSkin is not null;
     public bool HasLocalCape => _localCape is not null;
@@ -75,7 +77,28 @@ public partial class MainWindow
     private void SetSkinTexture(BitmapSource? skin)
     {
         _localSkinTexture = skin;
-        LocalAvatar = skin is null ? null : CreateLocalAvatar(skin);
+        _localAvatar = skin is null ? null : CreateLocalAvatar(skin);
+        Notify(nameof(SidebarAvatar));
+    }
+
+    private void QueueDefaultAvatarLoad()
+    {
+        if (_closing || _localAvatar is not null || _defaultAvatar is not null || !_defaultAvatarTask.IsCompleted) return;
+        var jars = Versions.Where(version => version.IsValid && version.ModpackName is null)
+            .Select(version => Path.ChangeExtension(version.JsonPath, ".jar")).ToArray();
+        _defaultAvatarTask = LoadDefaultAvatarAsync(jars);
+    }
+
+    private async Task LoadDefaultAvatarAsync(string[] jars)
+    {
+        try
+        {
+            var skin = await _localAppearance.LoadDefaultSkinAsync(jars, allowDownload: !_offlinePreview, _lifetime.Token);
+            if (_closing || skin is null) return;
+            _defaultAvatar = CreateLocalAvatar(skin);
+            Notify(nameof(SidebarAvatar));
+        }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
     }
 
     private void UpdateCharacterPreview() =>
@@ -180,6 +203,7 @@ public partial class MainWindow
         if (!CanEditLocalAppearance) return;
         _localSkin = null;
         SetSkinTexture(null);
+        QueueDefaultAvatarLoad();
         NotifyLocalTextures();
     }
 
