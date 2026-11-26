@@ -455,7 +455,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (_isDirty) throw new InvalidOperationException("Loading existing settings must not mark them as edited.");
         IsBusy = true;
         SettingsPage.UpdateLayout();
-        if (SettingsPage.IsEnabled || VersionList.IsEnabled || RemoteVersionList.IsEnabled || LaunchSelectedVersionButton.IsEnabled
+        if (SettingsPage.IsEnabled || HomeVersionPicker.IsEnabled || VersionList.IsEnabled || RemoteVersionList.IsEnabled || LaunchSelectedVersionButton.IsEnabled
             || CanStop || CanInstall) throw new InvalidOperationException("Input must be disabled while a task is active.");
         IsBusy = false;
         foreach (var page in new[] { "Versions", "Downloads", "Modpacks", "Multiplayer", "Appearance", "Settings", "Logs", "Home" })
@@ -463,6 +463,15 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             SelectSmokePage(page);
             var visible = new[] { HomePage, VersionsPage, DownloadsPage, ModpacksPage, MultiplayerPage, AppearancePage, SettingsPage, LogsPage }.Count(panel => panel.Visibility == Visibility.Visible);
             if (visible != 1) throw new InvalidOperationException("Navigation did not select exactly one page.");
+        }
+        if (HomeVersionPicker.Items.Count != Versions.Count || HomeVersionPicker.IsEnabled != (Versions.Count > 0))
+            throw new InvalidOperationException("Home version picker must show the installed versions.");
+        if (SelectedVersion is { } homeSelection && Versions.FirstOrDefault(version => version != homeSelection) is { } homeAlternative)
+        {
+            HomeVersionPicker.SetCurrentValue(System.Windows.Controls.Primitives.Selector.SelectedItemProperty, homeAlternative);
+            if (SelectedVersion != homeAlternative || !Equals(VersionList.SelectedItem, homeAlternative) || CanLaunch != homeAlternative.IsValid)
+                throw new InvalidOperationException("Choosing a version on Home must update the selected version and launch action.");
+            HomeVersionPicker.SetCurrentValue(System.Windows.Controls.Primitives.Selector.SelectedItemProperty, homeSelection);
         }
         SelectSmokePage("Versions");
         if ((Versions.Count == 0) != (EmptyVersions.Visibility == Visibility.Visible)

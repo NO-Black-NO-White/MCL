@@ -87,6 +87,87 @@
                 </Setter.Value>
             </Setter>
         </Style>
+        <Style x:Key="HomeVersionSelector" TargetType="ComboBox">
+            <Setter Property="IsEnabled" Value="{Binding CanInteract}" />
+            <Setter Property="MaxDropDownHeight" Value="304" />
+            <Setter Property="ScrollViewer.CanContentScroll" Value="True" />
+            <Setter Property="ItemsPanel">
+                <Setter.Value><ItemsPanelTemplate><VirtualizingStackPanel /></ItemsPanelTemplate></Setter.Value>
+            </Setter>
+            <Setter Property="ItemContainerStyle">
+                <Setter.Value>
+                    <Style TargetType="ComboBoxItem">
+                        <Setter Property="Background" Value="Transparent" />
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="ComboBoxItem">
+                                    <Border Background="{TemplateBinding Background}" CornerRadius="7" Padding="10,7" Margin="4,2">
+                                        <ContentPresenter />
+                                    </Border>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                        <Style.Triggers>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter Property="Background" Value="{StaticResource HoverBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter Property="Background" Value="{StaticResource SoftAccentBrush}" />
+                                <Setter Property="Foreground" Value="{StaticResource AccentTextBrush}" />
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBox">
+                        <Grid>
+                            <ToggleButton x:Name="DropToggle" Focusable="False" ClickMode="Press"
+                                          IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
+                                <ToggleButton.Template>
+                                    <ControlTemplate TargetType="ToggleButton">
+                                        <Border x:Name="PickerSurface" Background="{StaticResource SidebarBrush}" BorderBrush="{StaticResource HeroBorderBrush}"
+                                                BorderThickness="1" CornerRadius="12" Padding="13,8">
+                                            <ContentPresenter />
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="PickerSurface" Property="Background" Value="{StaticResource HoverBrush}" />
+                                            </Trigger>
+                                            <Trigger Property="IsChecked" Value="True">
+                                                <Setter TargetName="PickerSurface" Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </ToggleButton.Template>
+                                <DockPanel>
+                                    <Path DockPanel.Dock="Right" Data="M 0,0 L 5,5 10,0" Stroke="{StaticResource AccentTextBrush}"
+                                          StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                          VerticalAlignment="Center" Margin="13,0,0,0" />
+                                    <TextBlock Text="{Binding SelectedVersionTitle}" FontSize="25" FontWeight="Bold"
+                                               Foreground="{StaticResource TextBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                </DockPanel>
+                            </ToggleButton>
+                            <Popup x:Name="PART_Popup" Placement="Bottom" VerticalOffset="5" AllowsTransparency="True" Focusable="False"
+                                   IsOpen="{TemplateBinding IsDropDownOpen}">
+                                <Border MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}"
+                                        MaxWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}"
+                                        Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource InputBorderBrush}"
+                                        BorderThickness="1" CornerRadius="11" Padding="0,3">
+                                    <ScrollViewer MaxHeight="{TemplateBinding MaxDropDownHeight}" CanContentScroll="True">
+                                        <ItemsPresenter x:Name="ItemsPresenter" KeyboardNavigation.DirectionalNavigation="Contained" />
+                                    </ScrollViewer>
+                                </Border>
+                            </Popup>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="HasItems" Value="False"><Setter Property="IsEnabled" Value="False" /></Trigger>
+            </Style.Triggers>
+        </Style>
         <Style x:Key="PagePanel" TargetType="Grid"><Setter Property="Visibility" Value="Collapsed" /></Style>
     </Window.Resources>
     <Grid x:Name="RootLayout" Background="{StaticResource BackgroundBrush}" UseLayoutRounding="True" TextOptions.TextFormattingMode="Display">
@@ -165,15 +246,31 @@
                                     <Grid.ColumnDefinitions><ColumnDefinition Width="56*" /><ColumnDefinition Width="44*" /></Grid.ColumnDefinitions>
                                     <StackPanel VerticalAlignment="Center">
                                         <TextBlock Text="当前游戏" Foreground="{StaticResource AccentTextBrush}" FontSize="12" FontWeight="SemiBold" />
-                                        <TextBlock Text="{Binding SelectedVersionTitle}" ToolTip="{Binding SelectedVersionTitle}" FontSize="35" FontWeight="Bold"
-                                                   TextTrimming="CharacterEllipsis" Margin="0,9,0,6" />
+                                        <ComboBox x:Name="HomeVersionPicker" Style="{StaticResource HomeVersionSelector}"
+                                                  ItemsSource="{Binding Versions}" SelectedItem="{Binding SelectedVersion, Mode=TwoWay}"
+                                                  ToolTip="{Binding SelectedVersionTitle}" AutomationProperties.Name="选择已安装的游戏版本" Margin="0,9,0,6">
+                                            <ComboBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <StackPanel>
+                                                        <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                                        <TextBlock x:Name="VersionOptionDetail" Text="{Binding Kind}" FontSize="11"
+                                                                   Foreground="{StaticResource MutedBrush}" Margin="0,3,0,0" />
+                                                    </StackPanel>
+                                                    <DataTemplate.Triggers>
+                                                        <DataTrigger Binding="{Binding IsValid}" Value="False">
+                                                            <Setter TargetName="VersionOptionDetail" Property="Text" Value="需要检查" />
+                                                        </DataTrigger>
+                                                    </DataTemplate.Triggers>
+                                                </DataTemplate>
+                                            </ComboBox.ItemTemplate>
+                                        </ComboBox>
                                         <TextBlock Text="{Binding SelectedVersionDescription}" Style="{StaticResource MutedText}" Margin="0,0,0,22" />
                                         <WrapPanel>
                                             <Button Content="{Binding LaunchButtonText}" Style="{StaticResource PrimaryButton}" MinWidth="153" Click="Launch_Click" IsEnabled="{Binding CanLaunch}" />
                                             <Button Content="停止游戏" Margin="8,0,0,0" Click="Stop_Click" IsEnabled="{Binding CanStop}"
                                                     Visibility="{Binding IsGameRunning, Converter={StaticResource BoolVisibility}}" />
                                         </WrapPanel>
-                                        <Button Content="选择已有游戏  →" HorizontalAlignment="Left" Margin="0,13,0,0" Padding="0,4"
+                                        <Button Content="更改游戏文件夹  →" HorizontalAlignment="Left" Margin="0,13,0,0" Padding="0,4"
                                                 Background="Transparent" BorderThickness="0" Foreground="{StaticResource AccentTextBrush}"
                                                 Click="BrowseGame_Click" IsEnabled="{Binding CanInteract}" />
                                     </StackPanel>
