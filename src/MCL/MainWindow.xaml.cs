@@ -66,6 +66,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         LoadLocalAppearance(settings);
         LoadOnlineProfile(settings.MicrosoftClientId);
         InitializeComponent();
+        UpdateCharacterPreview();
         DataContext = this;
         HomeNav.IsChecked = true;
         _loading = false;

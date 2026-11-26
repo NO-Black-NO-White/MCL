@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Microsoft.Win32;
@@ -16,8 +17,8 @@ public partial class MainWindow
     private string? _localCape;
     private BitmapSource? _localAvatar;
     private BitmapSource? _localSkinTexture;
-    private BitmapSource? _localSkinPreview;
-    private BitmapSource? _localCapePreview;
+    private BitmapSource? _localCapeTexture;
+    private Point _appearanceDragPoint;
     private string _localAppearanceStatus = "";
 
     public bool ApplyLocalAppearance
@@ -32,15 +33,13 @@ public partial class MainWindow
         set
         {
             if (!Set(ref _useSlimSkin, value)) return;
-            UpdateSkinPreview();
+            UpdateCharacterPreview();
             MarkDirty();
         }
     }
 
     public BitmapSource? LocalAvatar { get => _localAvatar; private set => Set(ref _localAvatar, value); }
     public bool CanEditLocalAppearance => !IsBusy && !IsGameRunning;
-    public BitmapSource? LocalSkinPreview { get => _localSkinPreview; private set => Set(ref _localSkinPreview, value); }
-    public BitmapSource? LocalCapePreview { get => _localCapePreview; private set => Set(ref _localCapePreview, value); }
     public bool HasLocalSkin => _localSkin is not null;
     public bool HasLocalCape => _localCape is not null;
     public string LocalSkinLabel => HasLocalSkin ? "已选皮肤" : "默认皮肤";
@@ -62,7 +61,7 @@ public partial class MainWindow
         try
         {
             var texture = _localAppearance.PreviewTexture(hash, cape);
-            if (cape) SetCapePreview(texture);
+            if (cape) _localCapeTexture = texture;
             else SetSkinTexture(texture);
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or FormatException or
@@ -76,57 +75,40 @@ public partial class MainWindow
     {
         _localSkinTexture = skin;
         LocalAvatar = skin is null ? null : CreateLocalAvatar(skin);
-        UpdateSkinPreview();
     }
 
-    private void UpdateSkinPreview() =>
-        LocalSkinPreview = _localSkinTexture is { } skin && LocalAvatar is { } avatar
-            ? CreateSkinPreview(skin, avatar, UseSlimSkin)
-            : null;
+    private void UpdateCharacterPreview() =>
+        CharacterVisual.Content = CharacterPreviewModel.Create(_localSkinTexture, _localCapeTexture, UseSlimSkin);
 
-    private static BitmapSource CreateSkinPreview(BitmapSource skin, BitmapSource avatar, bool slim)
+    private void ShowCharacterFront_Click(object sender, RoutedEventArgs e) => SetCharacterView(18);
+    private void ShowCharacterBack_Click(object sender, RoutedEventArgs e) => SetCharacterView(180);
+
+    private void SetCharacterView(double yaw)
     {
-        var modern = skin.PixelHeight == 64;
-        var arm = slim ? 3 : 4;
-        var visual = new DrawingVisual();
-        using (var drawing = visual.RenderOpen())
-        {
-            drawing.DrawImage(avatar, new Rect(4, 0, 8, 8));
-            DrawPart(new(20, 20, 8, 12), 4, 8, new(20, 36, 8, 12));
-            DrawPart(new(44, 20, arm, 12), 4 - arm, 8, new(44, 36, arm, 12));
-            DrawPart(new(4, 20, 4, 12), 4, 20, new(4, 36, 4, 12));
-            if (modern)
-            {
-                DrawPart(new(36, 52, arm, 12), 12, 8, new(52, 52, arm, 12));
-                DrawPart(new(20, 52, 4, 12), 8, 20, new(4, 52, 4, 12));
-            }
-            else
-            {
-                DrawPart(new(44, 20, arm, 12), 12, 8, mirror: true);
-                DrawPart(new(4, 20, 4, 12), 8, 20, mirror: true);
-            }
-
-            void DrawPart(Int32Rect source, int x, int y, Int32Rect? overlay = null, bool mirror = false)
-            {
-                var destination = new Rect(x, y, source.Width, source.Height);
-                if (mirror) drawing.PushTransform(new ScaleTransform(-1, 1, x + source.Width / 2.0, y));
-                drawing.DrawImage(new CroppedBitmap(skin, source), destination);
-                if (modern && overlay is { } outer) drawing.DrawImage(new CroppedBitmap(skin, outer), destination);
-                if (mirror) drawing.Pop();
-            }
-        }
-        var preview = new RenderTargetBitmap(16, 32, 96, 96, PixelFormats.Pbgra32);
-        preview.Render(visual);
-        preview.Freeze();
-        return preview;
+        CharacterYaw.Angle = yaw;
+        CharacterPitch.Angle = 8;
     }
 
-    private void SetCapePreview(BitmapSource? cape)
+    private void CharacterPreview_MouseDown(object sender, MouseButtonEventArgs e)
     {
-        if (cape is null) { LocalCapePreview = null; return; }
-        var front = new CroppedBitmap(cape, new Int32Rect(1, 1, 10, 16));
-        front.Freeze();
-        LocalCapePreview = front;
+        if (sender is not FrameworkElement stage || !stage.CaptureMouse()) return;
+        _appearanceDragPoint = e.GetPosition(stage);
+        e.Handled = true;
+    }
+
+    private void CharacterPreview_MouseMove(object sender, MouseEventArgs e)
+    {
+        if (sender is not FrameworkElement { IsMouseCaptured: true } stage) return;
+        var point = e.GetPosition(stage);
+        var delta = point - _appearanceDragPoint;
+        CharacterYaw.Angle = (CharacterYaw.Angle + delta.X * 1.1) % 360;
+        CharacterPitch.Angle = Math.Clamp(CharacterPitch.Angle - delta.Y * 0.55, -42, 42);
+        _appearanceDragPoint = point;
+    }
+
+    private void CharacterPreview_MouseUp(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is FrameworkElement { IsMouseCaptured: true } stage) stage.ReleaseMouseCapture();
     }
 
     private static BitmapSource CreateLocalAvatar(BitmapSource skin)
@@ -176,7 +158,7 @@ public partial class MainWindow
     {
         if (cape)
         {
-            SetCapePreview(texture.Preview);
+            _localCapeTexture = texture.Preview;
             _localCape = texture.Hash;
         }
         else
@@ -184,6 +166,8 @@ public partial class MainWindow
             SetSkinTexture(texture.Preview);
             _localSkin = texture.Hash;
         }
+        if (cape) SetCharacterView(180);
+        else SetCharacterView(18);
         ApplyLocalAppearance = true;
         NotifyLocalTextures();
     }
@@ -200,12 +184,13 @@ public partial class MainWindow
     {
         if (!CanEditLocalAppearance) return;
         _localCape = null;
-        LocalCapePreview = null;
+        _localCapeTexture = null;
         NotifyLocalTextures();
     }
 
     private void NotifyLocalTextures()
     {
+        UpdateCharacterPreview();
         Notify(nameof(HasLocalSkin), nameof(HasLocalCape), nameof(LocalSkinLabel), nameof(LocalCapeLabel));
         MarkDirty();
         LocalAppearanceStatus = "已修改外观。点击「保存本地角色」应用。";

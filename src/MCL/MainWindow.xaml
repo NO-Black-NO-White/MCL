@@ -487,64 +487,77 @@
                                     <TextBlock Text="1–16 位英文字母、数字或下划线。改名后，部分存档里的背包或进度会按新玩家记录。"
                                                Style="{StaticResource MutedText}" FontSize="11" Margin="0,5,0,13" />
                                     <Grid>
-                                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="12" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                                        <Border Style="{StaticResource Card}" Padding="13">
-                                            <DockPanel>
-                                                <Border Width="96" Height="144" CornerRadius="10" Background="{StaticResource SoftAccentBrush}" Margin="0,0,12,0"
-                                                        VerticalAlignment="Top" ToolTip="皮肤正面预览">
-                                                    <Grid>
-                                                        <Path Data="{StaticResource AccountIcon}">
-                                                            <Path.Style>
-                                                                <Style TargetType="Path" BasedOn="{StaticResource ShortcutIcon}">
-                                                                    <Setter Property="Visibility" Value="Collapsed" />
-                                                                    <Style.Triggers>
-                                                                        <DataTrigger Binding="{Binding LocalSkinPreview}" Value="{x:Null}">
-                                                                            <Setter Property="Visibility" Value="Visible" />
-                                                                        </DataTrigger>
-                                                                    </Style.Triggers>
-                                                                </Style>
-                                                            </Path.Style>
-                                                        </Path>
-                                                        <Image Source="{Binding LocalSkinPreview}" Width="64" Height="128" UseLayoutRounding="True"
-                                                               AutomationProperties.Name="皮肤正面预览" RenderOptions.BitmapScalingMode="NearestNeighbor" />
-                                                    </Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="42*" /><ColumnDefinition Width="12" /><ColumnDefinition Width="58*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Border Style="{StaticResource Card}" Padding="12">
+                                            <StackPanel>
+                                                <Border x:Name="CharacterStage" CornerRadius="10" Cursor="Hand"
+                                                        MouseLeftButtonDown="CharacterPreview_MouseDown" MouseMove="CharacterPreview_MouseMove"
+                                                        MouseLeftButtonUp="CharacterPreview_MouseUp" AutomationProperties.Name="角色 3D 预览">
+                                                    <Border.Background>
+                                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                                            <GradientStop Color="#FFFFF5F9" Offset="0" />
+                                                            <GradientStop Color="#FFF2E0F0" Offset="1" />
+                                                        </LinearGradientBrush>
+                                                    </Border.Background>
+                                                    <Viewport3D Width="218" Height="204" IsHitTestVisible="False" ClipToBounds="False">
+                                                        <Viewport3D.Camera>
+                                                            <OrthographicCamera Position="0,0,96" LookDirection="0,0,-1" UpDirection="0,1,0" Width="39" />
+                                                        </Viewport3D.Camera>
+                                                        <ModelVisual3D>
+                                                            <ModelVisual3D.Content>
+                                                                <Model3DGroup>
+                                                                    <AmbientLight Color="#FFABABAB" />
+                                                                    <DirectionalLight Color="#FF656565" Direction="-1,-2,-3" />
+                                                                    <DirectionalLight Color="#FF303030" Direction="1,-1,2" />
+                                                                </Model3DGroup>
+                                                            </ModelVisual3D.Content>
+                                                        </ModelVisual3D>
+                                                        <ModelVisual3D x:Name="CharacterVisual">
+                                                            <ModelVisual3D.Transform>
+                                                                <Transform3DGroup>
+                                                                    <RotateTransform3D>
+                                                                        <RotateTransform3D.Rotation>
+                                                                            <AxisAngleRotation3D x:Name="CharacterYaw" Axis="0,1,0" Angle="18" />
+                                                                        </RotateTransform3D.Rotation>
+                                                                    </RotateTransform3D>
+                                                                    <RotateTransform3D>
+                                                                        <RotateTransform3D.Rotation>
+                                                                            <AxisAngleRotation3D x:Name="CharacterPitch" Axis="1,0,0" Angle="8" />
+                                                                        </RotateTransform3D.Rotation>
+                                                                    </RotateTransform3D>
+                                                                </Transform3DGroup>
+                                                            </ModelVisual3D.Transform>
+                                                        </ModelVisual3D>
+                                                    </Viewport3D>
                                                 </Border>
-                                                <StackPanel VerticalAlignment="Center">
+                                                <WrapPanel HorizontalAlignment="Center" Margin="0,8,0,0">
+                                                    <Button Content="正面" Click="ShowCharacterFront_Click" Padding="10,5" Margin="0,0,6,0"
+                                                            AutomationProperties.Name="查看角色正面" />
+                                                    <Button Content="背面" Click="ShowCharacterBack_Click" Padding="10,5"
+                                                            AutomationProperties.Name="查看角色背面" />
+                                                </WrapPanel>
+                                                <TextBlock Text="拖动角色旋转" Style="{StaticResource MutedText}" FontSize="11"
+                                                           HorizontalAlignment="Center" Margin="0,6,0,0" />
+                                            </StackPanel>
+                                        </Border>
+                                        <StackPanel Grid.Column="2">
+                                            <Border Style="{StaticResource Card}" Padding="13">
+                                                <StackPanel>
                                                     <TextBlock Text="皮肤" FontWeight="SemiBold" />
                                                     <TextBlock Text="{Binding LocalSkinLabel}" Style="{StaticResource MutedText}" FontSize="11" Margin="0,0,0,5" />
                                                     <WrapPanel>
                                                         <Button Content="选择 PNG" Click="PickLocalSkin_Click" Padding="11,6" Margin="0,0,6,0" />
                                                         <Button Content="清除" Click="ClearLocalSkin_Click" Padding="9,6" IsEnabled="{Binding HasLocalSkin}" />
                                                     </WrapPanel>
-                                                    <CheckBox IsChecked="{Binding UseSlimSkin}"
-                                                              IsEnabled="{Binding HasLocalSkin}" Margin="0,8,0,0">
+                                                    <CheckBox IsChecked="{Binding UseSlimSkin}" IsEnabled="{Binding HasLocalSkin}" Margin="0,8,0,0">
                                                         <TextBlock Text="使用细手臂模型（Alex）" TextWrapping="Wrap" />
                                                     </CheckBox>
                                                 </StackPanel>
-                                            </DockPanel>
-                                        </Border>
-                                        <Border Grid.Column="2" Style="{StaticResource Card}" Padding="13">
-                                            <DockPanel>
-                                                <Border Width="96" Height="144" CornerRadius="10" Background="{StaticResource SoftAccentBrush}" Margin="0,0,12,0"
-                                                        VerticalAlignment="Top" ToolTip="披风预览">
-                                                    <Grid>
-                                                        <Path Data="{StaticResource PackIcon}">
-                                                            <Path.Style>
-                                                                <Style TargetType="Path" BasedOn="{StaticResource ShortcutIcon}">
-                                                                    <Setter Property="Visibility" Value="Collapsed" />
-                                                                    <Style.Triggers>
-                                                                        <DataTrigger Binding="{Binding LocalCapePreview}" Value="{x:Null}">
-                                                                            <Setter Property="Visibility" Value="Visible" />
-                                                                        </DataTrigger>
-                                                                    </Style.Triggers>
-                                                                </Style>
-                                                            </Path.Style>
-                                                        </Path>
-                                                        <Image Source="{Binding LocalCapePreview}" Width="70" Height="112" UseLayoutRounding="True"
-                                                               AutomationProperties.Name="披风预览" RenderOptions.BitmapScalingMode="NearestNeighbor" />
-                                                    </Grid>
-                                                </Border>
-                                                <StackPanel VerticalAlignment="Center">
+                                            </Border>
+                                            <Border Style="{StaticResource Card}" Padding="13" Margin="0,10,0,0">
+                                                <StackPanel>
                                                     <TextBlock Text="披风" FontWeight="SemiBold" />
                                                     <TextBlock Text="{Binding LocalCapeLabel}" Style="{StaticResource MutedText}" FontSize="11" Margin="0,0,0,5" />
                                                     <WrapPanel>
@@ -552,8 +565,8 @@
                                                         <Button Content="清除" Click="ClearLocalCape_Click" Padding="9,6" IsEnabled="{Binding HasLocalCape}" />
                                                     </WrapPanel>
                                                 </StackPanel>
-                                            </DockPanel>
-                                        </Border>
+                                            </Border>
+                                        </StackPanel>
                                     </Grid>
                                     <CheckBox Content="启动时应用外观" IsChecked="{Binding ApplyLocalAppearance}" Margin="0,13,0,0" />
                                     <TextBlock Text="首次使用需要联网安装外观组件。自定义皮肤和披风仅在本机显示。" Style="{StaticResource MutedText}"
