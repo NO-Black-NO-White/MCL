@@ -352,7 +352,7 @@
                                     <TextBlock Text="加入好友房间" FontSize="19" FontWeight="SemiBold" />
                                     <TextBlock Text="使用与房主相同的 Java 版游戏版本和模组。支持 1.20 及以上。" Style="{StaticResource MutedText}" Margin="0,6,0,10" />
                                     <DockPanel>
-                                        <Button Content="加入并启动" DockPanel.Dock="Right" Style="{StaticResource PrimaryButton}" Click="JoinRoom_Click" IsEnabled="{Binding CanJoinRoom}" Margin="9,0,0,0" />
+                                        <Button x:Name="JoinRoomButton" Content="{Binding JoinRoomButtonText}" DockPanel.Dock="Right" Style="{StaticResource PrimaryButton}" Click="JoinRoom_Click" IsEnabled="{Binding CanJoinRoom}" Margin="9,0,0,0" />
                                         <Grid>
                                             <TextBox Text="{Binding InviteInput, UpdateSourceTrigger=PropertyChanged}" MaxLength="128" IsEnabled="{Binding CanEditRelay}" VerticalContentAlignment="Center" AutomationProperties.Name="好友邀请码" />
                                             <TextBlock Text="粘贴好友邀请码" Foreground="{StaticResource MutedBrush}" FontSize="12" Margin="12,0"

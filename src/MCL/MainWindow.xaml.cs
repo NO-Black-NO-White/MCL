@@ -445,7 +445,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             _runningGame = null;
             _runningForGuest = false;
             _lanPort = null;
-            if (_hostingRoom || _guestLaunched) EndMultiplayer("游戏已退出，联机已结束。");
+            if (_hostingRoom || _guestUsesGame) EndMultiplayer("游戏已退出，联机已结束。");
             NotifyMultiplayer();
             StatusMessage = "游戏进程已结束，详细信息可在运行日志中查看。";
         }
@@ -538,6 +538,22 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         GuestRoleButton.SetCurrentValue(System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty, true);
         if (GuestRoomCard.Visibility != Visibility.Visible || HostRoomCard.Visibility != Visibility.Collapsed)
             throw new InvalidOperationException("Joining must show only the guest setup.");
+        InviteInput = "smoke-invite";
+        if (!JoinRoomButton.IsEnabled || !Equals(JoinRoomButton.Content, "加入并启动"))
+            throw new InvalidOperationException("Joining with no game running must offer to start it.");
+        var runningGame = new GameVersion("1.21.11", "", "", "原版", null, true, null);
+        _runningGame = runningGame;
+        IsGameRunning = true;
+        if (!JoinRoomButton.IsEnabled || !Equals(JoinRoomButton.Content, "加入房间")
+            || !ReferenceEquals(ResolveJoiningVersion(Describe(runningGame), runningGame), runningGame))
+            throw new InvalidOperationException("Joining with a matching game must reuse the running instance.");
+        var rejectedMismatch = false;
+        try { ResolveJoiningVersion(Describe(runningGame) with { Pack = "Smoke Pack", PackVersion = "1" }, runningGame); }
+        catch (InvalidDataException) { rejectedMismatch = true; }
+        if (!rejectedMismatch) throw new InvalidOperationException("Joining must reject a mismatched running game.");
+        _runningGame = null;
+        IsGameRunning = false;
+        InviteInput = "";
         HostRoleButton.SetCurrentValue(System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty, true);
         if (HostRoomCard.Visibility != Visibility.Visible || GuestRoomCard.Visibility != Visibility.Collapsed)
             throw new InvalidOperationException("Hosting must show only the host setup.");
