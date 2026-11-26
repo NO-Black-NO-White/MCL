@@ -369,8 +369,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         LocalAppearanceLaunch? appearance = null;
         if (settings.ApplyLocalAppearance && (settings.LocalSkin is not null || settings.LocalCape is not null) && version.Kind != "Forge 整合包")
         {
-            StatusMessage = "正在准备本地皮肤和披风，首次使用需要下载外观组件…";
-            appearance = await Task.Run(() => _localAppearance.PrepareAsync(settings, version, ct), ct);
+            if (LocalAppearanceService.Supports(version))
+            {
+                StatusMessage = "正在准备本地皮肤和披风，首次使用需要下载外观组件…";
+                appearance = await Task.Run(() => _localAppearance.PrepareAsync(settings, version, ct), ct);
+            }
+            else _log.Info($"版本 {version.Id} 暂不兼容本地皮肤和披风，使用游戏默认外观启动。");
         }
         ct.ThrowIfCancellationRequested();
         _runningGame = version;

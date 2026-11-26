@@ -19,6 +19,7 @@ public partial class MainWindow
     private bool _isLoadingVersionInfo;
     private bool _isInstalling;
     private bool _catalogLoaded;
+    private bool _showSnapshots;
     private string _versionSearch = "";
     private string _remoteJava = "选择版本后查看运行要求";
     private string _remoteSize = "—";
@@ -37,10 +38,11 @@ public partial class MainWindow
         set { if (Set(ref _selectedRemote, value)) { _selectedInstallInfo = null; Notify(nameof(RemoteVersionTitle), nameof(CanInstall)); } }
     }
     public string VersionSearch { get => _versionSearch; set { if (Set(ref _versionSearch, value)) FilterRemoteVersions(); } }
+    public bool ShowSnapshots { get => _showSnapshots; set { if (Set(ref _showSnapshots, value)) FilterRemoteVersions(); } }
     public string RemoteVersionTitle => SelectedRemoteVersion?.Id ?? "选择一个版本";
     public string RemoteJava { get => _remoteJava; private set => Set(ref _remoteJava, value); }
     public string RemoteSize { get => _remoteSize; private set => Set(ref _remoteSize, value); }
-    public string RemoteCountText => $"{AvailableVersions.Count} 个正式版 · 官方源";
+    public string RemoteCountText => $"{AvailableVersions.Count} 个版本 · 官方源";
     public bool IsInstalling { get => _isInstalling; private set { if (Set(ref _isInstalling, value)) NotifyDownloadActions(); } }
     public bool CanInstall => !IsBusy && !IsInstalling && !_isLoadingVersionInfo && _selectedInstallInfo is not null;
     public bool CanCancelInstall => IsInstalling && _installCancellation is { IsCancellationRequested: false };
@@ -58,9 +60,15 @@ public partial class MainWindow
     private void FilterRemoteVersions()
     {
         var previous = SelectedRemoteVersion?.Id;
+        var query = VersionSearch.Trim();
         AvailableVersions.Clear();
-        foreach (var version in _allRemoteVersions.Where(item => item.Id.Contains(VersionSearch.Trim(), StringComparison.OrdinalIgnoreCase))) AvailableVersions.Add(version);
-        SelectedRemoteVersion = AvailableVersions.FirstOrDefault(item => item.Id == previous) ?? AvailableVersions.FirstOrDefault();
+        foreach (var version in _allRemoteVersions)
+        {
+            if ((ShowSnapshots || version.Type == "release") && version.Id.Contains(query, StringComparison.OrdinalIgnoreCase))
+                AvailableVersions.Add(version);
+        }
+        SelectedRemoteVersion = AvailableVersions.FirstOrDefault(item => item.Id.Equals(query, StringComparison.OrdinalIgnoreCase))
+            ?? AvailableVersions.FirstOrDefault(item => item.Id == previous) ?? AvailableVersions.FirstOrDefault();
         EmptyRemote.Visibility = AvailableVersions.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         Notify(nameof(RemoteCountText));
     }
@@ -71,10 +79,10 @@ public partial class MainWindow
         await RunBusyAsync(async () =>
         {
             StatusMessage = "正在读取官方版本列表…";
-            _allRemoteVersions = await _downloads.GetVersionsAsync(_lifetime.Token);
+            _allRemoteVersions = await _downloads.GetVersionsAsync(_lifetime.Token, includeSnapshots: true);
             _catalogLoaded = true;
             FilterRemoteVersions();
-            StatusMessage = $"已读取 {_allRemoteVersions.Count} 个原版正式版。选择版本后可以下载安装。";
+            StatusMessage = "已读取官方版本列表。勾选「显示快照和预发布版」可查看测试版本。";
         });
     }
 
@@ -205,7 +213,7 @@ public partial class MainWindow
 
     public void LoadSmokeCatalog(string path)
     {
-        _allRemoteVersions = MinecraftDownloadService.ParseManifest(File.ReadAllBytes(path));
+        _allRemoteVersions = MinecraftDownloadService.ParseManifest(File.ReadAllBytes(path), includeSnapshots: true);
         FilterRemoteVersions();
         _catalogLoaded = true;
     }
@@ -218,6 +226,7 @@ public partial class MainWindow
         var version = _allRemoteVersions.Single(item => item.Id == root.GetProperty("id").GetString());
         if (!string.Equals(Convert.ToHexString(System.Security.Cryptography.SHA1.HashData(bytes)), version.MetadataSha1, StringComparison.OrdinalIgnoreCase))
             throw new InvalidDataException("Preview metadata checksum mismatch.");
+        ShowSnapshots = version.Type == "snapshot";
         VersionSearch = version.Id;
         SelectedRemoteVersion = version;
         _selectedInstallInfo = MinecraftDownloadService.ParseVersionInfo(version, bytes);

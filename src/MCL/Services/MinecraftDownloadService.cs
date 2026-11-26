@@ -9,6 +9,8 @@ namespace MCL.Services;
 public sealed class MinecraftDownloadService : IDisposable
 {
     public static readonly Uri ManifestUri = new("https://piston-meta.mojang.com/mc/game/version_manifest_v2.json");
+    private static readonly Version EarliestRelease = new(1, 7, 10);
+    private static readonly DateTimeOffset EarliestSnapshot = new(2018, 7, 18, 0, 0, 0, TimeSpan.Zero);
     private readonly HttpClient _client;
     private readonly bool _ownsClient;
     private readonly VerifiedDownloader _downloader;
@@ -23,22 +25,29 @@ public sealed class MinecraftDownloadService : IDisposable
         _downloader = new VerifiedDownloader(_client);
     }
 
-    public async Task<IReadOnlyList<RemoteGameVersion>> GetVersionsAsync(CancellationToken ct = default)
-        => ParseManifest(await _downloader.GetBytesAsync(ManifestUri, 8 * 1024 * 1024, null, ct));
+    public async Task<IReadOnlyList<RemoteGameVersion>> GetVersionsAsync(CancellationToken ct = default, bool includeSnapshots = false)
+        => ParseManifest(await _downloader.GetBytesAsync(ManifestUri, 8 * 1024 * 1024, null, ct), includeSnapshots);
 
-    public static IReadOnlyList<RemoteGameVersion> ParseManifest(byte[] bytes)
+    public static IReadOnlyList<RemoteGameVersion> ParseManifest(byte[] bytes, bool includeSnapshots = false)
     {
         using var doc = JsonDocument.Parse(bytes);
         var versions = new List<RemoteGameVersion>();
         foreach (var item in doc.RootElement.GetProperty("versions").EnumerateArray())
         {
-            if (item.GetProperty("type").GetString() != "release") continue;
+            var type = item.GetProperty("type").GetString();
+            if (type != "release" && !(includeSnapshots && type == "snapshot")) continue;
             var id = item.GetProperty("id").GetString()!;
-            if (!Version.TryParse(id, out var numeric) || numeric.Major < 1 || (numeric.Major == 1 && numeric.Minor < 13)) continue;
-            if (id.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0) continue;
+            if (!VersionCatalog.IsSafeVersionId(id)) continue;
+            var released = item.GetProperty("releaseTime").GetDateTimeOffset();
+            if (type == "release")
+            {
+                if (!Version.TryParse(id, out var numeric) || numeric < EarliestRelease) continue;
+            }
+            // This cutoff keeps the snapshot list on the modern asset layout.
+            else if (released < EarliestSnapshot) continue;
             var sha1 = item.GetProperty("sha1").GetString()!;
             if (!VerifiedDownloader.ValidSha1(sha1)) throw new InvalidDataException("版本清单校验信息不正确。");
-            versions.Add(new RemoteGameVersion(id, "release", item.GetProperty("releaseTime").GetDateTimeOffset(), VerifiedDownloader.CheckedUri(item.GetProperty("url").GetString()!), sha1));
+            versions.Add(new RemoteGameVersion(id, type!, released, VerifiedDownloader.CheckedUri(item.GetProperty("url").GetString()!), sha1));
         }
         return versions.OrderByDescending(item => item.ReleaseTime).DistinctBy(item => item.Id).ToArray();
     }
@@ -56,9 +65,10 @@ public sealed class MinecraftDownloadService : IDisposable
     {
         using var doc = JsonDocument.Parse(bytes);
         var root = doc.RootElement;
-        if (root.GetProperty("id").GetString() != version.Id || root.GetProperty("type").GetString() != "release" || root.TryGetProperty("inheritsFrom", out _)
+        if (version.Type is not ("release" or "snapshot") || root.GetProperty("id").GetString() != version.Id
+            || root.GetProperty("type").GetString() != version.Type || root.TryGetProperty("inheritsFrom", out _)
             || root.GetProperty("mainClass").GetString() != "net.minecraft.client.main.Main")
-            throw new NotSupportedException("这个版本的启动方式暂未支持，请选择其他原版正式版。");
+            throw new NotSupportedException("这个版本的启动方式暂未支持，请选择其他版本。");
         var java = root.TryGetProperty("javaVersion", out var jv) ? jv.GetProperty("majorVersion").GetInt32() : 8;
         var estimate = root.GetProperty("downloads").GetProperty("client").GetProperty("size").GetInt64();
         if (root.TryGetProperty("assetIndex", out var index) && index.TryGetProperty("totalSize", out var total)) estimate += total.GetInt64();

@@ -81,7 +81,7 @@ public sealed class VersionCatalog
         catch (System.Security.SecurityException) { return DateTime.MinValue; }
     }
 
-    private static bool IsSafeVersionId(string value) => !string.IsNullOrWhiteSpace(value)
+    internal static bool IsSafeVersionId(string value) => !string.IsNullOrWhiteSpace(value)
         && value is not "." and not ".." && value.IndexOfAny(Path.GetInvalidFileNameChars()) < 0
         && !value.Contains('/') && !value.Contains('\\');
 

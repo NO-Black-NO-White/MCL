@@ -3,7 +3,7 @@ namespace MCL.Models;
 public sealed record RemoteGameVersion(string Id, string Type, DateTimeOffset ReleaseTime, Uri MetadataUrl, string MetadataSha1)
 {
     public string ReleaseDateText => ReleaseTime.ToLocalTime().ToString("yyyy-MM-dd");
-    public string KindText => "原版正式版";
+    public string KindText => Type == "snapshot" ? "快照 / 预发布" : "正式版";
 }
 
 public sealed record VersionInstallInfo(RemoteGameVersion Version, int RequiredJava, long EstimatedBytes, byte[] Metadata);
