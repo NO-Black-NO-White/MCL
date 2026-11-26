@@ -155,7 +155,7 @@ public partial class MainWindow
             {
                 IsBusy = true;
                 MultiplayerStatus = $"正在启动 {version.DisplayName}…";
-                try { await LaunchGameAsync(version, cancellation.Token, detectJava: true); }
+                try { await LaunchGameAsync(version, cancellation.Token); }
                 finally { IsBusy = false; }
                 if (!_launcher.IsRunning) throw new IOException("游戏未能保持运行。请查看运行日志后重试。");
             }

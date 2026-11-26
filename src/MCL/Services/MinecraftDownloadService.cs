@@ -69,7 +69,7 @@ public sealed class MinecraftDownloadService : IDisposable
             || root.GetProperty("type").GetString() != version.Type || root.TryGetProperty("inheritsFrom", out _)
             || root.GetProperty("mainClass").GetString() != "net.minecraft.client.main.Main")
             throw new NotSupportedException("这个版本的启动方式暂未支持，请选择其他版本。");
-        var java = root.TryGetProperty("javaVersion", out var jv) ? jv.GetProperty("majorVersion").GetInt32() : 8;
+        var java = MinecraftMetadata.RequiredJava(root);
         var estimate = root.GetProperty("downloads").GetProperty("client").GetProperty("size").GetInt64();
         if (root.TryGetProperty("assetIndex", out var index) && index.TryGetProperty("totalSize", out var total)) estimate += total.GetInt64();
         var estimatedPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);

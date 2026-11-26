@@ -111,9 +111,7 @@ public partial class MainWindow
             var info = await _downloads.InspectVersionAsync(version, cancellation.Token);
             if (cancellation.IsCancellationRequested || SelectedRemoteVersion?.Id != version.Id) return;
             _selectedInstallInfo = info;
-            RemoteJava = $"Java {info.RequiredJava} · 64 位";
-            if (_java is null) RemoteJava += "（启动前需配置）";
-            else if (_java.MajorVersion != info.RequiredJava) RemoteJava += $"（当前 {_java.MajorVersion}{(_java.MajorVersion < info.RequiredJava ? "，需切换" : "")}）";
+            RemoteJava = FormatRemoteJava(info.RequiredJava);
             RemoteSize = FormatBytes(info.EstimatedBytes);
         }
         catch (OperationCanceledException) { }
@@ -175,8 +173,7 @@ public partial class MainWindow
             InstallIndeterminate = false;
             InstallPercent = 100;
             InstallDetail = $"{result.VersionId} 已加入已安装列表。下载 {result.DownloadedFiles} 个文件，复用 {result.ReusedFiles} 个文件。";
-            StatusMessage = _java is null || _java.MajorVersion < result.RequiredJava ? $"安装完成。启动前请在设置中选择 Java {result.RequiredJava} 或兼容版本。"
-                : _java.MajorVersion != result.RequiredJava ? $"安装完成，已设为当前版本。此版本推荐 Java {result.RequiredJava}，可在启动设置中切换。" : "安装完成，已设为当前版本，可以返回首页启动。";
+            StatusMessage = $"安装完成，已设为当前版本。{FormatRemoteJava(result.RequiredJava)}。";
             InstalledShortcut.Visibility = Visibility.Visible;
             _log.Info($"原版 {result.VersionId} 安装完成，下载 {result.DownloadedFiles}，复用 {result.ReusedFiles}。");
         }
@@ -236,6 +233,13 @@ public partial class MainWindow
     }
 
     public void OpenDownloads() => DownloadsNav.IsChecked = true;
+
+    private string FormatRemoteJava(int required)
+    {
+        var matched = FindMatchingJava(required);
+        if (matched is null) return $"需要 Java {required}（{(AutoMatchJava ? "暂未检测到对应的 64 位版本" : "请检查手动配置")}）";
+        return AutoMatchJava ? $"{DescribeJava(matched)} · 已匹配" : $"需要 Java {required} · 手动：{DescribeJava(matched)}";
+    }
 
     private static string FormatBytes(long bytes)
     {

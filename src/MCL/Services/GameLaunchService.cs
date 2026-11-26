@@ -117,11 +117,8 @@ public sealed class GameLaunchService(LogService log) : IDisposable
                 throw new NotSupportedException("这个版本的启动方式暂不支持。");
         }
         using var baseDocument = baseMetadata;
-        if (metadata.TryGetProperty("javaVersion", out var javaRequirement) && javaRequirement.TryGetProperty("majorVersion", out var major))
-        {
-            var required = major.GetInt32();
-            if (java.MajorVersion < required) throw new InvalidDataException($"这个游戏版本至少需要 Java {required}，当前选择的是 Java {java.MajorVersion}。");
-        }
+        var required = MinecraftMetadata.RequiredJava(metadata);
+        if (java.MajorVersion < required) throw new InvalidDataException($"这个游戏版本至少需要 Java {required}，当前选择的是 Java {java.MajorVersion}。");
         if (!File.Exists(versionJar)) throw new FileNotFoundException("缺少游戏主文件，请先用已有启动器补全这个版本。", versionJar);
         var assetsDirectory = Path.Combine(gameDirectory, "assets");
         MinecraftMetadata.ValidateAssets(metadata, assetsDirectory, ct);

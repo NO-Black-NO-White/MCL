@@ -4,6 +4,7 @@ public sealed class LauncherSettings
 {
     public string GameDirectory { get; set; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), ".minecraft");
     public string JavaPath { get; set; } = "";
+    public bool AutoMatchJava { get; set; } = true;
     public int MemoryMb { get; set; } = 4096;
     public string PlayerName { get; set; } = "Player";
     public string? SelectedVersionId { get; set; }

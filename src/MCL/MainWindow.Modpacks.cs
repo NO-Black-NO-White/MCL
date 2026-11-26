@@ -140,7 +140,7 @@ public partial class MainWindow
             PackCompleted = true;
             PackPercent = 100;
             await ScanVersionsAsync(result.InstanceId);
-            var java = _java?.MajorVersion == result.RequiredJava ? "" : $" 此整合包建议使用 Java {result.RequiredJava}。";
+            var java = FindMatchingJava(result.RequiredJava) is not null ? "" : $" 此整合包需要 Java {result.RequiredJava}。";
             PackStatus = $"「{result.Name}」已安装并选中，可返回首页启动。{java}";
             try { SaveCurrentSettings(); }
             catch (Exception ex)

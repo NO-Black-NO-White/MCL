@@ -42,6 +42,7 @@ public sealed class VersionCatalog
                     if (string.Equals(inheritsFrom, id, StringComparison.OrdinalIgnoreCase)) issue = "版本不能继承自身";
                     if (inheritsFrom is null && string.IsNullOrWhiteSpace(GetString(root, "mainClass"))) issue = "版本描述缺少启动入口";
                     var kind = IdentifyKind(root, id);
+                    var requiredJava = MinecraftMetadata.RequiredJava(root);
                     ModpackInstance? instance = null;
                     if (issue is null && root.TryGetProperty(ModpackPaths.InstanceKey, out var pack))
                     {
@@ -49,13 +50,21 @@ public sealed class VersionCatalog
                         ModpackPaths.CheckInstance(id, inheritsFrom, GetString(root, "mainClass"), instance);
                         kind = instance.Forge is not null ? "Forge 整合包" : instance.Fabric is null ? "原版整合包" : "Fabric 整合包";
                         var baseDirectory = ModpackPaths.BaseDirectory(instance.Minecraft, instance.BaseSha1, instance.UsesCachedBase);
+                        var basePath = ModpackPaths.SafeTarget(gameRoot, $"{baseDirectory}/{instance.Minecraft}.json");
                         if (!Directory.Exists(ModpackPaths.SafeTarget(directory, "game"))
-                            || !File.Exists(ModpackPaths.SafeTarget(gameRoot, $"{baseDirectory}/{instance.Minecraft}.json")))
+                            || !File.Exists(basePath))
                             issue = "整合包缺少游戏目录或基础版本，请重新导入";
+                        else
+                        {
+                            using var baseStream = File.OpenRead(basePath);
+                            if (baseStream.Length > 16 * 1024 * 1024) throw new InvalidDataException("整合包的基础版本配置有误。");
+                            using var vanilla = JsonDocument.Parse(baseStream);
+                            requiredJava = MinecraftMetadata.RequiredJava(vanilla.RootElement);
+                        }
                     }
                     versions.Add(new GameVersion(id, jsonPath, directory, kind, inheritsFrom, issue is null, issue)
                     { ModpackName = instance?.Name, ModpackMinecraft = instance?.Minecraft, ModpackVersion = instance?.PackVersion,
-                        ModpackLoader = instance?.Forge is { } forge ? $"Forge {forge}" : instance?.Fabric });
+                        ModpackLoader = instance?.Forge is { } forge ? $"Forge {forge}" : instance?.Fabric, RequiredJava = requiredJava });
                 }
                 catch (InvalidDataException ex)
                 {

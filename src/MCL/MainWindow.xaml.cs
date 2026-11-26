@@ -18,16 +18,13 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private readonly SettingsStore _store;
     private readonly LogService _log;
     private readonly VersionCatalog _catalog = new();
-    private readonly JavaDiscovery _javaDiscovery = new();
     private readonly GameLaunchService _launcher;
     private readonly CancellationTokenSource _lifetime = new();
     private readonly string _initialVersionId;
     private string _gameDirectory;
-    private string _javaPath;
     private string _playerName;
     private int _memoryMb;
     private GameVersion? _selectedVersion;
-    private JavaInstallation? _java;
     private bool _isBusy;
     private bool _isGameRunning;
     private bool _isDirty;
@@ -59,6 +56,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         var settings = _store.Load();
         _gameDirectory = GameDirectoryResolver.Normalize(settings.GameDirectory);
         _javaPath = settings.JavaPath;
+        _autoMatchJava = settings.AutoMatchJava;
         _playerName = settings.PlayerName;
         _memoryMb = Math.Clamp(settings.MemoryMb, 1024, 16384);
         _initialVersionId = settings.SelectedVersionId ?? "";
@@ -85,18 +83,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
     }
 
-    public string JavaPath
-    {
-        get => _javaPath;
-        set
-        {
-            if (!Set(ref _javaPath, value)) return;
-            _java = null;
-            MarkDirty();
-            Notify(nameof(JavaSummary), nameof(JavaDetail));
-        }
-    }
-
     public string PlayerName { get => _playerName; set { if (Set(ref _playerName, value)) { MarkDirty(); Notify(nameof(SelectedVersionDescription)); } } }
     public int MemoryMb { get => _memoryMb; set { if (Set(ref _memoryMb, value)) { MarkDirty(); Notify(nameof(MemorySummary)); } } }
     public string MemorySummary => $"{MemoryMb:N0} MB";
@@ -109,6 +95,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             MarkDirty();
             Notify(nameof(SelectedVersionTitle), nameof(SelectedVersionDescription), nameof(CanLaunch));
             NotifyVersionManagement();
+            NotifyJava();
             NotifyMultiplayer();
             AnimateVersionArtwork();
         }
@@ -118,8 +105,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     public string SelectedVersionDescription => SelectedVersion is null
         ? "下载新版本，或选择已有游戏文件夹。"
         : SelectedVersion.IsValid ? $"{SelectedVersion.Kind} · 本地档案 {PlayerName}" : SelectedVersion.Issue ?? "版本文件需要检查";
-    public string JavaSummary => _java is null ? (IsBusy ? "检测中…" : "待配置") : $"Java {_java.MajorVersion} · {(_java.Is64Bit ? "64 位" : "32 位")}";
-    public string JavaDetail => _java is null ? "自动检测本机 Java，或手动选择 java.exe。启动前会再次检查。" : $"已检测：Java {_java.VersionText} · {(_java.Is64Bit ? "64 位" : "32 位")}";
     public string VersionCountLabel => $"{Versions.Count} 个";
     public string AppVersionText => typeof(MainWindow).Assembly.GetName().Version?.ToString(3) ?? "";
     public string PageTitle { get => _pageTitle; private set => Set(ref _pageTitle, value); }
@@ -141,13 +126,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             await RunBusyAsync(async () =>
             {
                 await ScanVersionsAsync(_initialVersionId);
-                if (!string.IsNullOrWhiteSpace(JavaPath))
-                {
-                    _java = await _javaDiscovery.InspectAsync(JavaPath, _lifetime.Token);
-                    if (_java is null) _log.Warn("保存的 Java 路径不可用，可以在启动设置中重新检测。");
-                    Notify(nameof(JavaSummary), nameof(JavaDetail));
-                }
-                else await DetectJavaAsync();
+                await ScanJavaAsync(_lifetime.Token);
                 StatusMessage = Versions.Count == 0 ? "欢迎使用 MCL。可以下载一个新版本，或选择已有的游戏文件夹。" : $"发现 {Versions.Count} 个本地版本。选择完整原版后即可尝试启动。";
             });
         }
@@ -182,27 +161,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (EmptyVersions is not null) EmptyVersions.Visibility = Versions.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         if (VersionsWorkspace is not null) VersionsWorkspace.Visibility = Versions.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
         RevealSelectedVersion();
-    }
-
-    private async Task DetectJavaAsync()
-    {
-        StatusMessage = "正在查找本机 Java…";
-        var installations = await _javaDiscovery.FindAsync(_lifetime.Token);
-        var chosen = installations.FirstOrDefault(java => java.Is64Bit) ?? installations.FirstOrDefault();
-        if (chosen is not null)
-        {
-            JavaPath = chosen.Path;
-            _java = chosen;
-            _log.Info($"已检测到 Java {chosen.MajorVersion}（{(chosen.Is64Bit ? "64" : "32")} 位）。");
-            StatusMessage = $"已选择 Java {chosen.MajorVersion}。修改后可在启动设置中保存。";
-        }
-        else
-        {
-            _java = null;
-            _log.Warn("没有检测到可用 Java，请在启动设置中手动选择。");
-            StatusMessage = "没有找到可用 Java，请在启动设置中选择 java.exe。";
-        }
-        Notify(nameof(JavaSummary), nameof(JavaDetail));
     }
 
     private async void Navigation_Checked(object sender, RoutedEventArgs e)
@@ -279,34 +237,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private async void RefreshVersions_Click(object sender, RoutedEventArgs e)
         => await RunBusyAsync(async () => { await ScanVersionsAsync(); StatusMessage = $"已刷新版本列表，共 {Versions.Count} 个版本。"; });
 
-    private async void DetectJava_Click(object sender, RoutedEventArgs e)
-        => await RunBusyAsync(DetectJavaAsync);
-
-    private async void BrowseJava_Click(object sender, RoutedEventArgs e)
-    {
-        if (IsBusy) return;
-        var dialog = new OpenFileDialog { Title = "选择 Java 程序", Filter = "Java 程序 (java.exe;javaw.exe)|java.exe;javaw.exe|可执行程序 (*.exe)|*.exe", CheckFileExists = true };
-        if (File.Exists(JavaPath)) dialog.InitialDirectory = Path.GetDirectoryName(JavaPath);
-        if (dialog.ShowDialog(this) != true) return;
-        JavaPath = dialog.FileName;
-        await RunBusyAsync(async () =>
-        {
-            var installation = await _javaDiscovery.InspectAsync(JavaPath, _lifetime.Token);
-            if (installation is null) throw new InvalidDataException("这个程序未能返回有效的 Java 版本，请选择可用的 java.exe。");
-            JavaPath = installation.Path;
-            _java = installation;
-            Notify(nameof(JavaSummary), nameof(JavaDetail));
-            StatusMessage = "Java 检查通过，请保存设置。";
-        });
-    }
-
     private async void SaveSettings_Click(object sender, RoutedEventArgs e)
         => await RunBusyAsync(async () =>
         {
             SaveCurrentSettings();
             await ScanVersionsAsync();
-            if (!string.IsNullOrWhiteSpace(JavaPath)) _java = await _javaDiscovery.InspectAsync(JavaPath, _lifetime.Token);
-            Notify(nameof(JavaSummary), nameof(JavaDetail));
+            await ScanJavaAsync(_lifetime.Token);
             // Scanning may choose a default version; persist that choice too.
             SaveCurrentSettings();
             StatusMessage = "设置已保存。下次打开 MCL 时会自动恢复。";
@@ -321,6 +257,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             GameDirectory = GameDirectoryResolver.Normalize(GameDirectory),
             JavaPath = JavaPath.Trim().Trim('"'),
+            AutoMatchJava = AutoMatchJava,
             PlayerName = PlayerName!,
             MemoryMb = MemoryMb,
             SelectedVersionId = SelectedVersion?.Id,
@@ -347,24 +284,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         await RunBusyAsync(() => LaunchGameAsync(version, _lifetime.Token));
     }
 
-    private async Task LaunchGameAsync(GameVersion version, CancellationToken ct, bool detectJava = false, bool joiningFriend = false)
+    private async Task LaunchGameAsync(GameVersion version, CancellationToken ct, bool joiningFriend = false)
     {
         var settings = SnapshotSettings();
         StatusMessage = "正在检查 Java 和本地游戏文件…";
-        _java = await _javaDiscovery.InspectAsync(settings.JavaPath, ct);
-        if (_java is null && detectJava)
-        {
-            var choices = await _javaDiscovery.FindAsync(ct);
-            var found = choices.FirstOrDefault(java => java.Is64Bit) ?? choices.FirstOrDefault();
-            if (found is not null)
-            {
-                JavaPath = found.Path;
-                _java = found;
-                settings = SnapshotSettings();
-            }
-        }
-        Notify(nameof(JavaSummary), nameof(JavaDetail));
-        if (_java is null) throw new InvalidDataException("Java 未配置或不可用。请到启动设置中点击自动检测，或选择 java.exe。");
+        var java = await ResolveJavaForLaunchAsync(version, ct);
+        _log.Info($"版本 {version.Id} 使用 {DescribeJava(java)}（{java.Path}）。");
         SaveCurrentSettings();
         LocalAppearanceLaunch? appearance = null;
         if (settings.ApplyLocalAppearance && (settings.LocalSkin is not null || settings.LocalCape is not null) && version.Kind != "Forge 整合包")
@@ -381,8 +306,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         _runningForGuest = joiningFriend;
         try
         {
-            if (appearance is null) await _launcher.LaunchAsync(settings, version, _java, ct, joiningFriend);
-            else await _launcher.LaunchWithAppearanceAsync(settings, version, _java, appearance, ct, joiningFriend);
+            if (appearance is null) await _launcher.LaunchAsync(settings, version, java, ct, joiningFriend);
+            else await _launcher.LaunchWithAppearanceAsync(settings, version, java, appearance, ct, joiningFriend);
         }
         catch { _runningGame = null; _runningForGuest = false; throw; }
         StatusMessage = "启动命令已执行。游戏输出会显示在运行日志中。";

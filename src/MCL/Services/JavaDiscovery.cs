@@ -9,6 +9,9 @@ public sealed class JavaDiscovery
     private static readonly Regex JavaVersion = new("(?:java|openjdk)\\s+version\\s+\"(?<version>[^\"]+)\"|java\\.version\\s*=\\s*(?<version>[^\\s]+)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex JavaArchitecture = new(@"os\.arch\s*=\s*(?<arch>[^\s]+)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
+    internal static bool Matches(JavaInstallation? java, int requiredMajor) =>
+        java is { Is64Bit: true } && java.MajorVersion == requiredMajor;
+
     public async Task<IReadOnlyList<JavaInstallation>> FindAsync(CancellationToken ct = default)
     {
         var paths = await Task.Run(() => FindCandidates(ct), ct);
@@ -106,6 +109,7 @@ public sealed class JavaDiscovery
         {
             if (string.IsNullOrWhiteSpace(programFiles)) continue;
             foreach (var vendor in new[] { "Java", "Eclipse Adoptium", "AdoptOpenJDK", "Microsoft", "BellSoft", "Amazon Corretto", "Zulu", "Azul Systems", "Semeru" }) roots.Add(Path.Combine(programFiles, vendor));
+            roots.Add(Path.Combine(programFiles, "Minecraft Launcher", "runtime"));
         }
         var local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
         roots.Add(Path.Combine(local, "Programs", "Eclipse Adoptium"));

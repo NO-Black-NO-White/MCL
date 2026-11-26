@@ -15,6 +15,12 @@ internal static class MinecraftMetadata
     internal static bool IsValidLocalPlayerName(string? name)
         => name is not null && Regex.IsMatch(name, @"\A[A-Za-z0-9_]{1,16}\z", RegexOptions.CultureInvariant);
 
+    internal static int RequiredJava(JsonElement metadata) =>
+        metadata.ValueKind == JsonValueKind.Object
+        && metadata.TryGetProperty("javaVersion", out var java) && java.ValueKind == JsonValueKind.Object
+        && java.TryGetProperty("majorVersion", out var major) && major.ValueKind == JsonValueKind.Number
+        && major.TryGetInt32(out var version) && version > 0 ? version : 8;
+
     internal static string OfflineUuid(string name)
     {
         var bytes = MD5.HashData(Encoding.UTF8.GetBytes("OfflinePlayer:" + name));
