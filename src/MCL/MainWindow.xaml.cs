@@ -478,7 +478,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
         SelectSmokePage("Multiplayer");
         GuestRoleButton.SetCurrentValue(System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty, true);
-        if (GuestRoomCard.Visibility != Visibility.Visible || HostRoomCard.Visibility != Visibility.Collapsed)
+        if (GuestRoleButton.IsChecked != true || HostRoleButton.IsChecked != false
+            || GuestRoomCard.Visibility != Visibility.Visible || HostRoomCard.Visibility != Visibility.Collapsed)
             throw new InvalidOperationException("Joining must show only the guest setup.");
         InviteInput = "smoke-invite";
         if (!JoinRoomButton.IsEnabled || !Equals(JoinRoomButton.Content, "加入并启动"))
@@ -497,7 +498,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         IsGameRunning = false;
         InviteInput = "";
         HostRoleButton.SetCurrentValue(System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty, true);
-        if (HostRoomCard.Visibility != Visibility.Visible || GuestRoomCard.Visibility != Visibility.Collapsed)
+        if (HostRoleButton.IsChecked != true || GuestRoleButton.IsChecked != false
+            || HostRoomCard.Visibility != Visibility.Visible || GuestRoomCard.Visibility != Visibility.Collapsed)
             throw new InvalidOperationException("Hosting must show only the host setup.");
         var oldPlayer = PlayerName;
         PlayerName = "MCL_Smoke";

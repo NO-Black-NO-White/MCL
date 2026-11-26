@@ -50,6 +50,43 @@
                 </ControlTemplate.Triggers>
             </ControlTemplate></Setter.Value></Setter>
         </Style>
+        <Style x:Key="RoomRoleTab" TargetType="RadioButton">
+            <Setter Property="Foreground" Value="{StaticResource MutedBrush}" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="MinHeight" Value="44" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Border x:Name="Surface" Background="Transparent" BorderBrush="Transparent" BorderThickness="1" CornerRadius="10">
+                            <Grid>
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" RecognizesAccessKey="True" />
+                                <Border x:Name="SelectionMark" Width="24" Height="3" CornerRadius="1.5" Margin="0,0,0,4"
+                                        HorizontalAlignment="Center" VerticalAlignment="Bottom"
+                                        Background="{StaticResource AccentBrush}" Visibility="Collapsed" />
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Surface" Property="Background" Value="{StaticResource HoverBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter Property="Foreground" Value="{StaticResource AccentTextBrush}" />
+                                <Setter TargetName="Surface" Property="Background" Value="{StaticResource SoftAccentBrush}" />
+                                <Setter TargetName="SelectionMark" Property="Visibility" Value="Visible" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Surface" Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Cursor" Value="Arrow" />
+                                <Setter TargetName="Surface" Property="Opacity" Value="0.65" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
         <Style x:Key="PagePanel" TargetType="Grid"><Setter Property="Visibility" Value="Collapsed" /></Style>
     </Window.Resources>
     <Grid x:Name="RootLayout" Background="{StaticResource BackgroundBrush}" UseLayoutRounding="True" TextOptions.TextFormattingMode="Display">
@@ -423,13 +460,16 @@
                     </Grid>
                     <Grid x:Name="MultiplayerPage" Style="{StaticResource PagePanel}">
                         <StackPanel>
-                            <Border Style="{StaticResource Card}" Padding="15" Margin="0,0,0,14">
-                                <WrapPanel IsEnabled="{Binding CanEditRelay}">
-                                    <RadioButton x:Name="HostRoleButton" Content="创建房间" FontWeight="SemiBold" GroupName="MultiplayerRole"
-                                                 IsChecked="{Binding ShowHostSetup, Mode=TwoWay}" Margin="4,4,26,4" />
-                                    <RadioButton x:Name="GuestRoleButton" Content="加入房间" FontWeight="SemiBold" GroupName="MultiplayerRole"
-                                                 IsChecked="{Binding ShowGuestSetup, Mode=TwoWay}" Margin="0,4,0,4" />
-                                </WrapPanel>
+                            <Border Style="{StaticResource Card}" Padding="5" Margin="0,0,0,14">
+                                <Grid IsEnabled="{Binding CanEditRelay}" KeyboardNavigation.DirectionalNavigation="Cycle">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" /><ColumnDefinition Width="6" /><ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <RadioButton x:Name="HostRoleButton" Content="创建房间" Style="{StaticResource RoomRoleTab}" GroupName="MultiplayerRole"
+                                                 IsChecked="{Binding ShowHostSetup, Mode=TwoWay}" />
+                                    <RadioButton x:Name="GuestRoleButton" Grid.Column="2" Content="加入房间" Style="{StaticResource RoomRoleTab}" GroupName="MultiplayerRole"
+                                                 IsChecked="{Binding ShowGuestSetup, Mode=TwoWay}" />
+                                </Grid>
                             </Border>
                             <Border x:Name="HostRoomCard" Style="{StaticResource Card}" Background="{StaticResource HeroBrush}" Padding="24"
                                     Visibility="{Binding ShowHostSetup, Converter={StaticResource BoolVisibility}}">
