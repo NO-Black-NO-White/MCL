@@ -13,6 +13,12 @@ public partial class MainWindow
     public bool CanDeleteVersion => !IsBusy && !_isDeletingVersion && !IsGameRunning && !_launcher.IsRunning && SelectedVersion is not null;
     public string ManagedVersionTitle => SelectedVersion?.DisplayName ?? "选择一个版本";
     public string ManagedMinecraftVersion => SelectedVersion?.ModpackMinecraft ?? SelectedVersion?.Id ?? "";
+    public string ManagedVersionArtwork => ManagedMinecraftVersion switch
+    {
+        "26.3" => "/MCL;component/Assets/autumn-camp.jpg",
+        "1.21.11" => "/MCL;component/Assets/canyon-riders.jpg",
+        _ => "/MCL;component/Assets/spring-valley.jpg"
+    };
     public string ManagedVersionLoader => SelectedVersion?.ModpackLoader ?? SelectedVersion?.Kind ?? "";
     public bool ManagedVersionNeedsAttention => SelectedVersion is { IsValid: false };
     public bool ManagedVersionHasPackVersion => SelectedVersion?.ModpackVersion is { Length: > 0 } version
@@ -24,25 +30,21 @@ public partial class MainWindow
     private void NotifyVersionManagement()
     {
         Notify(nameof(CanOpenVersionFolder), nameof(CanDeleteVersion), nameof(ManagedVersionTitle), nameof(ManagedVersionPath),
-            nameof(ManagedMinecraftVersion), nameof(ManagedVersionLoader), nameof(ManagedVersionHasPackVersion),
+            nameof(ManagedMinecraftVersion), nameof(ManagedVersionArtwork), nameof(ManagedVersionLoader), nameof(ManagedVersionHasPackVersion),
             nameof(ManagedVersionNeedsAttention), nameof(VersionManagementHint));
         if (VersionManagementCard is not null) VersionManagementCard.Visibility = SelectedVersion is null ? Visibility.Collapsed : Visibility.Visible;
     }
 
-    private void AnimateVersionIdentity()
+    private void AnimateVersionArtwork()
     {
         if (_currentPage != "Versions" || _loading || IsBusy || SelectedVersion is null
             || !IsLoaded || _offlinePreview || !SystemParameters.ClientAreaAnimation) return;
 
-        var duration = TimeSpan.FromMilliseconds(160);
-        var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
-        VersionIdentity.BeginAnimation(OpacityProperty, new DoubleAnimation(0.76, 1, duration)
+        VersionArtwork.BeginAnimation(System.Windows.Media.Brush.OpacityProperty,
+            new DoubleAnimation(0.45, 1, TimeSpan.FromMilliseconds(180))
         {
-            EasingFunction = ease, FillBehavior = FillBehavior.Stop
-        }, HandoffBehavior.SnapshotAndReplace);
-        VersionIdentityShift.BeginAnimation(System.Windows.Media.TranslateTransform.XProperty, new DoubleAnimation(7, 0, duration)
-        {
-            EasingFunction = ease, FillBehavior = FillBehavior.Stop
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut },
+            FillBehavior = FillBehavior.Stop
         }, HandoffBehavior.SnapshotAndReplace);
     }
 

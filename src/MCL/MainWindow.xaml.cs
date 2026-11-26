@@ -109,7 +109,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             Notify(nameof(SelectedVersionTitle), nameof(SelectedVersionDescription), nameof(CanLaunch));
             NotifyVersionManagement();
             NotifyMultiplayer();
-            AnimateVersionIdentity();
+            AnimateVersionArtwork();
         }
     }
 

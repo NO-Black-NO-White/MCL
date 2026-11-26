@@ -14,6 +14,8 @@
   <ItemGroup>
     <Compile Include="../Multiplayer/RoomProtocol.cs" Link="RoomProtocol.cs" />
     <Resource Include="Assets/spring-valley.jpg" />
+    <Resource Include="Assets/autumn-camp.jpg" />
+    <Resource Include="Assets/canyon-riders.jpg" />
     <Resource Include="Assets/mcl.ico" />
     <Resource Include="$(MclRelayBundle)" Link="Assets/relay.exe"
               Condition="'$(MclRelayBundle)' != ''" />
