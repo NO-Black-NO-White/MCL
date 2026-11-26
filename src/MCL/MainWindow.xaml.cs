@@ -60,6 +60,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         _playerName = settings.PlayerName;
         _memoryMb = Math.Clamp(settings.MemoryMb, 1024, 16384);
         _initialVersionId = settings.SelectedVersionId ?? "";
+        _recentLaunches = (settings.RecentLaunches ?? []).Where(entry => entry is not null).Take(24).ToArray();
         _relayEndpoint = string.IsNullOrWhiteSpace(settings.RelayEndpoint) ? DefaultRelayEndpoint() : settings.RelayEndpoint;
         LoadLocalAppearance(settings);
         LoadOnlineProfile(settings.MicrosoftClientId);
@@ -157,7 +158,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void UpdateVersionState()
     {
-        Notify(nameof(VersionCountLabel));
+        Notify(nameof(VersionCountLabel), nameof(RecentGames));
         if (EmptyVersions is not null) EmptyVersions.Visibility = Versions.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         if (VersionsWorkspace is not null) VersionsWorkspace.Visibility = Versions.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
         RevealSelectedVersion();
@@ -214,7 +215,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void ShowVersions_Click(object sender, RoutedEventArgs e) => VersionsNav.IsChecked = true;
     private void ShowModpacks_Click(object sender, RoutedEventArgs e) => OpenModpacks();
-    private void ShowMultiplayer_Click(object sender, RoutedEventArgs e) => OpenMultiplayer();
     private void ShowSettings_Click(object sender, RoutedEventArgs e) => SettingsNav.IsChecked = true;
 
     private async void BrowseGame_Click(object sender, RoutedEventArgs e)
@@ -261,6 +261,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             PlayerName = PlayerName!,
             MemoryMb = MemoryMb,
             SelectedVersionId = SelectedVersion?.Id,
+            RecentLaunches = _recentLaunches,
             MicrosoftClientId = MicrosoftClientId.Trim(),
             RelayEndpoint = RelayEndpoint.Trim(),
             ApplyLocalAppearance = ApplyLocalAppearance,
@@ -310,6 +311,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             else await _launcher.LaunchWithAppearanceAsync(settings, version, java, appearance, ct, joiningFriend);
         }
         catch { _runningGame = null; _runningForGuest = false; throw; }
+        RememberLaunch(settings.GameDirectory, version.Id);
         StatusMessage = "启动命令已执行。游戏输出会显示在运行日志中。";
     }
 

@@ -270,51 +270,52 @@
                                             <Button Content="停止游戏" Margin="8,0,0,0" Click="Stop_Click" IsEnabled="{Binding CanStop}"
                                                     Visibility="{Binding IsGameRunning, Converter={StaticResource BoolVisibility}}" />
                                         </WrapPanel>
-                                        <Button Content="更改游戏文件夹  →" HorizontalAlignment="Left" Margin="0,13,0,0" Padding="0,4"
-                                                Background="Transparent" BorderThickness="0" Foreground="{StaticResource AccentTextBrush}"
-                                                Click="BrowseGame_Click" IsEnabled="{Binding CanInteract}" />
                                     </StackPanel>
                                 </Grid>
                             </Border>
                         </Border>
-                        <UniformGrid Grid.Row="1" Columns="4" Margin="0,17,0,0">
-                            <Button Style="{StaticResource ShortcutButton}" Margin="0,0,6,0" Click="ShowVersions_Click" AutomationProperties.Name="游戏版本">
-                                <DockPanel LastChildFill="True">
-                                    <Border Width="38" Height="38" CornerRadius="10" Background="{StaticResource SoftAccentBrush}" Margin="0,0,10,0">
-                                        <Path Data="{StaticResource VersionsIcon}" Style="{StaticResource ShortcutIcon}" />
-                                    </Border>
-                                    <TextBlock DockPanel.Dock="Right" Text="›" Foreground="{StaticResource MutedBrush}" FontSize="19" VerticalAlignment="Center" Margin="8,0,0,0" />
-                                    <TextBlock Text="游戏版本" FontWeight="SemiBold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                                </DockPanel>
-                            </Button>
-                            <Button Style="{StaticResource ShortcutButton}" Margin="6,0" Click="ShowDownloads_Click" AutomationProperties.Name="下载游戏">
-                                <DockPanel LastChildFill="True">
-                                    <Border Width="38" Height="38" CornerRadius="10" Background="{StaticResource SoftAccentBrush}" Margin="0,0,10,0">
-                                        <Path Data="{StaticResource DownloadIcon}" Style="{StaticResource ShortcutIcon}" />
-                                    </Border>
-                                    <TextBlock DockPanel.Dock="Right" Text="›" Foreground="{StaticResource MutedBrush}" FontSize="19" VerticalAlignment="Center" Margin="8,0,0,0" />
-                                    <TextBlock Text="下载游戏" FontWeight="SemiBold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                                </DockPanel>
-                            </Button>
-                            <Button Style="{StaticResource ShortcutButton}" Margin="6,0" Click="ShowModpacks_Click" AutomationProperties.Name="导入整合包">
-                                <DockPanel LastChildFill="True">
-                                    <Border Width="38" Height="38" CornerRadius="10" Background="{StaticResource SoftAccentBrush}" Margin="0,0,10,0">
-                                        <Path Data="{StaticResource PackIcon}" Style="{StaticResource ShortcutIcon}" />
-                                    </Border>
-                                    <TextBlock DockPanel.Dock="Right" Text="›" Foreground="{StaticResource MutedBrush}" FontSize="19" VerticalAlignment="Center" Margin="8,0,0,0" />
-                                    <TextBlock Text="导入整合包" FontWeight="SemiBold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                                </DockPanel>
-                            </Button>
-                            <Button Style="{StaticResource ShortcutButton}" Margin="6,0,0,0" Click="ShowMultiplayer_Click" AutomationProperties.Name="好友联机">
-                                <DockPanel LastChildFill="True">
-                                    <Border Width="38" Height="38" CornerRadius="10" Background="{StaticResource SoftAccentBrush}" Margin="0,0,10,0">
-                                        <Path Data="{StaticResource LinkIcon}" Style="{StaticResource ShortcutIcon}" />
-                                    </Border>
-                                    <TextBlock DockPanel.Dock="Right" Text="›" Foreground="{StaticResource MutedBrush}" FontSize="19" VerticalAlignment="Center" Margin="8,0,0,0" />
-                                    <TextBlock Text="好友联机" FontWeight="SemiBold" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                                </DockPanel>
-                            </Button>
-                        </UniformGrid>
+                        <Border Grid.Row="1" Style="{StaticResource Card}" Margin="0,17,0,0" Padding="18,14">
+                            <StackPanel>
+                                <TextBlock Text="最近启动" FontSize="15" FontWeight="SemiBold" />
+                                <ItemsControl x:Name="RecentGamesList" ItemsSource="{Binding RecentGames}" Margin="0,9,0,0">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate><UniformGrid Rows="1" /></ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Button Style="{StaticResource ShortcutButton}" Click="ChooseRecentVersion_Click" MinHeight="50"
+                                                    Padding="10,7" Margin="0,0,7,0" IsEnabled="{Binding DataContext.CanInteract, RelativeSource={RelativeSource AncestorType=ItemsControl}}">
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="28" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <Path Style="{StaticResource ShortcutIcon}" Data="{StaticResource VersionsIcon}" HorizontalAlignment="Left" />
+                                                    <StackPanel Grid.Column="1" Orientation="Vertical" Margin="0,0,12,0">
+                                                        <TextBlock Text="{Binding Version.DisplayName}" ToolTip="{Binding Version.DisplayName}"
+                                                                   FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                                                        <TextBlock Text="{Binding Version.Kind}" FontSize="11" Foreground="{StaticResource MutedBrush}" Margin="0,2,0,0" />
+                                                    </StackPanel>
+                                                    <TextBlock Grid.Column="2" Text="{Binding LastLaunch}" FontSize="11"
+                                                               Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center" />
+                                                </Grid>
+                                            </Button>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <TextBlock Text="启动过的版本会出现在这里，可以点选继续玩。" FontSize="12" Foreground="{StaticResource MutedBrush}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding HasItems, ElementName=RecentGamesList}" Value="False">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </StackPanel>
+                        </Border>
                         <Border Grid.Row="2" Style="{StaticResource Card}" Margin="0,17,0,12" Padding="19,15">
                             <Grid>
                                 <Grid.ColumnDefinitions>
@@ -434,22 +435,31 @@
                                             HorizontalAlignment="Left" Margin="4,5,4,15" MinWidth="126" Click="Launch_Click" IsEnabled="{Binding CanLaunch}" />
                                     <Border BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,1,0,0" Padding="4,12,4,0">
                                         <StackPanel>
-                                            <TextBlock Text="版本管理" FontSize="13" FontWeight="SemiBold" />
+                                            <TextBlock Text="版本文件" FontSize="13" FontWeight="SemiBold" />
                                             <TextBlock Text="{Binding ManagedVersionPath}" ToolTip="{Binding ManagedVersionPath}" Foreground="{StaticResource MutedBrush}"
                                                        FontSize="11" TextTrimming="CharacterEllipsis" Margin="0,5,0,9" />
                                             <WrapPanel>
-                                                <Button Content="打开文件夹" Click="OpenVersionFolder_Click" IsEnabled="{Binding CanOpenVersionFolder}" Margin="0,0,8,0" />
-                                                <Button x:Name="DeleteVersionButton" Content="删除版本" Foreground="#A22A4C" Background="#FFF1F5" BorderBrush="#E7B5C8"
-                                                        Click="DeleteSelectedVersion_Click" IsEnabled="{Binding CanDeleteVersion}" />
-                                            </WrapPanel>
-                                            <WrapPanel Margin="0,8,0,0">
-                                                <Button Content="备份存档" Click="BackupSaves_Click" IsEnabled="{Binding CanManageSaves}" Margin="0,0,8,5" />
-                                                <Button Content="恢复存档" Click="RestoreSaves_Click" IsEnabled="{Binding CanManageSaves}" Margin="0,0,8,5" />
+                                                <Button Content="打开版本文件夹" Click="OpenVersionFolder_Click" IsEnabled="{Binding CanOpenVersionFolder}" Padding="11,6" Margin="0,0,8,4" />
                                                 <Button Content="导出整合包" Click="ExportModpack_Click" IsEnabled="{Binding CanShareModpack}"
-                                                        Visibility="{Binding ManagedVersionIsModpack, Converter={StaticResource BoolVisibility}}" Margin="0,0,8,5"
+                                                        Visibility="{Binding ManagedVersionIsModpack, Converter={StaticResource BoolVisibility}}" Padding="11,6" Margin="0,0,0,4"
                                                         ToolTip="分享包包含模组、配置和资源包。请在发送前检查打包内容。" />
                                             </WrapPanel>
-                                            <TextBlock Text="{Binding VersionManagementHint}" Style="{StaticResource MutedText}" FontSize="11" Margin="0,7,0,0" />
+                                            <TextBlock Text="存档" FontSize="13" FontWeight="SemiBold" Margin="0,12,0,0" />
+                                            <TextBlock Text="{Binding SaveScopeHint}" Foreground="{StaticResource MutedBrush}"
+                                                       TextWrapping="Wrap" FontSize="11" Margin="0,4,0,7" />
+                                            <WrapPanel>
+                                                <Button Content="备份为 ZIP" Click="BackupSaves_Click" IsEnabled="{Binding CanManageSaves}"
+                                                        Padding="11,6" Margin="0,0,8,4" ToolTip="将存档保存为 ZIP，可在保存窗口选择位置。" />
+                                                <Button Content="从 ZIP 恢复" Click="RestoreSaves_Click" IsEnabled="{Binding CanManageSaves}"
+                                                        Padding="11,6" Margin="0,0,8,4" ToolTip="还原备份中的存档，并在旁边保留恢复前的存档。" />
+                                                <Button Content="打开默认备份目录" Click="OpenSaveBackups_Click" ToolTip="{Binding SaveBackupDirectory}"
+                                                        Padding="10,6" Background="Transparent" BorderThickness="0" Margin="0,0,0,4" />
+                                            </WrapPanel>
+                                            <Border BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,1,0,0" Padding="0,5,0,0" Margin="0,8,0,0">
+                                                <Button x:Name="DeleteVersionButton" Content="删除版本" Foreground="#A22A4C" Background="Transparent"
+                                                        BorderThickness="0" Padding="4,6" HorizontalAlignment="Right" ToolTip="{Binding VersionManagementHint}" ToolTipService.ShowOnDisabled="True"
+                                                        Click="DeleteSelectedVersion_Click" IsEnabled="{Binding CanDeleteVersion}" />
+                                            </Border>
                                         </StackPanel>
                                     </Border>
                                 </StackPanel>
@@ -634,17 +644,15 @@
                         <StackPanel>
                             <Border Style="{StaticResource Card}" Background="{StaticResource HeroBrush}" Padding="22">
                                 <StackPanel IsEnabled="{Binding CanEditLocalAppearance}">
-                                    <TextBlock Text="游戏内 ID（玩家名）" FontWeight="SemiBold" Margin="0,0,0,6" />
-                                    <TextBox x:Name="LocalPlayerNameBox" Text="{Binding PlayerName, UpdateSourceTrigger=PropertyChanged}" MaxLength="16"
-                                             AutomationProperties.Name="游戏内玩家名" />
-                                    <TextBlock Text="1–16 位英文字母、数字或下划线。改名后，部分存档里的背包或进度会按新玩家记录。"
-                                               Style="{StaticResource MutedText}" FontSize="11" Margin="0,5,0,13" />
                                     <Grid>
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="42*" /><ColumnDefinition Width="12" /><ColumnDefinition Width="58*" />
                                         </Grid.ColumnDefinitions>
-                                        <Border Style="{StaticResource Card}" Padding="12" VerticalAlignment="Top">
-                                            <StackPanel>
+                                        <Border Style="{StaticResource Card}" Padding="12">
+                                            <Grid>
+                                                <Grid.RowDefinitions>
+                                                    <RowDefinition Height="*" /><RowDefinition Height="Auto" />
+                                                </Grid.RowDefinitions>
                                                 <Border x:Name="CharacterStage" CornerRadius="10" Cursor="Hand"
                                                         MouseLeftButtonDown="CharacterPreview_MouseDown" MouseMove="CharacterPreview_MouseMove"
                                                         MouseLeftButtonUp="CharacterPreview_MouseUp" AutomationProperties.Name="角色 3D 预览">
@@ -654,9 +662,9 @@
                                                             <GradientStop Color="#FFF2E0F0" Offset="1" />
                                                         </LinearGradientBrush>
                                                     </Border.Background>
-                                                    <Viewport3D Width="218" Height="204" IsHitTestVisible="False" ClipToBounds="False">
+                                                    <Viewport3D x:Name="CharacterViewport" MaxWidth="260" MinHeight="272" IsHitTestVisible="False" ClipToBounds="True">
                                                         <Viewport3D.Camera>
-                                                            <OrthographicCamera Position="0,0,96" LookDirection="0,0,-1" UpDirection="0,1,0" Width="39" />
+                                                            <OrthographicCamera Position="0,0,96" LookDirection="0,0,-1" UpDirection="0,1,0" Width="34" />
                                                         </Viewport3D.Camera>
                                                         <ModelVisual3D>
                                                             <ModelVisual3D.Content>
@@ -685,125 +693,155 @@
                                                         </ModelVisual3D>
                                                     </Viewport3D>
                                                 </Border>
-                                                <WrapPanel HorizontalAlignment="Center" Margin="0,8,0,0">
-                                                    <Button Content="正面" Click="ShowCharacterFront_Click" Padding="10,5" Margin="0,0,6,0"
-                                                            AutomationProperties.Name="查看角色正面" />
-                                                    <Button Content="背面" Click="ShowCharacterBack_Click" Padding="10,5"
-                                                            AutomationProperties.Name="查看角色背面" />
-                                                </WrapPanel>
-                                                <TextBlock Text="拖动角色旋转" Style="{StaticResource MutedText}" FontSize="11"
-                                                           HorizontalAlignment="Center" Margin="0,6,0,0" />
-                                                <TextBlock Text="{Binding PublicAppearanceName, StringFormat=正在预览 · {0}}"
-                                                           Visibility="{Binding IsPreviewingPublicAppearance, Converter={StaticResource BoolVisibility}}"
-                                                           Foreground="{StaticResource AccentTextBrush}" FontSize="11"
-                                                           HorizontalAlignment="Center" Margin="0,5,0,0" />
-                                            </StackPanel>
+                                                <StackPanel Grid.Row="1">
+                                                    <WrapPanel HorizontalAlignment="Center" Margin="0,8,0,0">
+                                                        <Button Content="正面" Click="ShowCharacterFront_Click" Padding="10,5" Margin="0,0,6,0"
+                                                                AutomationProperties.Name="查看角色正面" />
+                                                        <Button Content="背面" Click="ShowCharacterBack_Click" Padding="10,5"
+                                                                AutomationProperties.Name="查看角色背面" />
+                                                    </WrapPanel>
+                                                    <TextBlock Text="拖动角色旋转" Style="{StaticResource MutedText}" FontSize="11"
+                                                               HorizontalAlignment="Center" Margin="0,6,0,0" />
+                                                    <TextBlock Text="{Binding PublicAppearanceName, StringFormat=正在预览 · {0}}"
+                                                               Visibility="{Binding IsPreviewingPublicAppearance, Converter={StaticResource BoolVisibility}}"
+                                                               Foreground="{StaticResource AccentTextBrush}" FontSize="11"
+                                                               HorizontalAlignment="Center" Margin="0,5,0,0" />
+                                                </StackPanel>
+                                            </Grid>
                                         </Border>
-                                        <StackPanel Grid.Column="2">
-                                            <Border Style="{StaticResource Card}" Padding="13">
-                                                <StackPanel>
-                                                    <TextBlock Text="皮肤" FontWeight="SemiBold" />
-                                                    <TextBlock Text="{Binding LocalSkinLabel}" Style="{StaticResource MutedText}" FontSize="11" Margin="0,0,0,5" />
-                                                    <WrapPanel>
-                                                        <Button Content="选择 PNG" Click="PickLocalSkin_Click" Padding="11,6" Margin="0,0,6,0" />
-                                                        <Button Content="清除" Click="ClearLocalSkin_Click" Padding="9,6" IsEnabled="{Binding HasLocalSkin}" />
-                                                    </WrapPanel>
-                                                    <CheckBox IsChecked="{Binding UseSlimSkin}" IsEnabled="{Binding HasLocalSkin}" Margin="0,8,0,0">
-                                                        <TextBlock Text="使用细手臂模型（Alex）" TextWrapping="Wrap" />
-                                                    </CheckBox>
-                                                </StackPanel>
-                                            </Border>
-                                            <Border Style="{StaticResource Card}" Padding="13" Margin="0,10,0,0">
-                                                <StackPanel>
-                                                    <TextBlock Text="披风" FontWeight="SemiBold" />
-                                                    <TextBlock Text="{Binding LocalCapeLabel}" Style="{StaticResource MutedText}" FontSize="11" Margin="0,0,0,5" />
-                                                    <WrapPanel>
-                                                        <Button Content="选择 PNG" Click="PickLocalCape_Click" Padding="11,6" Margin="0,0,6,0" />
-                                                        <Button Content="清除" Click="ClearLocalCape_Click" Padding="9,6" IsEnabled="{Binding HasLocalCape}" />
-                                                    </WrapPanel>
-                                                </StackPanel>
-                                            </Border>
-                                            <Border Style="{StaticResource Card}" Padding="13" Margin="0,10,0,0">
-                                                <StackPanel>
-                                                    <TextBlock Text="按 Java 玩家名导入" FontWeight="SemiBold" />
-                                                    <Grid Margin="0,7,0,0">
-                                                        <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" />
-                                                        </Grid.ColumnDefinitions>
-                                                        <TextBox Text="{Binding PublicPlayerName, UpdateSourceTrigger=PropertyChanged}"
-                                                                 MaxLength="16" KeyDown="PublicPlayerNameBox_KeyDown"
-                                                                 AutomationProperties.Name="要查询的 Java 玩家名" />
-                                                        <Button Grid.Column="1" Content="查询" Click="LookupPublicAppearance_Click" Margin="8,0,0,0" />
-                                                    </Grid>
-                                                    <TextBlock Text="{Binding PublicAppearanceStatus}" Style="{StaticResource MutedText}" FontSize="11"
-                                                               TextWrapping="Wrap" Margin="0,5,0,0" />
-                                                    <StackPanel Visibility="{Binding HasPublicAppearance, Converter={StaticResource BoolVisibility}}" Margin="0,6,0,0">
-                                                        <TextBlock Text="{Binding PublicAppearanceName}" FontWeight="SemiBold" />
-                                                        <TextBox Text="{Binding PublicAppearanceUuid, Mode=OneWay}" IsReadOnly="True"
-                                                                 FontSize="11" Margin="0,5,0,0" AutomationProperties.Name="公开角色 UUID" />
-                                                        <WrapPanel Margin="0,7,0,0">
-                                                            <Button Content="导入外观" Click="ImportPublicAppearance_Click" IsEnabled="{Binding HasPublicTextures}"
-                                                                    Padding="9,5" Margin="0,0,6,5" />
-                                                            <Button Content="使用玩家名" Click="UsePublicPlayerName_Click" Padding="9,5" Margin="0,0,6,5" />
-                                                            <Button Content="{Binding PublicPreviewButtonLabel}" Click="TogglePublicAppearancePreview_Click"
-                                                                    IsEnabled="{Binding HasPublicTextures}" Padding="9,5" Margin="0,0,0,5" />
-                                                        </WrapPanel>
+                                        <DockPanel Grid.Column="2" LastChildFill="True">
+                                            <StackPanel DockPanel.Dock="Bottom" Margin="0,11,0,0">
+                                                <CheckBox Content="启动时应用外观" IsChecked="{Binding ApplyLocalAppearance}" />
+                                                <TextBlock Text="首次使用需要联网安装外观组件。自定义外观仅在本机显示。"
+                                                           Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" FontSize="11" Margin="0,4,0,7" />
+                                                <DockPanel>
+                                                    <Button DockPanel.Dock="Right" Content="保存本地角色" Style="{StaticResource PrimaryButton}" Click="SaveLocalAppearance_Click" />
+                                                    <TextBlock Text="{Binding LocalAppearanceStatus}" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,8,0" FontSize="11" />
+                                                </DockPanel>
+                                            </StackPanel>
+                                            <StackPanel>
+                                                <Border Style="{StaticResource Card}" Padding="13">
+                                                    <StackPanel>
+                                                        <TextBlock Text="游戏内 ID（玩家名）" FontWeight="SemiBold" Margin="0,0,0,6" />
+                                                        <TextBox x:Name="LocalPlayerNameBox" Text="{Binding PlayerName, UpdateSourceTrigger=PropertyChanged}" MaxLength="16"
+                                                                 AutomationProperties.Name="游戏内玩家名" />
+                                                        <TextBlock Text="1–16 位英文字母、数字或下划线。改名后，部分存档里的背包或进度会按新玩家记录。"
+                                                                   Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" FontSize="11" Margin="0,5,0,0" />
                                                     </StackPanel>
-                                                </StackPanel>
-                                            </Border>
-                                        </StackPanel>
+                                                </Border>
+                                                <Border Style="{StaticResource Card}" Padding="13" Margin="0,10,0,0">
+                                                    <StackPanel>
+                                                        <DockPanel>
+                                                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                                                <Button Content="选择 PNG" Click="PickLocalSkin_Click" Padding="9,6" Margin="0,0,6,0" />
+                                                                <Button Content="清除" Click="ClearLocalSkin_Click" Padding="8,6" IsEnabled="{Binding HasLocalSkin}" />
+                                                            </StackPanel>
+                                                            <StackPanel Margin="0,0,8,0">
+                                                                <TextBlock Text="皮肤" FontWeight="SemiBold" />
+                                                                <TextBlock Text="{Binding LocalSkinLabel}" Foreground="{StaticResource MutedBrush}" FontSize="11" />
+                                                            </StackPanel>
+                                                        </DockPanel>
+                                                        <CheckBox IsChecked="{Binding UseSlimSkin}" IsEnabled="{Binding HasLocalSkin}" Margin="0,7,0,0">
+                                                            <TextBlock Text="使用细手臂模型（Alex）" TextWrapping="Wrap" />
+                                                        </CheckBox>
+                                                        <Border BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,1,0,0" Margin="0,10,0,0" Padding="0,10,0,0">
+                                                            <DockPanel>
+                                                                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                                                    <Button Content="选择 PNG" Click="PickLocalCape_Click" Padding="9,6" Margin="0,0,6,0" />
+                                                                    <Button Content="清除" Click="ClearLocalCape_Click" Padding="8,6" IsEnabled="{Binding HasLocalCape}" />
+                                                                </StackPanel>
+                                                                <StackPanel Margin="0,0,8,0">
+                                                                    <TextBlock Text="披风" FontWeight="SemiBold" />
+                                                                    <TextBlock Text="{Binding LocalCapeLabel}" Foreground="{StaticResource MutedBrush}" FontSize="11" />
+                                                                </StackPanel>
+                                                            </DockPanel>
+                                                        </Border>
+                                                    </StackPanel>
+                                                </Border>
+                                                <Border Style="{StaticResource Card}" Padding="13" Margin="0,10,0,0">
+                                                    <StackPanel>
+                                                        <TextBlock Text="按 Java 玩家名导入" FontWeight="SemiBold" />
+                                                        <Grid Margin="0,7,0,0">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <TextBox Text="{Binding PublicPlayerName, UpdateSourceTrigger=PropertyChanged}"
+                                                                     MaxLength="16" KeyDown="PublicPlayerNameBox_KeyDown"
+                                                                     AutomationProperties.Name="要查询的 Java 玩家名" />
+                                                            <Button Grid.Column="1" Content="查询" Click="LookupPublicAppearance_Click" Margin="8,0,0,0" />
+                                                        </Grid>
+                                                        <TextBlock Text="{Binding PublicAppearanceStatus}" Foreground="{StaticResource MutedBrush}" FontSize="11"
+                                                                   TextWrapping="Wrap" Margin="0,5,0,0">
+                                                            <TextBlock.Style>
+                                                                <Style TargetType="TextBlock">
+                                                                    <Style.Triggers>
+                                                                        <Trigger Property="Text" Value=""><Setter Property="Visibility" Value="Collapsed" /></Trigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </TextBlock.Style>
+                                                        </TextBlock>
+                                                        <StackPanel Visibility="{Binding HasPublicAppearance, Converter={StaticResource BoolVisibility}}" Margin="0,6,0,0">
+                                                            <TextBlock Text="{Binding PublicAppearanceName}" FontWeight="SemiBold" />
+                                                            <TextBox Text="{Binding PublicAppearanceUuid, Mode=OneWay}" IsReadOnly="True"
+                                                                     FontSize="11" Margin="0,5,0,0" AutomationProperties.Name="公开角色 UUID" />
+                                                            <WrapPanel Margin="0,7,0,0">
+                                                                <Button Content="导入外观" Click="ImportPublicAppearance_Click" IsEnabled="{Binding HasPublicTextures}"
+                                                                        Padding="9,5" Margin="0,0,6,5" />
+                                                                <Button Content="使用玩家名" Click="UsePublicPlayerName_Click" Padding="9,5" Margin="0,0,6,5" />
+                                                                <Button Content="{Binding PublicPreviewButtonLabel}" Click="TogglePublicAppearancePreview_Click"
+                                                                        IsEnabled="{Binding HasPublicTextures}" Padding="9,5" Margin="0,0,0,5" />
+                                                            </WrapPanel>
+                                                        </StackPanel>
+                                                    </StackPanel>
+                                                </Border>
+                                            </StackPanel>
+                                        </DockPanel>
                                     </Grid>
-                                    <CheckBox Content="启动时应用外观" IsChecked="{Binding ApplyLocalAppearance}" Margin="0,13,0,0" />
-                                    <TextBlock Text="首次使用需要联网安装外观组件。自定义皮肤和披风仅在本机显示。" Style="{StaticResource MutedText}"
-                                               FontSize="11" Margin="0,4,0,7" />
-                                    <WrapPanel>
-                                        <Button Content="保存本地角色" Style="{StaticResource PrimaryButton}" Click="SaveLocalAppearance_Click" />
-                                        <TextBlock Text="{Binding LocalAppearanceStatus}" TextWrapping="Wrap" MaxWidth="440"
-                                                   VerticalAlignment="Center" Margin="10,3,0,3" FontSize="11" />
-                                    </WrapPanel>
                                 </StackPanel>
                             </Border>
                             <Border Style="{StaticResource Card}" Padding="22" Margin="0,16,0,0">
-                                <StackPanel>
-                                    <TextBlock Text="从正版账号导入" FontSize="17" FontWeight="SemiBold" />
-                                    <TextBlock Text="登录微软账号，获取 Minecraft Java 版角色资料。游戏使用已保存的本地角色启动。"
-                                               Style="{StaticResource MutedText}" TextWrapping="Wrap" Margin="0,5,0,12" />
-                                    <WrapPanel>
-                                        <Button x:Name="ProfileSignInButton" Content="登录微软账号" Click="SignInForProfile_Click"
-                                                IsEnabled="{Binding CanSignInForProfile}" Margin="0,0,8,7" />
-                                        <Button x:Name="ProfileRefreshButton" Content="刷新资料" Click="RefreshOnlineProfile_Click"
-                                                IsEnabled="{Binding CanRefreshOnlineProfile}"
-                                                Visibility="{Binding HasOnlineProfile, Converter={StaticResource BoolVisibility}}" Margin="0,0,8,7" />
-                                        <Button x:Name="ProfileClearButton" Content="清除登录" Click="ClearOnlineProfile_Click"
-                                                Visibility="{Binding CanClearOnlineProfile, Converter={StaticResource BoolVisibility}}" Margin="0,0,8,7" />
-                                        <Button Content="取消" Click="CancelProfileOperation_Click"
-                                                Visibility="{Binding CanCancelProfileOperation, Converter={StaticResource BoolVisibility}}" Margin="0,0,0,7" />
-                                    </WrapPanel>
-                                    <StackPanel Visibility="{Binding HasOnlineProfile, Converter={StaticResource BoolVisibility}}" Margin="0,7,0,5">
-                                        <TextBlock Text="{Binding OnlineProfileName}" FontSize="18" FontWeight="SemiBold" />
-                                        <TextBlock Text="角色 UUID" Style="{StaticResource MutedText}" Margin="0,6,0,5" />
-                                        <TextBox Text="{Binding OnlineProfileId, Mode=OneWay}" IsReadOnly="True" AutomationProperties.Name="角色 UUID" />
-                                        <TextBlock Text="{Binding OnlineAppearanceSummary}" Style="{StaticResource MutedText}" Margin="0,8,0,8" />
+                                <Expander Header="从正版账号导入">
+                                    <StackPanel>
+
+                                        <TextBlock Text="登录微软账号，获取 Minecraft Java 版角色资料。游戏使用已保存的本地角色启动。"
+                                                   Style="{StaticResource MutedText}" TextWrapping="Wrap" Margin="0,5,0,12" />
                                         <WrapPanel>
-                                            <Button x:Name="ProfileNameButton" Content="使用这个昵称" Click="UseOnlineName_Click"
-                                                    IsEnabled="{Binding CanUseOnlineName}" Margin="0,0,8,7" />
-                                            <Button x:Name="ProfileSkinButton" Content="导入当前皮肤" Click="ImportOnlineSkin_Click"
-                                                    IsEnabled="{Binding CanImportOnlineSkin}" Margin="0,0,8,7" />
-                                            <Button x:Name="ProfileCapeButton" Content="导入当前披风" Click="ImportOnlineCape_Click"
-                                                    IsEnabled="{Binding CanImportOnlineCape}" Margin="0,0,0,7" />
+                                            <Button x:Name="ProfileSignInButton" Content="登录微软账号" Click="SignInForProfile_Click"
+                                                    IsEnabled="{Binding CanSignInForProfile}" Margin="0,0,8,7" />
+                                            <Button x:Name="ProfileRefreshButton" Content="刷新资料" Click="RefreshOnlineProfile_Click"
+                                                    IsEnabled="{Binding CanRefreshOnlineProfile}"
+                                                    Visibility="{Binding HasOnlineProfile, Converter={StaticResource BoolVisibility}}" Margin="0,0,8,7" />
+                                            <Button x:Name="ProfileClearButton" Content="清除登录" Click="ClearOnlineProfile_Click"
+                                                    Visibility="{Binding CanClearOnlineProfile, Converter={StaticResource BoolVisibility}}" Margin="0,0,8,7" />
+                                            <Button Content="取消" Click="CancelProfileOperation_Click"
+                                                    Visibility="{Binding CanCancelProfileOperation, Converter={StaticResource BoolVisibility}}" Margin="0,0,0,7" />
                                         </WrapPanel>
-                                    </StackPanel>
-                                    <TextBlock Text="{Binding OnlineProfileStatus}" Style="{StaticResource MutedText}"
-                                               TextWrapping="Wrap" Margin="0,0,0,8" />
-                                    <Expander Header="启动器应用 ID" IsEnabled="{Binding CanEditLocalAppearance}">
-                                        <StackPanel Margin="0,10,0,0">
-                                            <TextBlock Text="填写已取得 Minecraft 接口访问许可的应用（客户端）ID。"
-                                                       Style="{StaticResource MutedText}" TextWrapping="Wrap" Margin="0,0,0,6" />
-                                            <TextBox Text="{Binding MicrosoftClientId, UpdateSourceTrigger=PropertyChanged}" MaxLength="64"
-                                                     AutomationProperties.Name="启动器应用 ID" />
+                                        <StackPanel Visibility="{Binding HasOnlineProfile, Converter={StaticResource BoolVisibility}}" Margin="0,7,0,5">
+                                            <TextBlock Text="{Binding OnlineProfileName}" FontSize="18" FontWeight="SemiBold" />
+                                            <TextBlock Text="角色 UUID" Style="{StaticResource MutedText}" Margin="0,6,0,5" />
+                                            <TextBox Text="{Binding OnlineProfileId, Mode=OneWay}" IsReadOnly="True" AutomationProperties.Name="角色 UUID" />
+                                            <TextBlock Text="{Binding OnlineAppearanceSummary}" Style="{StaticResource MutedText}" Margin="0,8,0,8" />
+                                            <WrapPanel>
+                                                <Button x:Name="ProfileNameButton" Content="使用这个昵称" Click="UseOnlineName_Click"
+                                                        IsEnabled="{Binding CanUseOnlineName}" Margin="0,0,8,7" />
+                                                <Button x:Name="ProfileSkinButton" Content="导入当前皮肤" Click="ImportOnlineSkin_Click"
+                                                        IsEnabled="{Binding CanImportOnlineSkin}" Margin="0,0,8,7" />
+                                                <Button x:Name="ProfileCapeButton" Content="导入当前披风" Click="ImportOnlineCape_Click"
+                                                        IsEnabled="{Binding CanImportOnlineCape}" Margin="0,0,0,7" />
+                                            </WrapPanel>
                                         </StackPanel>
-                                    </Expander>
-                                </StackPanel>
+                                        <TextBlock Text="{Binding OnlineProfileStatus}" Style="{StaticResource MutedText}"
+                                                   TextWrapping="Wrap" Margin="0,0,0,8" />
+                                        <Expander Header="启动器应用 ID" IsEnabled="{Binding CanEditLocalAppearance}">
+                                            <StackPanel Margin="0,10,0,0">
+                                                <TextBlock Text="填写已取得 Minecraft 接口访问许可的应用（客户端）ID。"
+                                                           Style="{StaticResource MutedText}" TextWrapping="Wrap" Margin="0,0,0,6" />
+                                                <TextBox Text="{Binding MicrosoftClientId, UpdateSourceTrigger=PropertyChanged}" MaxLength="64"
+                                                         AutomationProperties.Name="启动器应用 ID" />
+                                            </StackPanel>
+                                        </Expander>
+                                    </StackPanel>
+                                </Expander>
                             </Border>
                         </StackPanel>
                     </Grid>
@@ -813,6 +851,7 @@
                                 <TextBlock Text="游戏与档案" FontSize="17" FontWeight="SemiBold" Margin="0,0,0,20" />
                                 <TextBlock Text="游戏文件夹" FontSize="12" Margin="0,0,0,8" />
                                 <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><TextBox Text="{Binding GameDirectory, UpdateSourceTrigger=PropertyChanged}" ToolTip="选择包含 versions、libraries 和 assets 的游戏目录" /><Button Grid.Column="1" Content="浏览…" Margin="10,0,0,0" Click="BrowseGame_Click" IsEnabled="{Binding CanInteract}" /></Grid>
+                                <TextBlock Text="MCL 从这里读取已安装版本，并将新下载的游戏和资源保存到此处。" Style="{StaticResource MutedText}" FontSize="11" Margin="0,5,0,0" />
                                 <TextBlock Text="本地玩家名称" FontSize="12" Margin="0,21,0,8" /><TextBox Text="{Binding PlayerName, UpdateSourceTrigger=PropertyChanged}" MaxLength="16" />
                                 <TextBlock Text="使用 1–16 位英文字母、数字或下划线。" Style="{StaticResource MutedText}" FontSize="11" Margin="0,7,0,0" />
                             </StackPanel></Border>

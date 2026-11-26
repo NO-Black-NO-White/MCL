@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Diagnostics;
 using Microsoft.Win32;
 using MCL.Services;
 
@@ -11,6 +12,25 @@ public partial class MainWindow
         && !MultiplayerActive && SelectedVersion is { IsValid: true };
     public bool CanShareModpack => CanManageSaves && SelectedVersion?.ModpackName is not null;
     public bool CanCompareModpack => !IsBusy && (_runningGame ?? SelectedVersion) is { IsValid: true };
+    public string SaveBackupDirectory
+    {
+        get
+        {
+            var documents = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+            return Path.Combine(string.IsNullOrWhiteSpace(documents) ? _store.DataDirectory : Path.Combine(documents, "MCL"), "存档备份");
+        }
+    }
+
+    private void OpenSaveBackups_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var folder = Directory.CreateDirectory(SaveBackupDirectory).FullName;
+            Process.Start(new ProcessStartInfo(folder) { UseShellExecute = true });
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.ComponentModel.Win32Exception)
+        { ReportError("无法打开备份目录", ex); }
+    }
 
     private async void ExportModpack_Click(object sender, RoutedEventArgs e)
     {
@@ -70,21 +90,28 @@ public partial class MainWindow
         {
             Title = version.ModpackName is null ? "备份此游戏目录共享的存档" : "备份此整合包的存档",
             Filter = "MCL 存档备份 (*.zip)|*.zip",
-            FileName = $"MCL-saves-{DateTime.Now:yyyyMMdd-HHmmss}.zip"
+            FileName = $"MCL-saves-{DateTime.Now:yyyyMMdd-HHmmss}.zip",
+            InitialDirectory = PrepareBackupDirectory()
         };
         if (dialog.ShowDialog(this) != true) return;
         await RunBusyAsync(async () =>
         {
             StatusMessage = "正在备份存档…";
             await LocalContentArchive.BackupSavesAsync(GameDirectoryResolver.Normalize(GameDirectory), version, dialog.FileName, _lifetime.Token);
-            StatusMessage = $"存档备份已保存：{Path.GetFileName(dialog.FileName)}。";
+            StatusMessage = $"存档备份已保存到 {dialog.FileName}";
+            _log.Info(StatusMessage);
         });
     }
 
     private async void RestoreSaves_Click(object sender, RoutedEventArgs e)
     {
         if (!CanManageSaves || SelectedVersion is not { } version) return;
-        var dialog = new OpenFileDialog { Title = "选择 MCL 存档备份 ZIP", Filter = "MCL 存档备份 (*.zip)|*.zip" };
+        var dialog = new OpenFileDialog
+        {
+            Title = "选择 MCL 存档备份 ZIP",
+            Filter = "MCL 存档备份 (*.zip)|*.zip",
+            InitialDirectory = Directory.Exists(SaveBackupDirectory) ? SaveBackupDirectory : ""
+        };
         if (dialog.ShowDialog(this) != true) return;
         var location = version.ModpackName is null ? "此游戏目录下多个原版共用的存档" : $"「{version.DisplayName}」的存档";
         if (MessageBox.Show(this, $"将用备份替换{location}。原存档文件夹会留在旁边，方便找回。\n\n现在恢复吗？",
@@ -97,5 +124,15 @@ public partial class MainWindow
             StatusMessage = previous is null ? "存档已恢复。" : $"存档已恢复。原存档保留在 {Path.GetFileName(previous)}。";
             if (previous is not null) _log.Info($"恢复前的存档目录：{previous}");
         });
+    }
+
+    private string PrepareBackupDirectory()
+    {
+        try { return Directory.CreateDirectory(SaveBackupDirectory).FullName; }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _log.Warn($"默认备份目录不可用：{ex.Message}");
+            return "";
+        }
     }
 }

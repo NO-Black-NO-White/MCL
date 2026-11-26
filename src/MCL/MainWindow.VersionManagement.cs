@@ -26,6 +26,9 @@ public partial class MainWindow
     public string ManagedVersionLoader => SelectedVersion?.ModpackLoader ?? SelectedVersion?.Kind ?? "";
     public bool ManagedVersionNeedsAttention => SelectedVersion is { IsValid: false };
     public bool ManagedVersionIsModpack => SelectedVersion?.ModpackName is not null;
+    public string SaveScopeHint => ManagedVersionIsModpack
+        ? "仅备份和恢复这个整合包的存档。"
+        : "此游戏文件夹下的原版共用同一个存档目录。";
     public bool ManagedVersionHasPackVersion => SelectedVersion?.ModpackVersion is { Length: > 0 } version
         && !version.StartsWith("ZIP-", StringComparison.Ordinal);
     public string ManagedVersionPath => SelectedVersion is { } version
@@ -36,7 +39,7 @@ public partial class MainWindow
     {
         Notify(nameof(CanOpenVersionFolder), nameof(CanDeleteVersion), nameof(CanManageSaves), nameof(CanShareModpack), nameof(ManagedVersionTitle), nameof(ManagedVersionPath),
             nameof(ManagedMinecraftVersion), nameof(ManagedVersionArtwork), nameof(ManagedVersionLoader), nameof(ManagedVersionHasPackVersion),
-            nameof(ManagedVersionNeedsAttention), nameof(ManagedVersionIsModpack), nameof(VersionManagementHint));
+            nameof(ManagedVersionNeedsAttention), nameof(ManagedVersionIsModpack), nameof(SaveScopeHint), nameof(VersionManagementHint));
         if (VersionManagementCard is not null) VersionManagementCard.Visibility = SelectedVersion is null ? Visibility.Collapsed : Visibility.Visible;
     }
 
