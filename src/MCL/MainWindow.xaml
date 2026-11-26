@@ -490,33 +490,61 @@
                                         <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="12" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                                         <Border Style="{StaticResource Card}" Padding="13">
                                             <DockPanel>
-                                                <Border Width="44" Height="50" CornerRadius="8" Background="{StaticResource SoftAccentBrush}" Margin="0,0,10,0" VerticalAlignment="Top">
+                                                <Border Width="96" Height="144" CornerRadius="10" Background="{StaticResource SoftAccentBrush}" Margin="0,0,12,0"
+                                                        VerticalAlignment="Top" ToolTip="皮肤正面预览">
                                                     <Grid>
-                                                        <Path Data="{StaticResource AccountIcon}" Style="{StaticResource ShortcutIcon}" />
-                                                        <Image Source="{Binding LocalAvatar}" Width="32" Height="32" RenderOptions.BitmapScalingMode="NearestNeighbor" />
+                                                        <Path Data="{StaticResource AccountIcon}">
+                                                            <Path.Style>
+                                                                <Style TargetType="Path" BasedOn="{StaticResource ShortcutIcon}">
+                                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding LocalSkinPreview}" Value="{x:Null}">
+                                                                            <Setter Property="Visibility" Value="Visible" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Path.Style>
+                                                        </Path>
+                                                        <Image Source="{Binding LocalSkinPreview}" Width="64" Height="128" UseLayoutRounding="True"
+                                                               AutomationProperties.Name="皮肤正面预览" RenderOptions.BitmapScalingMode="NearestNeighbor" />
                                                     </Grid>
                                                 </Border>
-                                                <StackPanel>
+                                                <StackPanel VerticalAlignment="Center">
                                                     <TextBlock Text="皮肤" FontWeight="SemiBold" />
                                                     <TextBlock Text="{Binding LocalSkinLabel}" Style="{StaticResource MutedText}" FontSize="11" Margin="0,0,0,5" />
                                                     <WrapPanel>
                                                         <Button Content="选择 PNG" Click="PickLocalSkin_Click" Padding="11,6" Margin="0,0,6,0" />
                                                         <Button Content="清除" Click="ClearLocalSkin_Click" Padding="9,6" IsEnabled="{Binding HasLocalSkin}" />
                                                     </WrapPanel>
-                                                    <CheckBox Content="使用细手臂模型（Alex）" IsChecked="{Binding UseSlimSkin}"
-                                                              IsEnabled="{Binding HasLocalSkin}" Margin="0,8,0,0" />
+                                                    <CheckBox IsChecked="{Binding UseSlimSkin}"
+                                                              IsEnabled="{Binding HasLocalSkin}" Margin="0,8,0,0">
+                                                        <TextBlock Text="使用细手臂模型（Alex）" TextWrapping="Wrap" />
+                                                    </CheckBox>
                                                 </StackPanel>
                                             </DockPanel>
                                         </Border>
                                         <Border Grid.Column="2" Style="{StaticResource Card}" Padding="13">
                                             <DockPanel>
-                                                <Border Width="44" Height="50" CornerRadius="8" Background="{StaticResource SoftAccentBrush}" Margin="0,0,10,0" VerticalAlignment="Top">
+                                                <Border Width="96" Height="144" CornerRadius="10" Background="{StaticResource SoftAccentBrush}" Margin="0,0,12,0"
+                                                        VerticalAlignment="Top" ToolTip="披风预览">
                                                     <Grid>
-                                                        <Path Data="{StaticResource PackIcon}" Style="{StaticResource ShortcutIcon}" />
-                                                        <Image Source="{Binding LocalCapePreview}" Width="24" Height="38" RenderOptions.BitmapScalingMode="NearestNeighbor" />
+                                                        <Path Data="{StaticResource PackIcon}">
+                                                            <Path.Style>
+                                                                <Style TargetType="Path" BasedOn="{StaticResource ShortcutIcon}">
+                                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding LocalCapePreview}" Value="{x:Null}">
+                                                                            <Setter Property="Visibility" Value="Visible" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Path.Style>
+                                                        </Path>
+                                                        <Image Source="{Binding LocalCapePreview}" Width="70" Height="112" UseLayoutRounding="True"
+                                                               AutomationProperties.Name="披风预览" RenderOptions.BitmapScalingMode="NearestNeighbor" />
                                                     </Grid>
                                                 </Border>
-                                                <StackPanel>
+                                                <StackPanel VerticalAlignment="Center">
                                                     <TextBlock Text="披风" FontWeight="SemiBold" />
                                                     <TextBlock Text="{Binding LocalCapeLabel}" Style="{StaticResource MutedText}" FontSize="11" Margin="0,0,0,5" />
                                                     <WrapPanel>
