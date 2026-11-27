@@ -221,6 +221,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         PageTitle = page switch { "Versions" => "游戏版本", "Downloads" => "下载游戏", "Modpacks" => "导入整合包", "Multiplayer" => "好友联机", "Appearance" => "本地角色", "Settings" => "启动设置", "LauncherSettings" => "启动器设置", "Logs" => "运行日志", _ => "首页" };
         if (changed)
         {
+            ClearThemeReveal();
             PageScroll.ScrollToTop();
             AnimatePage();
             RevealSelectedVersion();
@@ -488,6 +489,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             }
         }
         _closing = true;
+        ClearThemeReveal();
         _installCancellation?.Cancel();
         _previewCancellation?.Cancel();
         _multiplayerCancellation?.Cancel();

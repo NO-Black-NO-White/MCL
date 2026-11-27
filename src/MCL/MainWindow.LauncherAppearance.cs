@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
 using Microsoft.Win32;
 using MCL.Models;
@@ -46,8 +47,8 @@ public partial class MainWindow
 
     private void Theme_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is RadioButton { Tag: string theme })
-            SaveLauncherAppearance(_launcherAppearance with { Theme = theme });
+        if (sender is RadioButton { Tag: string theme } card)
+            SaveLauncherAppearance(_launcherAppearance with { Theme = theme }, card);
     }
 
     private void ReduceMotion_Click(object sender, RoutedEventArgs e)
@@ -56,24 +57,95 @@ public partial class MainWindow
             SaveLauncherAppearance(_launcherAppearance with { ReduceMotion = option.IsChecked == true });
     }
 
-    private void SaveLauncherAppearance(LauncherAppearance appearance)
+    private void SaveLauncherAppearance(LauncherAppearance appearance, FrameworkElement? themeCard = null)
     {
+        if (appearance == _launcherAppearance) return;
         try
         {
             _appearanceStore.Save(appearance);
             var themeChanged = appearance.Theme != _launcherAppearance.Theme;
+            if (themeChanged && themeCard is not null && AnimatePages)
+                RevealLauncherTheme(themeCard);
+            else
+                ClearThemeReveal();
             _launcherAppearance = appearance;
             if (themeChanged)
             {
                 ApplyLauncherTheme();
                 ApplyWindowCaption(this);
             }
-            StatusMessage = "启动器外观已保存。";
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         { ReportError("外观设置未保存", ex); }
         finally { Notify(nameof(IsCherryTheme), nameof(IsAmethystTheme), nameof(ReduceMotion)); }
     }
+
+    private void RevealLauncherTheme(FrameworkElement card)
+    {
+        var size = RootLayout.RenderSize;
+        if (!IsLoaded || size.Width < 1 || size.Height < 1 || !card.IsVisible || !RootLayout.IsAncestorOf(card))
+        {
+            ClearThemeReveal();
+            return;
+        }
+
+        var center = card.TranslatePoint(new Point(card.ActualWidth / 2, card.ActualHeight / 2), RootLayout);
+        var dpi = VisualTreeHelper.GetDpi(RootLayout);
+        var scale = Math.Min(dpi.DpiScaleX, Math.Min(2560 / size.Width, 1600 / size.Height));
+        var frame = new RenderTargetBitmap((int)Math.Ceiling(size.Width * scale), (int)Math.Ceiling(size.Height * scale),
+            96 * scale, 96 * scale, PixelFormats.Pbgra32);
+        var visual = new DrawingVisual();
+        using (var drawing = visual.RenderOpen())
+        {
+            drawing.DrawRectangle(new VisualBrush(RootLayout) { AutoLayoutContent = false },
+                null, new Rect(size));
+        }
+        frame.Render(visual);
+        frame.Freeze();
+
+        // Keep the previous frame outside the feathered edge while revealing the live theme underneath.
+        const double clearEdge = 0.76;
+        var dx = Math.Max(center.X, size.Width - center.X);
+        var dy = Math.Max(center.Y, size.Height - center.Y);
+        var radius = Math.Sqrt(dx * dx + dy * dy) / clearEdge + 2;
+        var mask = new RadialGradientBrush(Colors.Transparent, Colors.Black)
+        {
+            MappingMode = BrushMappingMode.Absolute,
+            Center = center,
+            GradientOrigin = center,
+            RadiusX = radius,
+            RadiusY = radius
+        };
+        mask.GradientStops.Insert(1, new GradientStop(Colors.Transparent, clearEdge));
+        ThemeRevealLayer.OpacityMask = mask;
+        ThemeRevealLayer.Source = frame;
+
+        var expansion = new DoubleAnimation(1, radius, TimeSpan.FromMilliseconds(720))
+        {
+            EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut },
+            FillBehavior = FillBehavior.Stop
+        };
+        expansion.Completed += (_, _) =>
+        {
+            if (ReferenceEquals(ThemeRevealLayer.OpacityMask, mask)) ClearThemeReveal();
+        };
+        mask.BeginAnimation(RadialGradientBrush.RadiusXProperty, expansion);
+        mask.BeginAnimation(RadialGradientBrush.RadiusYProperty, expansion);
+    }
+
+    private void ClearThemeReveal()
+    {
+        if (ThemeRevealLayer?.Source is null) return;
+        if (ThemeRevealLayer.OpacityMask is RadialGradientBrush mask)
+        {
+            mask.BeginAnimation(RadialGradientBrush.RadiusXProperty, null);
+            mask.BeginAnimation(RadialGradientBrush.RadiusYProperty, null);
+        }
+        ThemeRevealLayer.Source = null;
+        ThemeRevealLayer.OpacityMask = null;
+    }
+
+    private void RootLayout_SizeChanged(object sender, SizeChangedEventArgs e) => ClearThemeReveal();
 
     private string? GetCoverPath(bool save)
     {

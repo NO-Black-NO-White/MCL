@@ -45,8 +45,6 @@ public partial class MainWindow
     public bool CanEditLocalAppearance => !IsBusy && !IsGameRunning;
     public bool HasLocalSkin => _localSkin is not null;
     public bool HasLocalCape => _localCape is not null;
-    public string LocalSkinLabel => HasLocalSkin ? "已选皮肤" : "默认皮肤";
-    public string LocalCapeLabel => HasLocalCape ? "已选披风" : "无自定义披风";
     public string LocalAppearanceStatus { get => _localAppearanceStatus; private set => Set(ref _localAppearanceStatus, value); }
 
     private void LoadLocalAppearance(LauncherSettings settings)
@@ -219,7 +217,7 @@ public partial class MainWindow
     {
         SetPublicPreview(false);
         UpdateCharacterPreview();
-        Notify(nameof(HasLocalSkin), nameof(HasLocalCape), nameof(LocalSkinLabel), nameof(LocalCapeLabel));
+        Notify(nameof(HasLocalSkin), nameof(HasLocalCape));
         NotifySettingsChanged();
         LocalAppearanceStatus = "已修改外观。点击「保存本地角色」应用。";
     }
