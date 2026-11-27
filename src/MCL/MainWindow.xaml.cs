@@ -43,6 +43,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     {
         _offlinePreview = offlinePreview;
         _store = new SettingsStore(dataDirectory);
+        _appearanceStore = new LauncherAppearanceStore(_store.DataDirectory);
+        _launcherAppearance = _appearanceStore.Load();
+        ApplyLauncherTheme();
         _log = new LogService(_store.DataDirectory);
         _log.EntryAdded += OnLogEntry;
         _profileService = accountService ?? new MicrosoftAccountService();
@@ -100,6 +103,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             NotifyMultiplayer();
             AnimateVersionArtwork();
             _ = RefreshHomeSavesAsync();
+            Notify(nameof(CanPickVersionCover), nameof(CanUseLatestScreenshot));
+            _ = RefreshCoverAsync(save: false);
         }
     }
 
@@ -186,9 +191,10 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         MultiplayerPage.Visibility = page == "Multiplayer" ? Visibility.Visible : Visibility.Collapsed;
         AppearancePage.Visibility = page == "Appearance" ? Visibility.Visible : Visibility.Collapsed;
         SettingsPage.Visibility = page == "Settings" ? Visibility.Visible : Visibility.Collapsed;
+        LauncherSettingsPage.Visibility = page == "LauncherSettings" ? Visibility.Visible : Visibility.Collapsed;
         LogsPage.Visibility = page == "Logs" ? Visibility.Visible : Visibility.Collapsed;
         FooterSaveButton.Visibility = page == "Settings" ? Visibility.Visible : Visibility.Collapsed;
-        PageTitle = page switch { "Versions" => "游戏版本", "Downloads" => "下载游戏", "Modpacks" => "导入整合包", "Multiplayer" => "好友联机", "Appearance" => "本地角色", "Settings" => "启动设置", "Logs" => "运行日志", _ => "首页" };
+        PageTitle = page switch { "Versions" => "游戏版本", "Downloads" => "下载游戏", "Modpacks" => "导入整合包", "Multiplayer" => "好友联机", "Appearance" => "本地角色", "Settings" => "启动设置", "LauncherSettings" => "启动器设置", "Logs" => "运行日志", _ => "首页" };
         if (changed)
         {
             PageScroll.ScrollToTop();
@@ -201,7 +207,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void AnimatePage()
     {
-        if (!IsLoaded || _offlinePreview || !SystemParameters.ClientAreaAnimation) return;
+        if (!IsLoaded || _offlinePreview || !AnimatePages) return;
         var duration = TimeSpan.FromMilliseconds(210);
         var ease = new CubicEase { EasingMode = EasingMode.EaseOut };
         PageContent.BeginAnimation(OpacityProperty, new DoubleAnimation(0.58, 1, duration)
@@ -313,12 +319,13 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         ct.ThrowIfCancellationRequested();
         _runningGame = version;
         _runningForGuest = joiningFriend;
+        BeginScreenshotSession(version);
         try
         {
             if (appearance is null) await _launcher.LaunchAsync(settings, version, java, ct, joiningFriend);
             else await _launcher.LaunchWithAppearanceAsync(settings, version, java, appearance, ct, joiningFriend);
         }
-        catch { _runningGame = null; _runningForGuest = false; throw; }
+        catch { _runningGame = null; _runningForGuest = false; _screenshotSession = null; throw; }
         RememberLaunch(settings.GameDirectory, version.Id);
         StatusMessage = "启动命令已执行。游戏输出会显示在运行日志中。";
     }
@@ -387,6 +394,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             if (_hostingRoom || _guestUsesGame) EndMultiplayer("游戏已退出，联机已结束。");
             NotifyMultiplayer();
             _ = RefreshHomeSavesAsync();
+            _ = CompleteScreenshotSessionAsync();
             StatusMessage = "游戏进程已结束，详细信息可在运行日志中查看。";
         }
     }
@@ -424,20 +432,28 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (_profileService is IDisposable profileService) profileService.Dispose();
     }
 
-    private void Window_SourceInitialized(object? sender, EventArgs e)
+    private void Window_SourceInitialized(object? sender, EventArgs e) => ApplyWindowCaption(this);
+
+    internal static void ApplyWindowCaption(Window window)
     {
         try
         {
-            var handle = new WindowInteropHelper(this).Handle;
-            var darkMode = 0;
-            var captionColor = 0x00FBF8FF; // Windows COLORREF: #FFF8FB.
-            var captionTextColor = 0x00392D43; // #432D39.
+            var handle = new WindowInteropHelper(window).Handle;
+            var darkMode = Application.Current.Resources.MergedDictionaries[0].Source.OriginalString.EndsWith("Amethyst.xaml", StringComparison.Ordinal) ? 1 : 0;
+            var captionColor = CaptionColor("SidebarBrush");
+            var captionTextColor = CaptionColor("TextBrush");
             DwmSetWindowAttribute(handle, 20, ref darkMode, sizeof(int));
             DwmSetWindowAttribute(handle, 35, ref captionColor, sizeof(int));
             DwmSetWindowAttribute(handle, 36, ref captionTextColor, sizeof(int));
         }
         catch (DllNotFoundException) { }
         catch (EntryPointNotFoundException) { }
+    }
+
+    private static int CaptionColor(string key)
+    {
+        var color = ((System.Windows.Media.SolidColorBrush)Application.Current.FindResource(key)).Color;
+        return color.R | (color.G << 8) | (color.B << 16);
     }
 
     [DllImport("dwmapi.dll")]
@@ -465,10 +481,10 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (SettingsPage.IsEnabled || HomeVersionPicker.IsEnabled || VersionList.IsEnabled || RemoteVersionList.IsEnabled || LaunchSelectedVersionButton.IsEnabled
             || CanStop || CanInstall) throw new InvalidOperationException("Input must be disabled while a task is active.");
         IsBusy = false;
-        foreach (var page in new[] { "Versions", "Downloads", "Modpacks", "Multiplayer", "Appearance", "Settings", "Logs", "Home" })
+        foreach (var page in new[] { "Versions", "Downloads", "Modpacks", "Multiplayer", "Appearance", "Settings", "LauncherSettings", "Logs", "Home" })
         {
             SelectSmokePage(page);
-            var visible = new[] { HomePage, VersionsPage, DownloadsPage, ModpacksPage, MultiplayerPage, AppearancePage, SettingsPage, LogsPage }.Count(panel => panel.Visibility == Visibility.Visible);
+            var visible = new[] { HomePage, VersionsPage, DownloadsPage, ModpacksPage, MultiplayerPage, AppearancePage, SettingsPage, LauncherSettingsPage, LogsPage }.Count(panel => panel.Visibility == Visibility.Visible);
             if (visible != 1) throw new InvalidOperationException("Navigation did not select exactly one page.");
         }
         if (HomeVersionPicker.Items.Count != Versions.Count || HomeVersionPicker.IsEnabled != (Versions.Count > 0))
@@ -558,7 +574,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     public void SelectSmokePage(string page)
     {
-        var button = page switch { "Versions" => VersionsNav, "Downloads" => DownloadsNav, "Modpacks" => ModpacksNav, "Multiplayer" => MultiplayerNav, "Appearance" => AppearanceNav, "Settings" => SettingsNav, "Logs" => LogsNav, _ => HomeNav };
+        var button = page switch { "Versions" => VersionsNav, "Downloads" => DownloadsNav, "Modpacks" => ModpacksNav, "Multiplayer" => MultiplayerNav, "Appearance" => AppearanceNav, "Settings" => SettingsNav, "LauncherSettings" => LauncherSettingsNav, "Logs" => LogsNav, _ => HomeNav };
         button.IsChecked = true;
         Navigate(page);
     }

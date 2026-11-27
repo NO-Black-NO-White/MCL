@@ -59,7 +59,7 @@ public partial class App : Application
             {
                 var screenshotPath = Path.GetFullPath(e.Args[smokeIndex + 1]);
                 Directory.CreateDirectory(Path.GetDirectoryName(screenshotPath)!);
-                foreach (var page in new[] { "Home", "Versions", "Downloads", "Modpacks", "Multiplayer", "Appearance", "Settings", "Logs" })
+                foreach (var page in new[] { "Home", "Versions", "Downloads", "Modpacks", "Multiplayer", "Appearance", "Settings", "LauncherSettings", "Logs" })
                 {
                     window.SelectSmokePage(page);
                     visual.UpdateLayout();

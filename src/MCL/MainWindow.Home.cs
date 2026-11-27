@@ -23,7 +23,12 @@ public partial class MainWindow
     public SavePreview? SelectedHomeSave
     {
         get => _selectedHomeSave;
-        set { if (Set(ref _selectedHomeSave, value)) Notify(nameof(HasHomeSave)); }
+        set
+        {
+            if (!Set(ref _selectedHomeSave, value)) return;
+            Notify(nameof(HasHomeSave), nameof(CanUseLatestScreenshot));
+            _ = RefreshCoverAsync(save: true);
+        }
     }
 
     internal async Task RefreshHomeSavesAsync()

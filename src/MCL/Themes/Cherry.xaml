@@ -1,0 +1,60 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <SolidColorBrush x:Key="BackgroundBrush" Color="#FBF6F8" />
+    <SolidColorBrush x:Key="PanelBrush" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="BorderBrush" Color="#EDDBE3" />
+    <SolidColorBrush x:Key="TextBrush" Color="#352332" />
+    <SolidColorBrush x:Key="MutedBrush" Color="#745969" />
+    <SolidColorBrush x:Key="AccentBrush" Color="#BC3268" />
+    <SolidColorBrush x:Key="AccentTextBrush" Color="#9D2857" />
+    <SolidColorBrush x:Key="AccentForegroundBrush" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="SoftAccentBrush" Color="#FBE6EE" />
+    <SolidColorBrush x:Key="HoverBrush" Color="#FFF1F6" />
+    <SolidColorBrush x:Key="SidebarBrush" Color="#FFFAFC" />
+    <SolidColorBrush x:Key="InputBorderBrush" Color="#DCC0CF" />
+    <SolidColorBrush x:Key="DividerBrush" Color="#F0E1E9" />
+    <SolidColorBrush x:Key="HeroBrush" Color="#FFF0F6" />
+    <SolidColorBrush x:Key="HeroBorderBrush" Color="#F0CFDF" />
+    <SolidColorBrush x:Key="LogBackgroundBrush" Color="#FFFCFE" />
+    <SolidColorBrush x:Key="LogTextBrush" Color="#604251" />
+    <SolidColorBrush x:Key="ButtonTextBrush" Color="#663A4D" />
+    <SolidColorBrush x:Key="ButtonGlowBrush" Color="#12BE3C71" />
+    <SolidColorBrush x:Key="ButtonPressedBrush" Color="#F5D4E3" />
+    <SolidColorBrush x:Key="PrimaryHoverBrush" Color="#A53763" />
+    <SolidColorBrush x:Key="PrimaryPressedBrush" Color="#912B54" />
+    <SolidColorBrush x:Key="SelectionBrush" Color="#EFC0D3" />
+    <SolidColorBrush x:Key="ScrollThumbBrush" Color="#D8A9BE" />
+    <SolidColorBrush x:Key="TrackBrush" Color="#EBD6E0" />
+    <SolidColorBrush x:Key="DangerBrush" Color="#A22A4C" />
+    <Color x:Key="ProgressPulseColor">#FFBC3268</Color>
+    <Color x:Key="ProgressFadeColor">#00BC3268</Color>
+    <Color x:Key="DialogShadowColor">#562D44</Color>
+    <BitmapImage x:Key="DefaultHomeCover" UriSource="/MCL;component/Assets/spring-valley.jpg" CacheOption="OnLoad" />
+    <LinearGradientBrush x:Key="BrandBrush" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Color="#D04C83" Offset="0" />
+        <GradientStop Color="#AC295F" Offset="1" />
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="HomeCoverShade" StartPoint="0,0.5" EndPoint="1,0.5">
+        <GradientStop Color="#FFFFF8FC" Offset="0" />
+        <GradientStop Color="#FCFFF5F9" Offset="0.28" />
+        <GradientStop Color="#D8FFF2F7" Offset="0.43" />
+        <GradientStop Color="#2DFFF1F6" Offset="0.69" />
+        <GradientStop Color="#00FFF1F6" Offset="1" />
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="VersionCoverShade" StartPoint="0,0.5" EndPoint="1,0.5">
+        <GradientStop Color="#FFFFF7FA" Offset="0" />
+        <GradientStop Color="#F9FFF4F9" Offset="0.43" />
+        <GradientStop Color="#CFFFF3F8" Offset="0.62" />
+        <GradientStop Color="#00FFF1F6" Offset="1" />
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="SaveCoverShade" StartPoint="0,0.5" EndPoint="1,0.5">
+        <GradientStop Color="#F9FFFFFF" Offset="0" />
+        <GradientStop Color="#EDFFFFFF" Offset="0.29" />
+        <GradientStop Color="#93FFF8FD" Offset="0.56" />
+        <GradientStop Color="#14FFF8FD" Offset="1" />
+    </LinearGradientBrush>
+    <LinearGradientBrush x:Key="CharacterStageBrush" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Color="#FFFFF5F9" Offset="0" />
+        <GradientStop Color="#FFF2E0F0" Offset="1" />
+    </LinearGradientBrush>
+</ResourceDictionary>

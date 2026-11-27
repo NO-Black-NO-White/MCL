@@ -3,8 +3,8 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Icon="Assets/mcl.ico" AutomationProperties.Name="MCL"
         Width="1180" Height="820" MinWidth="1020" MinHeight="720"
-        WindowStartupLocation="CenterScreen" Background="{StaticResource BackgroundBrush}"
-        Foreground="{StaticResource TextBrush}" FontFamily="Microsoft YaHei UI, Segoe UI" FontSize="14"
+        WindowStartupLocation="CenterScreen" Background="{DynamicResource BackgroundBrush}"
+        Foreground="{DynamicResource TextBrush}" FontFamily="Microsoft YaHei UI, Segoe UI" FontSize="14"
         Closing="Window_Closing" SourceInitialized="Window_SourceInitialized">
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolVisibility" />
@@ -16,8 +16,9 @@
         <Geometry x:Key="AccountIcon">M 13.5,6 A 3.5,3.5 0 1 1 6.5,6 A 3.5,3.5 0 1 1 13.5,6 M 3,17 C 3,13 6,11 10,11 C 14,11 17,13 17,17</Geometry>
         <Geometry x:Key="SettingsIcon">M 3,5 H 7 M 11,5 H 17 M 7,2 V 8 M 3,13 H 12 M 16,13 H 17 M 12,10 V 16</Geometry>
         <Geometry x:Key="LogsIcon">M 4,2 H 16 V 18 H 4 Z M 7,6 H 13 M 7,10 H 13 M 7,14 H 11</Geometry>
+        <Geometry x:Key="ThemeIcon">M 10,2 L 17,8 10,18 3,8 Z M 3,8 H 17 M 7,8 L 10,18 13,8 10,2 Z</Geometry>
         <Style x:Key="ShortcutIcon" TargetType="Path">
-            <Setter Property="Stroke" Value="{StaticResource AccentTextBrush}" />
+            <Setter Property="Stroke" Value="{DynamicResource AccentTextBrush}" />
             <Setter Property="StrokeThickness" Value="1.55" />
             <Setter Property="StrokeStartLineCap" Value="Round" />
             <Setter Property="StrokeEndLineCap" Value="Round" />
@@ -27,13 +28,13 @@
             <Setter Property="Stretch" Value="Uniform" />
         </Style>
         <Style x:Key="NavigationButton" TargetType="RadioButton">
-            <Setter Property="Foreground" Value="{StaticResource MutedBrush}" /><Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Foreground" Value="{DynamicResource MutedBrush}" /><Setter Property="Cursor" Value="Hand" />
             <Setter Property="Margin" Value="0,0,0,5" /><Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="Template"><Setter.Value><ControlTemplate TargetType="RadioButton">
                 <Grid>
                     <Border x:Name="NavBorder" Background="Transparent" CornerRadius="10" />
                     <Border x:Name="NavMarker" Width="3" VerticalAlignment="Stretch" Margin="0,11,0,11" HorizontalAlignment="Left"
-                            CornerRadius="1.5" Background="{StaticResource AccentBrush}" Visibility="Collapsed" />
+                            CornerRadius="1.5" Background="{DynamicResource AccentBrush}" Visibility="Collapsed" />
                     <StackPanel Orientation="Horizontal" Margin="15,12,9,12">
                         <Path Data="{TemplateBinding CommandParameter}" Style="{StaticResource ShortcutIcon}"
                               Stroke="{TemplateBinding Foreground}" Margin="0,0,12,0" />
@@ -41,42 +42,43 @@
                     </StackPanel>
                 </Grid>
                 <ControlTemplate.Triggers>
-                    <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="NavBorder" Property="Background" Value="{StaticResource HoverBrush}" /></Trigger>
+                    <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="NavBorder" Property="Background" Value="{DynamicResource HoverBrush}" /></Trigger>
                     <Trigger Property="IsChecked" Value="True">
-                        <Setter TargetName="NavBorder" Property="Background" Value="{StaticResource SoftAccentBrush}" />
+                        <Setter TargetName="NavBorder" Property="Background" Value="{DynamicResource SoftAccentBrush}" />
                         <Setter TargetName="NavMarker" Property="Visibility" Value="Visible" />
-                        <Setter Property="Foreground" Value="{StaticResource AccentTextBrush}" />
+                        <Setter Property="Foreground" Value="{DynamicResource AccentTextBrush}" />
                     </Trigger>
                 </ControlTemplate.Triggers>
             </ControlTemplate></Setter.Value></Setter>
         </Style>
         <Style x:Key="RoomRoleTab" TargetType="RadioButton">
-            <Setter Property="Foreground" Value="{StaticResource MutedBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource MutedBrush}" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="MinHeight" Value="44" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="RadioButton">
                         <Border x:Name="Surface" Background="Transparent" BorderBrush="Transparent" BorderThickness="1" CornerRadius="10">
                             <Grid>
-                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" RecognizesAccessKey="True" />
+                                <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" VerticalAlignment="Center" RecognizesAccessKey="True" />
                                 <Border x:Name="SelectionMark" Width="24" Height="3" CornerRadius="1.5" Margin="0,0,0,4"
                                         HorizontalAlignment="Center" VerticalAlignment="Bottom"
-                                        Background="{StaticResource AccentBrush}" Visibility="Collapsed" />
+                                        Background="{DynamicResource AccentBrush}" Visibility="Collapsed" />
                             </Grid>
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Surface" Property="Background" Value="{StaticResource HoverBrush}" />
+                                <Setter TargetName="Surface" Property="Background" Value="{DynamicResource HoverBrush}" />
                             </Trigger>
                             <Trigger Property="IsChecked" Value="True">
-                                <Setter Property="Foreground" Value="{StaticResource AccentTextBrush}" />
-                                <Setter TargetName="Surface" Property="Background" Value="{StaticResource SoftAccentBrush}" />
+                                <Setter Property="Foreground" Value="{DynamicResource AccentTextBrush}" />
+                                <Setter TargetName="Surface" Property="Background" Value="{DynamicResource SoftAccentBrush}" />
                                 <Setter TargetName="SelectionMark" Property="Visibility" Value="Visible" />
                             </Trigger>
                             <Trigger Property="IsKeyboardFocused" Value="True">
-                                <Setter TargetName="Surface" Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                                <Setter TargetName="Surface" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
                             </Trigger>
                             <Trigger Property="IsEnabled" Value="False">
                                 <Setter Property="Cursor" Value="Arrow" />
@@ -111,11 +113,11 @@
                         </Setter>
                         <Style.Triggers>
                             <Trigger Property="IsHighlighted" Value="True">
-                                <Setter Property="Background" Value="{StaticResource HoverBrush}" />
+                                <Setter Property="Background" Value="{DynamicResource HoverBrush}" />
                             </Trigger>
                             <Trigger Property="IsSelected" Value="True">
-                                <Setter Property="Background" Value="{StaticResource SoftAccentBrush}" />
-                                <Setter Property="Foreground" Value="{StaticResource AccentTextBrush}" />
+                                <Setter Property="Background" Value="{DynamicResource SoftAccentBrush}" />
+                                <Setter Property="Foreground" Value="{DynamicResource AccentTextBrush}" />
                             </Trigger>
                         </Style.Triggers>
                     </Style>
@@ -130,33 +132,33 @@
                                           IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
                                 <ToggleButton.Template>
                                     <ControlTemplate TargetType="ToggleButton">
-                                        <Border x:Name="PickerSurface" Background="{StaticResource SidebarBrush}" BorderBrush="{StaticResource HeroBorderBrush}"
+                                        <Border x:Name="PickerSurface" Background="{DynamicResource SidebarBrush}" BorderBrush="{DynamicResource HeroBorderBrush}"
                                                 BorderThickness="1" CornerRadius="10" Padding="{TemplateBinding Padding}">
                                             <ContentPresenter />
                                         </Border>
                                         <ControlTemplate.Triggers>
                                             <Trigger Property="IsMouseOver" Value="True">
-                                                <Setter TargetName="PickerSurface" Property="Background" Value="{StaticResource HoverBrush}" />
+                                                <Setter TargetName="PickerSurface" Property="Background" Value="{DynamicResource HoverBrush}" />
                                             </Trigger>
                                             <Trigger Property="IsChecked" Value="True">
-                                                <Setter TargetName="PickerSurface" Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+                                                <Setter TargetName="PickerSurface" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
                                             </Trigger>
                                         </ControlTemplate.Triggers>
                                     </ControlTemplate>
                                 </ToggleButton.Template>
                                 <DockPanel>
-                                    <Path DockPanel.Dock="Right" Data="M 0,0 L 5,5 10,0" Stroke="{StaticResource AccentTextBrush}"
+                                    <Path DockPanel.Dock="Right" Data="M 0,0 L 5,5 10,0" Stroke="{DynamicResource AccentTextBrush}"
                                           StrokeThickness="1.8" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
                                           VerticalAlignment="Center" Margin="13,0,0,0" />
                                     <TextBlock Text="{TemplateBinding Tag}" FontSize="{TemplateBinding FontSize}" FontWeight="{TemplateBinding FontWeight}"
-                                               Foreground="{StaticResource TextBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                               Foreground="{DynamicResource TextBrush}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
                                 </DockPanel>
                             </ToggleButton>
                             <Popup x:Name="PART_Popup" Placement="Bottom" VerticalOffset="5" AllowsTransparency="True" Focusable="False"
                                    IsOpen="{TemplateBinding IsDropDownOpen}">
                                 <Border MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}"
                                         MaxWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}"
-                                        Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource InputBorderBrush}"
+                                        Background="{DynamicResource PanelBrush}" BorderBrush="{DynamicResource InputBorderBrush}"
                                         BorderThickness="1" CornerRadius="11" Padding="0,3">
                                     <ScrollViewer MaxHeight="{TemplateBinding MaxDropDownHeight}" CanContentScroll="True">
                                         <ItemsPresenter x:Name="ItemsPresenter" KeyboardNavigation.DirectionalNavigation="Contained" />
@@ -178,13 +180,18 @@
         </Style>
         <Style x:Key="SavePreviewLabel" TargetType="TextBlock">
             <Setter Property="FontSize" Value="11" />
-            <Setter Property="Foreground" Value="{StaticResource MutedBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource MutedBrush}" />
         </Style>
         <Style x:Key="SavePreviewValue" TargetType="TextBlock">
             <Setter Property="FontSize" Value="13" />
             <Setter Property="FontWeight" Value="SemiBold" />
             <Setter Property="TextTrimming" Value="CharacterEllipsis" />
             <Setter Property="Margin" Value="0,5,0,0" />
+        </Style>
+        <Style x:Key="CoverButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Background" Value="{DynamicResource SidebarBrush}" />
+            <Setter Property="Padding" Value="10,5" />
+            <Setter Property="FontSize" Value="11" />
         </Style>
         <Style x:Key="PagePanel" TargetType="Grid"><Setter Property="Visibility" Value="Collapsed" /></Style>
         <Style x:Key="VersionActionButton" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
@@ -194,21 +201,18 @@
             <Setter Property="Margin" Value="0,0,8,4" />
         </Style>
     </Window.Resources>
-    <Grid x:Name="RootLayout" Background="{StaticResource BackgroundBrush}" UseLayoutRounding="True" TextOptions.TextFormattingMode="Display">
+    <Grid x:Name="RootLayout" Background="{DynamicResource BackgroundBrush}" UseLayoutRounding="True" TextOptions.TextFormattingMode="Display">
         <Grid.ColumnDefinitions><ColumnDefinition Width="196" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-        <Border Background="{StaticResource SidebarBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,1,0">
+        <Border Background="{DynamicResource SidebarBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,0,1,0">
             <Grid Margin="15,24,15,16">
                 <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
                 <StackPanel Orientation="Horizontal" Margin="9,0,0,27">
-                    <Border Width="42" Height="42" CornerRadius="12">
-                        <Border.Background><LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                            <GradientStop Color="#D04C83" Offset="0" /><GradientStop Color="#AC295F" Offset="1" />
-                        </LinearGradientBrush></Border.Background>
-                        <TextBlock Text="M" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="24" FontWeight="Black" Foreground="White" />
+                    <Border Width="42" Height="42" CornerRadius="12" Background="{DynamicResource BrandBrush}">
+                        <TextBlock Text="M" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="24" FontWeight="Black" Foreground="{DynamicResource AccentForegroundBrush}" />
                     </Border>
                     <StackPanel Margin="10,0,0,0" VerticalAlignment="Center">
                         <TextBlock Text="MCL" FontSize="23" FontWeight="Bold" />
-                        <TextBlock Text="Java 版启动器" FontSize="10" Foreground="{StaticResource MutedBrush}" />
+                        <TextBlock Text="Java 版启动器" FontSize="10" Foreground="{DynamicResource MutedBrush}" />
                     </StackPanel>
                 </StackPanel>
                 <StackPanel Grid.Row="1">
@@ -219,13 +223,14 @@
                     <RadioButton x:Name="MultiplayerNav" Style="{StaticResource NavigationButton}" GroupName="Navigation" Tag="Multiplayer" Checked="Navigation_Checked" Content="好友联机" CommandParameter="{StaticResource LinkIcon}" />
                     <RadioButton x:Name="AppearanceNav" Style="{StaticResource NavigationButton}" GroupName="Navigation" Tag="Appearance" Checked="Navigation_Checked" Content="本地角色" CommandParameter="{StaticResource AccountIcon}" />
                     <RadioButton x:Name="SettingsNav" Style="{StaticResource NavigationButton}" GroupName="Navigation" Tag="Settings" Checked="Navigation_Checked" Content="启动设置" CommandParameter="{StaticResource SettingsIcon}" />
+                    <RadioButton x:Name="LauncherSettingsNav" Style="{StaticResource NavigationButton}" GroupName="Navigation" Tag="LauncherSettings" Checked="Navigation_Checked" Content="启动器设置" CommandParameter="{StaticResource ThemeIcon}" />
                     <RadioButton x:Name="LogsNav" Style="{StaticResource NavigationButton}" GroupName="Navigation" Tag="Logs" Checked="Navigation_Checked" Content="运行日志" CommandParameter="{StaticResource LogsIcon}" />
                 </StackPanel>
                 <StackPanel Grid.Row="3">
-                    <Border Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="12" Padding="9,8">
+                    <Border Background="{DynamicResource PanelBrush}" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="12" Padding="9,8">
                         <Grid>
                             <Grid.ColumnDefinitions><ColumnDefinition Width="32" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                            <Grid Width="32" Height="32" Background="{StaticResource SoftAccentBrush}">
+                            <Grid Width="32" Height="32" Background="{DynamicResource SoftAccentBrush}">
                                 <Grid.Clip><RectangleGeometry Rect="0,0,32,32" RadiusX="6" RadiusY="6" /></Grid.Clip>
                                 <Path Data="{StaticResource AccountIcon}" Width="16" Height="16">
                                     <Path.Style>
@@ -247,7 +252,7 @@
                             </Viewbox>
                         </Grid>
                     </Border>
-                    <TextBlock Text="{Binding AppVersionText}" FontSize="10" Foreground="{StaticResource MutedBrush}" Margin="9,11,0,0" />
+                    <TextBlock Text="{Binding AppVersionText}" FontSize="10" Foreground="{DynamicResource MutedBrush}" Margin="9,11,0,0" />
                 </StackPanel>
             </Grid>
         </Border>
@@ -255,11 +260,11 @@
             <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
             <Grid Margin="0,0,0,20">
                 <TextBlock Text="{Binding PageTitle}" FontSize="27" FontWeight="SemiBold" VerticalAlignment="Center" />
-                <Border HorizontalAlignment="Right" VerticalAlignment="Center" Background="{StaticResource PanelBrush}"
-                        BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="14" Padding="11,6">
+                <Border HorizontalAlignment="Right" VerticalAlignment="Center" Background="{DynamicResource PanelBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="14" Padding="11,6">
                     <StackPanel Orientation="Horizontal">
-                        <Ellipse Width="6" Height="6" Fill="{StaticResource AccentBrush}" Margin="0,0,7,0" />
-                        <TextBlock Text="{Binding ActivityText}" Foreground="{StaticResource AccentTextBrush}" FontSize="11" />
+                        <Ellipse Width="6" Height="6" Fill="{DynamicResource AccentBrush}" Margin="0,0,7,0" />
+                        <TextBlock Text="{Binding ActivityText}" Foreground="{DynamicResource AccentTextBrush}" FontSize="11" />
                     </StackPanel>
                 </Border>
             </Grid>
@@ -271,22 +276,27 @@
                             <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" /><RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
-                        <Border CornerRadius="21" BorderBrush="{StaticResource HeroBorderBrush}" BorderThickness="1" MinHeight="326">
+                        <Border CornerRadius="21" BorderBrush="{DynamicResource HeroBorderBrush}" BorderThickness="1" MinHeight="326"
+                                PreviewMouseLeftButtonDown="HomeCover_MouseDown">
                             <Border.Background>
-                                <ImageBrush ImageSource="/MCL;component/Assets/spring-valley.jpg" Stretch="UniformToFill" AlignmentY="Center" />
+                                <ImageBrush ImageSource="{DynamicResource DefaultHomeCover}" Stretch="UniformToFill" />
                             </Border.Background>
-                            <Border CornerRadius="20" Padding="29,25">
-                                <Border.Background><LinearGradientBrush StartPoint="0,0.5" EndPoint="1,0.5">
-                                    <GradientStop Color="#FFFFF8FC" Offset="0" />
-                                    <GradientStop Color="#FCFFF5F9" Offset="0.28" />
-                                    <GradientStop Color="#D8FFF2F7" Offset="0.43" />
-                                    <GradientStop Color="#2DFFF1F6" Offset="0.69" />
-                                    <GradientStop Color="#00FFF1F6" Offset="1" />
-                                </LinearGradientBrush></Border.Background>
+                            <Border.ContextMenu>
+                                <ContextMenu Background="{DynamicResource PanelBrush}" Foreground="{DynamicResource TextBrush}"
+                                             DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
+                                    <MenuItem Header="选择版本背景…" Click="PickVersionCover_Click" IsEnabled="{Binding CanPickVersionCover}" />
+                                    <MenuItem Header="恢复主题背景" Click="ResetVersionCover_Click" IsEnabled="{Binding HasVersionCover}" />
+                                </ContextMenu>
+                            </Border.ContextMenu>
+                            <Grid>
+                                <Border CornerRadius="20" IsHitTestVisible="False">
+                                    <Border.Background><ImageBrush ImageSource="{Binding VersionCover}" Stretch="UniformToFill" /></Border.Background>
+                                </Border>
+                                <Border CornerRadius="20" Padding="29,25" Background="{DynamicResource HomeCoverShade}">
                                 <Grid>
                                     <Grid.ColumnDefinitions><ColumnDefinition Width="56*" /><ColumnDefinition Width="44*" /></Grid.ColumnDefinitions>
                                     <StackPanel VerticalAlignment="Center">
-                                        <TextBlock Text="当前游戏" Foreground="{StaticResource AccentTextBrush}" FontSize="12" FontWeight="SemiBold" />
+                                        <TextBlock Text="当前游戏" Foreground="{DynamicResource AccentTextBrush}" FontSize="12" FontWeight="SemiBold" />
                                         <ComboBox x:Name="HomeVersionPicker" Style="{StaticResource HomeVersionSelector}"
                                                   ItemsSource="{Binding Versions}" SelectedItem="{Binding SelectedVersion, Mode=TwoWay}"
                                                   ToolTip="{Binding SelectedVersionTitle}" AutomationProperties.Name="选择已安装的游戏版本" Margin="0,9,0,6">
@@ -295,7 +305,7 @@
                                                     <StackPanel>
                                                         <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
                                                         <TextBlock x:Name="VersionOptionDetail" Text="{Binding Kind}" FontSize="11"
-                                                                   Foreground="{StaticResource MutedBrush}" Margin="0,3,0,0" />
+                                                                   Foreground="{DynamicResource MutedBrush}" Margin="0,3,0,0" />
                                                     </StackPanel>
                                                     <DataTemplate.Triggers>
                                                         <DataTrigger Binding="{Binding IsValid}" Value="False">
@@ -313,13 +323,41 @@
                                         </WrapPanel>
                                     </StackPanel>
                                 </Grid>
-                            </Border>
+                                </Border>
+                                <Button Content="换背景" Style="{StaticResource CoverButton}" Click="PickVersionCover_Click"
+                                        HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,14,14,0"
+                                        ToolTip="双击卡片也可换图。右键可恢复主题背景。"
+                                        Visibility="{Binding CanPickVersionCover, Converter={StaticResource BoolVisibility}}" />
+                            </Grid>
                         </Border>
-                        <Border Grid.Row="1" Style="{StaticResource Card}" Margin="0,17,0,0" Padding="18,14">
-                            <StackPanel>
+                        <Border x:Name="SaveCoverCard" Grid.Row="1" Style="{StaticResource Card}" Margin="0,17,0,0" Padding="0"
+                                PreviewMouseLeftButtonDown="HomeCover_MouseDown">
+                            <Border.ContextMenu>
+                                <ContextMenu Background="{DynamicResource PanelBrush}" Foreground="{DynamicResource TextBrush}"
+                                             DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
+                                    <MenuItem Header="选择存档封面…" Click="PickSaveCover_Click" IsEnabled="{Binding HasHomeSave}" />
+                                    <MenuItem Header="移除封面" Click="ResetSaveCover_Click" IsEnabled="{Binding HasSaveCover}" />
+                                </ContextMenu>
+                            </Border.ContextMenu>
+                            <Grid>
+                            <Border CornerRadius="15" IsHitTestVisible="False" Visibility="{Binding HasSaveCover, Converter={StaticResource BoolVisibility}}">
+                                <Border.Background><ImageBrush ImageSource="{Binding SaveCover}" Stretch="UniformToFill" /></Border.Background>
+                                <Border CornerRadius="15" Background="{DynamicResource SaveCoverShade}" />
+                            </Border>
+                            <StackPanel Margin="18,14">
                                 <DockPanel LastChildFill="False">
-                                    <TextBlock Text="存档预览" FontSize="15" FontWeight="SemiBold" />
-                                    <TextBlock DockPanel.Dock="Right" Text="{Binding HomeSaveCount}" Style="{StaticResource SavePreviewLabel}" VerticalAlignment="Center" />
+                                    <Button DockPanel.Dock="Right" Content="换封面" Style="{StaticResource CoverButton}" Click="PickSaveCover_Click"
+                                            ToolTip="双击卡片也可换图。可选择在游戏里按 F2 保存的截图。"
+                                            Visibility="{Binding HasHomeSave, Converter={StaticResource BoolVisibility}}" />
+                                    <Button DockPanel.Dock="Right" Content="用最新截图" Style="{StaticResource CoverButton}" Click="UseLatestScreenshot_Click"
+                                            Margin="0,0,8,0" ToolTip="把本次游戏保存的最后一张截图设为当前所选存档的封面。"
+                                            Visibility="{Binding CanUseLatestScreenshot, Converter={StaticResource BoolVisibility}}" />
+                                    <TextBlock Text="存档预览" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                    <Border DockPanel.Dock="Right" Background="{DynamicResource SidebarBrush}" CornerRadius="5" Padding="5,2"
+                                            Margin="0,0,8,0" VerticalAlignment="Center"
+                                            Visibility="{Binding HasHomeSave, Converter={StaticResource BoolVisibility}}">
+                                        <TextBlock Text="{Binding HomeSaveCount}" Style="{StaticResource SavePreviewLabel}" />
+                                    </Border>
                                 </DockPanel>
                                 <TextBlock Text="{Binding HomeSavesMessage}" Margin="0,8,0,0">
                                     <TextBlock.Style>
@@ -331,7 +369,15 @@
                                         </Style>
                                     </TextBlock.Style>
                                 </TextBlock>
-                                <Grid Margin="0,10,0,0" Visibility="{Binding HasHomeSave, Converter={StaticResource BoolVisibility}}">
+                                <Grid Visibility="{Binding HasHomeSave, Converter={StaticResource BoolVisibility}}">
+                                    <Grid.Style>
+                                        <Style TargetType="Grid">
+                                            <Setter Property="Margin" Value="0,10,0,0" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding HasSaveCover}" Value="True"><Setter Property="Margin" Value="0,52,0,0" /></DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Grid.Style>
                                     <Grid.ColumnDefinitions><ColumnDefinition Width="30*" /><ColumnDefinition Width="70*" /></Grid.ColumnDefinitions>
                                     <Grid Margin="0,0,15,0" VerticalAlignment="Center">
                                         <TextBlock Text="{Binding SelectedHomeSave.Name}" ToolTip="{Binding SelectedHomeSave.Name}"
@@ -359,7 +405,7 @@
                                             </ComboBox.ItemTemplate>
                                         </ComboBox>
                                     </Grid>
-                                    <Border Grid.Column="1" Background="{StaticResource SidebarBrush}" BorderBrush="{StaticResource DividerBrush}"
+                                    <Border Grid.Column="1" Background="{DynamicResource SidebarBrush}" BorderBrush="{DynamicResource DividerBrush}"
                                             BorderThickness="1" CornerRadius="11" Padding="13,9" DataContext="{Binding SelectedHomeSave}">
                                         <Grid>
                                             <Grid.ColumnDefinitions>
@@ -390,6 +436,7 @@
                                     </Border>
                                 </Grid>
                             </StackPanel>
+                            </Grid>
                         </Border>
                         <Border Grid.Row="2" Style="{StaticResource Card}" Margin="0,17,0,0" Padding="18,14">
                             <StackPanel>
@@ -410,16 +457,16 @@
                                                     <StackPanel Grid.Column="1" Orientation="Vertical" Margin="0,0,12,0">
                                                         <TextBlock Text="{Binding Version.DisplayName}" ToolTip="{Binding Version.DisplayName}"
                                                                    FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                                                        <TextBlock Text="{Binding Version.Kind}" FontSize="11" Foreground="{StaticResource MutedBrush}" Margin="0,2,0,0" />
+                                                        <TextBlock Text="{Binding Version.Kind}" FontSize="11" Foreground="{DynamicResource MutedBrush}" Margin="0,2,0,0" />
                                                     </StackPanel>
                                                     <TextBlock Grid.Column="2" Text="{Binding LastLaunch}" FontSize="11"
-                                                               Foreground="{StaticResource MutedBrush}" VerticalAlignment="Center" />
+                                                               Foreground="{DynamicResource MutedBrush}" VerticalAlignment="Center" />
                                                 </Grid>
                                             </Button>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
                                 </ItemsControl>
-                                <TextBlock Text="启动过的版本会出现在这里，可以点选继续玩。" FontSize="12" Foreground="{StaticResource MutedBrush}">
+                                <TextBlock Text="启动过的版本会出现在这里，可以点选继续玩。" FontSize="12" Foreground="{DynamicResource MutedBrush}">
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">
                                             <Setter Property="Visibility" Value="Collapsed" />
@@ -439,15 +486,15 @@
                                     <ColumnDefinition Width="1.15*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <StackPanel>
-                                    <TextBlock Text="Java" Foreground="{StaticResource MutedBrush}" FontSize="11" />
+                                    <TextBlock Text="Java" Foreground="{DynamicResource MutedBrush}" FontSize="11" />
                                     <TextBlock Text="{Binding JavaSummary}" FontWeight="SemiBold" Margin="0,5,0,0" TextTrimming="CharacterEllipsis" />
                                 </StackPanel>
                                 <StackPanel Grid.Column="1">
-                                    <TextBlock Text="分配内存" Foreground="{StaticResource MutedBrush}" FontSize="11" />
+                                    <TextBlock Text="分配内存" Foreground="{DynamicResource MutedBrush}" FontSize="11" />
                                     <TextBlock Text="{Binding MemorySummary}" FontWeight="SemiBold" Margin="0,5,0,0" />
                                 </StackPanel>
                                 <StackPanel Grid.Column="2">
-                                    <TextBlock Text="本地版本" Foreground="{StaticResource MutedBrush}" FontSize="11" />
+                                    <TextBlock Text="本地版本" Foreground="{DynamicResource MutedBrush}" FontSize="11" />
                                     <TextBlock Text="{Binding VersionCountLabel}" FontWeight="SemiBold" Margin="0,5,0,0" />
                                 </StackPanel>
                                 <Button Grid.Column="3" Content="启动设置  →" Click="ShowSettings_Click" VerticalAlignment="Center" />
@@ -462,7 +509,7 @@
                                 <StackPanel VerticalAlignment="Center" Margin="0,0,14,0">
                                     <TextBlock Text="游戏文件夹" FontWeight="SemiBold" FontSize="13" />
                                     <TextBlock Text="{Binding GameDirectory}" ToolTip="{Binding GameDirectory}" TextTrimming="CharacterEllipsis"
-                                               Foreground="{StaticResource MutedBrush}" FontSize="11" Margin="0,5,0,0" />
+                                               Foreground="{DynamicResource MutedBrush}" FontSize="11" Margin="0,5,0,0" />
                                 </StackPanel>
                                 <Button Grid.Column="1" Content="选择文件夹" Click="BrowseGame_Click" IsEnabled="{Binding CanInteract}" VerticalAlignment="Center" />
                                 <Button Grid.Column="2" Content="刷新" Click="RefreshVersions_Click" IsEnabled="{Binding CanInteract}" VerticalAlignment="Center" Margin="8,0,0,0" />
@@ -474,7 +521,7 @@
                                 <StackPanel>
                                     <Grid Margin="5,0,5,12">
                                         <TextBlock Text="已安装版本" FontSize="15" FontWeight="SemiBold" />
-                                        <TextBlock Text="{Binding VersionCountLabel}" FontSize="11" Foreground="{StaticResource MutedBrush}" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding VersionCountLabel}" FontSize="11" Foreground="{DynamicResource MutedBrush}" HorizontalAlignment="Right" VerticalAlignment="Center" />
                                     </Grid>
                                     <ListBox x:Name="VersionList" ItemsSource="{Binding Versions}" SelectedItem="{Binding SelectedVersion, Mode=TwoWay}"
                                              IsEnabled="{Binding CanInteract}" MinHeight="320" MaxHeight="385" AutomationProperties.Name="已安装版本"
@@ -488,7 +535,7 @@
                                                     <Path x:Name="VersionRowIcon" Style="{StaticResource ShortcutIcon}" Data="{StaticResource PackIcon}" HorizontalAlignment="Left" />
                                                     <StackPanel Grid.Column="1">
                                                         <TextBlock Text="{Binding DisplayName}" FontSize="14" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                                                        <TextBlock x:Name="VersionRowKind" Text="{Binding Kind}" Foreground="{StaticResource MutedBrush}" FontSize="11" Margin="0,4,0,0" TextTrimming="CharacterEllipsis" />
+                                                        <TextBlock x:Name="VersionRowKind" Text="{Binding Kind}" Foreground="{DynamicResource MutedBrush}" FontSize="11" Margin="0,4,0,0" TextTrimming="CharacterEllipsis" />
                                                     </StackPanel>
                                                 </Grid>
                                                 <DataTemplate.Triggers>
@@ -496,7 +543,7 @@
                                                         <Setter TargetName="VersionRowIcon" Property="Path.Data" Value="{StaticResource VersionsIcon}" />
                                                     </DataTrigger>
                                                     <DataTrigger Binding="{Binding IsValid}" Value="False">
-                                                        <Setter TargetName="VersionRowKind" Property="TextBlock.Foreground" Value="{StaticResource AccentTextBrush}" />
+                                                        <Setter TargetName="VersionRowKind" Property="TextBlock.Foreground" Value="{DynamicResource AccentTextBrush}" />
                                                         <Setter TargetName="VersionRowKind" Property="TextBlock.Text" Value="需要检查" />
                                                     </DataTrigger>
                                                 </DataTemplate.Triggers>
@@ -508,7 +555,7 @@
                             <Border x:Name="VersionManagementCard" Grid.Column="2" Style="{StaticResource Card}" Padding="14" Visibility="Collapsed">
                                 <StackPanel>
                                     <StackPanel>
-                                        <Border BorderBrush="{StaticResource HeroBorderBrush}" BorderThickness="1" CornerRadius="12">
+                                        <Border BorderBrush="{DynamicResource HeroBorderBrush}" BorderThickness="1" CornerRadius="12">
                                             <Border.Background>
                                                 <ImageBrush x:Name="VersionArtwork" ImageSource="{Binding ManagedVersionArtwork}"
                                                             Stretch="UniformToFill" AlignmentX="Right" AlignmentY="Center" />
@@ -523,7 +570,7 @@
                                                 <Grid>
                                                     <Grid.ColumnDefinitions><ColumnDefinition Width="68*" /><ColumnDefinition Width="32*" /></Grid.ColumnDefinitions>
                                                     <StackPanel VerticalAlignment="Center">
-                                                        <TextBlock Text="{Binding SelectedVersion.Kind}" Foreground="{StaticResource AccentTextBrush}" FontWeight="SemiBold" FontSize="12" />
+                                                        <TextBlock Text="{Binding SelectedVersion.Kind}" Foreground="{DynamicResource AccentTextBrush}" FontWeight="SemiBold" FontSize="12" />
                                                         <TextBlock Text="{Binding ManagedVersionTitle}" ToolTip="{Binding ManagedVersionTitle}" FontSize="28" FontWeight="Bold"
                                                                    TextWrapping="Wrap" TextTrimming="CharacterEllipsis" MaxHeight="78" Margin="0,5,0,0" />
                                                     </StackPanel>
@@ -532,27 +579,27 @@
                                         </Border>
                                         <UniformGrid Rows="1" Margin="4,14,4,8">
                                             <StackPanel Margin="0,0,8,0">
-                                                <TextBlock Text="Minecraft 版本" Foreground="{StaticResource MutedBrush}" FontSize="11" />
+                                                <TextBlock Text="Minecraft 版本" Foreground="{DynamicResource MutedBrush}" FontSize="11" />
                                                 <TextBlock Text="{Binding ManagedMinecraftVersion}" ToolTip="{Binding ManagedMinecraftVersion}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Margin="0,4,0,0" />
                                             </StackPanel>
                                             <StackPanel>
-                                                <TextBlock Text="加载器" Foreground="{StaticResource MutedBrush}" FontSize="11" />
+                                                <TextBlock Text="加载器" Foreground="{DynamicResource MutedBrush}" FontSize="11" />
                                                 <TextBlock Text="{Binding ManagedVersionLoader}" ToolTip="{Binding ManagedVersionLoader}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Margin="0,4,0,0" />
                                             </StackPanel>
                                             <StackPanel Margin="8,0,0,0" Visibility="{Binding ManagedVersionHasPackVersion, Converter={StaticResource BoolVisibility}}">
-                                                <TextBlock Text="整合包版本" Foreground="{StaticResource MutedBrush}" FontSize="11" />
+                                                <TextBlock Text="整合包版本" Foreground="{DynamicResource MutedBrush}" FontSize="11" />
                                                 <TextBlock Text="{Binding SelectedVersion.ModpackVersion}" ToolTip="{Binding SelectedVersion.ModpackVersion}"
                                                            FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Margin="0,4,0,0" />
                                             </StackPanel>
                                             <StackPanel>
-                                                <TextBlock Text="Java 环境" Foreground="{StaticResource MutedBrush}" FontSize="11" />
+                                                <TextBlock Text="Java 环境" Foreground="{DynamicResource MutedBrush}" FontSize="11" />
                                                 <TextBlock Text="{Binding VersionJavaText}" ToolTip="{Binding VersionJavaText}"
                                                            FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Margin="0,4,0,0">
                                                     <TextBlock.Style>
                                                         <Style TargetType="TextBlock">
                                                             <Style.Triggers>
                                                                 <DataTrigger Binding="{Binding VersionNeedsJava}" Value="True">
-                                                                    <Setter Property="Foreground" Value="{StaticResource AccentTextBrush}" />
+                                                                    <Setter Property="Foreground" Value="{DynamicResource AccentTextBrush}" />
                                                                 </DataTrigger>
                                                             </Style.Triggers>
                                                         </Style>
@@ -560,7 +607,7 @@
                                                 </TextBlock>
                                             </StackPanel>
                                         </UniformGrid>
-                                        <TextBlock Text="{Binding SelectedVersion.Issue}" Style="{StaticResource MutedText}" Foreground="{StaticResource AccentTextBrush}"
+                                        <TextBlock Text="{Binding SelectedVersion.Issue}" Style="{StaticResource MutedText}" Foreground="{DynamicResource AccentTextBrush}"
                                                    Visibility="{Binding ManagedVersionNeedsAttention, Converter={StaticResource BoolVisibility}}" Margin="4,0,4,8" />
                                     </StackPanel>
                                     <WrapPanel Margin="4,5,4,15">
@@ -571,10 +618,10 @@
                                                 Visibility="{Binding VersionNeedsJava, Converter={StaticResource BoolVisibility}}"
                                                 ToolTip="从 Minecraft 官方下载运行环境，安装到 MCL 的专用目录。" />
                                     </WrapPanel>
-                                    <Border BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,1,0,0" Padding="4,12,4,0">
+                                    <Border BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,1,0,0" Padding="4,12,4,0">
                                         <StackPanel>
                                             <TextBlock Text="版本文件" FontSize="13" FontWeight="SemiBold" />
-                                            <TextBlock Text="{Binding ManagedVersionPath}" Foreground="{StaticResource MutedBrush}"
+                                            <TextBlock Text="{Binding ManagedVersionPath}" Foreground="{DynamicResource MutedBrush}"
                                                        FontSize="11" TextTrimming="CharacterEllipsis" Margin="0,5,0,9">
                                                 <TextBlock.ToolTip><TextBlock Text="{Binding ManagedVersionPath}" MaxWidth="380" TextWrapping="Wrap" /></TextBlock.ToolTip>
                                             </TextBlock>
@@ -585,7 +632,7 @@
                                                         ToolTip="分享包包含模组、配置和资源包。请在发送前检查打包内容。" />
                                             </WrapPanel>
                                             <TextBlock Text="存档" FontSize="13" FontWeight="SemiBold" Margin="0,12,0,0" />
-                                            <TextBlock Text="{Binding SaveScopeHint}" Foreground="{StaticResource MutedBrush}"
+                                            <TextBlock Text="{Binding SaveScopeHint}" Foreground="{DynamicResource MutedBrush}"
                                                        TextWrapping="Wrap" FontSize="11" Margin="0,4,0,7" />
                                             <WrapPanel>
                                                 <Button Content="备份为 ZIP" Style="{StaticResource VersionActionButton}" Click="BackupSaves_Click" IsEnabled="{Binding CanManageSaves}"
@@ -594,8 +641,8 @@
                                                         ToolTip="还原备份中的存档，并在旁边保留恢复前的存档。" />
                                                 <Button Content="打开默认备份目录" Style="{StaticResource VersionActionButton}" Click="OpenSaveBackups_Click" ToolTip="{Binding SaveBackupDirectory}" />
                                             </WrapPanel>
-                                            <Border BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,1,0,0" Padding="0,5,0,0" Margin="0,8,0,0">
-                                                <Button x:Name="DeleteVersionButton" Content="删除版本" Foreground="#A22A4C" Background="Transparent"
+                                            <Border BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,1,0,0" Padding="0,5,0,0" Margin="0,8,0,0">
+                                                <Button x:Name="DeleteVersionButton" Content="删除版本" Foreground="{DynamicResource DangerBrush}" Background="Transparent"
                                                         BorderThickness="0" Padding="4,6" HorizontalAlignment="Right" ToolTip="{Binding VersionManagementHint}" ToolTipService.ShowOnDisabled="True"
                                                         Click="DeleteSelectedVersion_Click" IsEnabled="{Binding CanDeleteVersion}" />
                                             </Border>
@@ -624,9 +671,9 @@
                         </Grid></Border>
                         <Grid Grid.Row="1" Margin="0,14,0,14"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="20" /><ColumnDefinition Width="310" /></Grid.ColumnDefinitions>
                             <Border Style="{StaticResource Card}" Padding="18"><Grid><Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-                                <Grid Margin="0,0,0,14"><TextBlock Text="原版游戏版本" FontSize="15" FontWeight="SemiBold" /><Button Content="刷新列表" HorizontalAlignment="Right" Padding="0" Background="Transparent" BorderThickness="0" Foreground="{StaticResource AccentTextBrush}" Click="RefreshRemote_Click" IsEnabled="{Binding CanInteract}" /></Grid>
+                                <Grid Margin="0,0,0,14"><TextBlock Text="原版游戏版本" FontSize="15" FontWeight="SemiBold" /><Button Content="刷新列表" HorizontalAlignment="Right" Padding="0" Background="Transparent" BorderThickness="0" Foreground="{DynamicResource AccentTextBrush}" Click="RefreshRemote_Click" IsEnabled="{Binding CanInteract}" /></Grid>
                                 <StackPanel Grid.Row="1" Margin="0,0,0,12">
-                                    <Grid><TextBox Text="{Binding VersionSearch, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="搜索下载版本" IsEnabled="{Binding CanInteract}" /><TextBlock Text="搜索版本号，例如 1.8.9" Foreground="{StaticResource MutedBrush}" FontSize="12" Margin="12,0" VerticalAlignment="Center" IsHitTestVisible="False"><TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding VersionSearch}" Value=""><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock></Grid>
+                                    <Grid><TextBox Text="{Binding VersionSearch, UpdateSourceTrigger=PropertyChanged}" AutomationProperties.Name="搜索下载版本" IsEnabled="{Binding CanInteract}" /><TextBlock Text="搜索版本号，例如 1.8.9" Foreground="{DynamicResource MutedBrush}" FontSize="12" Margin="12,0" VerticalAlignment="Center" IsHitTestVisible="False"><TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed" /><Style.Triggers><DataTrigger Binding="{Binding VersionSearch}" Value=""><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers></Style></TextBlock.Style></TextBlock></Grid>
                                     <WrapPanel Margin="0,10,0,0">
                                         <CheckBox Content="显示快照和预发布版" IsChecked="{Binding ShowSnapshots}" IsEnabled="{Binding CanInteract}" VerticalAlignment="Center" />
                                         <TextBlock Text="{Binding RemoteCountText}" Style="{StaticResource MutedText}" FontSize="11" VerticalAlignment="Center" Margin="12,0,0,0" />
@@ -634,26 +681,26 @@
                                 </StackPanel>
                                 <Grid Grid.Row="2" MinHeight="190"><ListBox x:Name="RemoteVersionList" ItemsSource="{Binding AvailableVersions}" SelectedItem="{Binding SelectedRemoteVersion, Mode=TwoWay}" SelectionChanged="RemoteVersion_SelectionChanged" IsEnabled="{Binding CanInteract}" MaxHeight="290"
                                                                           VirtualizingPanel.ScrollUnit="Pixel" VirtualizingPanel.VirtualizationMode="Recycling">
-                                    <ListBox.ItemTemplate><DataTemplate><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><StackPanel><TextBlock Text="{Binding Id}" FontSize="16" FontWeight="SemiBold" /><TextBlock Text="{Binding ReleaseDateText}" Style="{StaticResource MutedText}" FontSize="11" Margin="0,3,0,0" /></StackPanel><TextBlock Grid.Column="1" Text="{Binding KindText}" Foreground="{StaticResource AccentTextBrush}" FontSize="11" VerticalAlignment="Center" Margin="10,0,0,0" /></Grid></DataTemplate></ListBox.ItemTemplate>
-                                </ListBox><Border x:Name="EmptyRemote" Background="{StaticResource PanelBrush}" Padding="12"><StackPanel VerticalAlignment="Center"><TextBlock Text="等待版本列表" HorizontalAlignment="Center" FontSize="17" FontWeight="SemiBold" /><TextBlock Text="点击刷新，从官方获取可安装的版本。&#10;搜索无结果时，可以换一个版本号。" Style="{StaticResource MutedText}" TextAlignment="Center" Margin="0,10,0,0" /></StackPanel></Border></Grid>
+                                    <ListBox.ItemTemplate><DataTemplate><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><StackPanel><TextBlock Text="{Binding Id}" FontSize="16" FontWeight="SemiBold" /><TextBlock Text="{Binding ReleaseDateText}" Style="{StaticResource MutedText}" FontSize="11" Margin="0,3,0,0" /></StackPanel><TextBlock Grid.Column="1" Text="{Binding KindText}" Foreground="{DynamicResource AccentTextBrush}" FontSize="11" VerticalAlignment="Center" Margin="10,0,0,0" /></Grid></DataTemplate></ListBox.ItemTemplate>
+                                </ListBox><Border x:Name="EmptyRemote" Background="{DynamicResource PanelBrush}" Padding="12"><StackPanel VerticalAlignment="Center"><TextBlock Text="等待版本列表" HorizontalAlignment="Center" FontSize="17" FontWeight="SemiBold" /><TextBlock Text="点击刷新，从官方获取可安装的版本。&#10;搜索无结果时，可以换一个版本号。" Style="{StaticResource MutedText}" TextAlignment="Center" Margin="0,10,0,0" /></StackPanel></Border></Grid>
                             </Grid></Border>
                             <Border Grid.Column="2" Style="{StaticResource Card}" Padding="20"><StackPanel>
                                 <TextBlock Text="即将安装" Style="{StaticResource MutedText}" FontSize="11" /><TextBlock Text="{Binding RemoteVersionTitle}" FontSize="26" FontWeight="SemiBold" Margin="0,4,0,12" TextTrimming="CharacterEllipsis" />
-                                <TextBlock Text="运行要求" Style="{StaticResource MutedText}" FontSize="11" /><TextBlock Text="{Binding RemoteJava}" Foreground="{StaticResource AccentTextBrush}" FontSize="13" TextWrapping="Wrap" Margin="0,4,0,12" />
+                                <TextBlock Text="运行要求" Style="{StaticResource MutedText}" FontSize="11" /><TextBlock Text="{Binding RemoteJava}" Foreground="{DynamicResource AccentTextBrush}" FontSize="13" TextWrapping="Wrap" Margin="0,4,0,12" />
                                 <TextBlock Text="参考内容大小" Style="{StaticResource MutedText}" FontSize="11" /><TextBlock Text="{Binding RemoteSize}" FontSize="17" FontWeight="SemiBold" Margin="0,4,0,12" />
                                 <TextBlock Text="游戏本体、依赖和资源将一起安装，完整的已有文件会复用。" Style="{StaticResource MutedText}" FontSize="11" LineHeight="20" Margin="0,0,0,14" />
                                 <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><Button Content="{Binding InstallButtonText}" Style="{StaticResource PrimaryButton}" Padding="14,12" Click="InstallVersion_Click" IsEnabled="{Binding CanInstall}" /><Button Grid.Column="1" Content="取消" Click="CancelInstall_Click" IsEnabled="{Binding CanCancelInstall}" Padding="13,12" Margin="8,0,0,0" /></Grid>
                             </StackPanel></Border>
                         </Grid>
-                        <Border Grid.Row="2" Style="{StaticResource Card}" Padding="16"><StackPanel><Grid><TextBlock Text="{Binding InstallStage}" FontWeight="SemiBold" /><TextBlock Text="{Binding InstallSpeed}" HorizontalAlignment="Right" Foreground="{StaticResource AccentTextBrush}" FontSize="12" /></Grid>
+                        <Border Grid.Row="2" Style="{StaticResource Card}" Padding="16"><StackPanel><Grid><TextBlock Text="{Binding InstallStage}" FontWeight="SemiBold" /><TextBlock Text="{Binding InstallSpeed}" HorizontalAlignment="Right" Foreground="{DynamicResource AccentTextBrush}" FontSize="12" /></Grid>
                             <ProgressBar Height="7" Minimum="0" Maximum="100" Value="{Binding InstallPercent, Mode=OneWay}" IsIndeterminate="{Binding InstallIndeterminate, Mode=OneWay}" Margin="0,10,0,8" />
                             <TextBlock Text="{Binding InstallDetail}" Style="{StaticResource MutedText}" FontSize="12" /><Grid Margin="0,8,0,0"><TextBlock Text="{Binding InstallFiles}" Style="{StaticResource MutedText}" FontSize="11" /><TextBlock Text="{Binding InstallTransfer}" Style="{StaticResource MutedText}" FontSize="11" HorizontalAlignment="Right" /></Grid>
-                            <Button x:Name="InstalledShortcut" Content="查看已安装版本  →" Visibility="Collapsed" Click="ShowVersions_Click" HorizontalAlignment="Left" Margin="0,13,0,0" Padding="0" Background="Transparent" BorderThickness="0" Foreground="{StaticResource AccentTextBrush}" />
+                            <Button x:Name="InstalledShortcut" Content="查看已安装版本  →" Visibility="Collapsed" Click="ShowVersions_Click" HorizontalAlignment="Left" Margin="0,13,0,0" Padding="0" Background="Transparent" BorderThickness="0" Foreground="{DynamicResource AccentTextBrush}" />
                         </StackPanel></Border>
                     </Grid>
                     <Grid x:Name="ModpacksPage" Style="{StaticResource PagePanel}">
                         <StackPanel>
-                            <Border Style="{StaticResource Card}" Background="{StaticResource HeroBrush}" Padding="24"
+                            <Border Style="{StaticResource Card}" Background="{DynamicResource HeroBrush}" Padding="24"
                                     AllowDrop="True" DragOver="Pack_DragOver" Drop="Pack_Drop">
                                 <StackPanel>
                                     <TextBlock Text="选择或拖入整合包" FontSize="23" FontWeight="SemiBold" />
@@ -717,7 +764,7 @@
                                                  IsChecked="{Binding ShowGuestSetup, Mode=TwoWay}" />
                                 </Grid>
                             </Border>
-                            <Border x:Name="HostRoomCard" Style="{StaticResource Card}" Background="{StaticResource HeroBrush}" Padding="24"
+                            <Border x:Name="HostRoomCard" Style="{StaticResource Card}" Background="{DynamicResource HeroBrush}" Padding="24"
                                     Visibility="{Binding ShowHostSetup, Converter={StaticResource BoolVisibility}}">
                                 <StackPanel>
                                     <TextBlock Text="邀请好友进入你的存档" FontSize="23" FontWeight="SemiBold" />
@@ -745,7 +792,7 @@
                                         <Button x:Name="JoinRoomButton" Content="{Binding JoinRoomButtonText}" DockPanel.Dock="Right" Style="{StaticResource PrimaryButton}" Click="JoinRoom_Click" IsEnabled="{Binding CanJoinRoom}" Margin="9,0,0,0" />
                                         <Grid>
                                             <TextBox Text="{Binding InviteInput, UpdateSourceTrigger=PropertyChanged}" MaxLength="128" IsEnabled="{Binding CanEditRelay}" VerticalContentAlignment="Center" AutomationProperties.Name="好友邀请码" />
-                                            <TextBlock Text="粘贴好友邀请码" Foreground="{StaticResource MutedBrush}" FontSize="12" Margin="12,0"
+                                            <TextBlock Text="粘贴好友邀请码" Foreground="{DynamicResource MutedBrush}" FontSize="12" Margin="12,0"
                                                        VerticalAlignment="Center" IsHitTestVisible="False">
                                                 <TextBlock.Style>
                                                     <Style TargetType="TextBlock">
@@ -781,7 +828,7 @@
                     </Grid>
                     <Grid x:Name="AppearancePage" Style="{StaticResource PagePanel}">
                         <StackPanel>
-                            <Border Style="{StaticResource Card}" Background="{StaticResource HeroBrush}" Padding="22">
+                            <Border Style="{StaticResource Card}" Background="{DynamicResource HeroBrush}" Padding="22">
                                 <StackPanel IsEnabled="{Binding CanEditLocalAppearance}">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
@@ -795,12 +842,7 @@
                                                 <Border x:Name="CharacterStage" CornerRadius="10" Cursor="Hand"
                                                         MouseLeftButtonDown="CharacterPreview_MouseDown" MouseMove="CharacterPreview_MouseMove"
                                                         MouseLeftButtonUp="CharacterPreview_MouseUp" AutomationProperties.Name="角色 3D 预览">
-                                                    <Border.Background>
-                                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                                                            <GradientStop Color="#FFFFF5F9" Offset="0" />
-                                                            <GradientStop Color="#FFF2E0F0" Offset="1" />
-                                                        </LinearGradientBrush>
-                                                    </Border.Background>
+                                                    <Border.Background><DynamicResource ResourceKey="CharacterStageBrush" /></Border.Background>
                                                     <Viewport3D x:Name="CharacterViewport" MaxWidth="260" MinHeight="272" IsHitTestVisible="False" ClipToBounds="True">
                                                         <Viewport3D.Camera>
                                                             <OrthographicCamera Position="0,0,96" LookDirection="0,0,-1" UpDirection="0,1,0" Width="34" />
@@ -843,7 +885,7 @@
                                                                HorizontalAlignment="Center" Margin="0,6,0,0" />
                                                     <TextBlock Text="{Binding PublicAppearanceName, StringFormat=正在预览 · {0}}"
                                                                Visibility="{Binding IsPreviewingPublicAppearance, Converter={StaticResource BoolVisibility}}"
-                                                               Foreground="{StaticResource AccentTextBrush}" FontSize="11"
+                                                               Foreground="{DynamicResource AccentTextBrush}" FontSize="11"
                                                                HorizontalAlignment="Center" Margin="0,5,0,0" />
                                                 </StackPanel>
                                             </Grid>
@@ -852,7 +894,7 @@
                                             <StackPanel DockPanel.Dock="Bottom" Margin="0,11,0,0">
                                                 <CheckBox Content="启动时应用外观" IsChecked="{Binding ApplyLocalAppearance}" />
                                                 <TextBlock Text="首次使用需要联网安装外观组件。自定义外观仅在本机显示。"
-                                                           Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" FontSize="11" Margin="0,4,0,7" />
+                                                           Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" FontSize="11" Margin="0,4,0,7" />
                                                 <DockPanel>
                                                     <Button DockPanel.Dock="Right" Content="保存本地角色" Style="{StaticResource PrimaryButton}" Click="SaveLocalAppearance_Click" />
                                                     <TextBlock Text="{Binding LocalAppearanceStatus}" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,8,0" FontSize="11" />
@@ -865,7 +907,7 @@
                                                         <TextBox x:Name="LocalPlayerNameBox" Text="{Binding PlayerName, UpdateSourceTrigger=PropertyChanged}" MaxLength="16"
                                                                  AutomationProperties.Name="游戏内玩家名" />
                                                         <TextBlock Text="1–16 位英文字母、数字或下划线。改名后，部分存档里的背包或进度会按新玩家记录。"
-                                                                   Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" FontSize="11" Margin="0,5,0,0" />
+                                                                   Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" FontSize="11" Margin="0,5,0,0" />
                                                     </StackPanel>
                                                 </Border>
                                                 <Border Style="{StaticResource Card}" Padding="13" Margin="0,10,0,0">
@@ -877,13 +919,13 @@
                                                             </StackPanel>
                                                             <StackPanel Margin="0,0,8,0">
                                                                 <TextBlock Text="皮肤" FontWeight="SemiBold" />
-                                                                <TextBlock Text="{Binding LocalSkinLabel}" Foreground="{StaticResource MutedBrush}" FontSize="11" />
+                                                                <TextBlock Text="{Binding LocalSkinLabel}" Foreground="{DynamicResource MutedBrush}" FontSize="11" />
                                                             </StackPanel>
                                                         </DockPanel>
                                                         <CheckBox IsChecked="{Binding UseSlimSkin}" IsEnabled="{Binding HasLocalSkin}" Margin="0,7,0,0">
                                                             <TextBlock Text="使用细手臂模型（Alex）" TextWrapping="Wrap" />
                                                         </CheckBox>
-                                                        <Border BorderBrush="{StaticResource DividerBrush}" BorderThickness="0,1,0,0" Margin="0,10,0,0" Padding="0,10,0,0">
+                                                        <Border BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,1,0,0" Margin="0,10,0,0" Padding="0,10,0,0">
                                                             <DockPanel>
                                                                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
                                                                     <Button Content="选择 PNG" Click="PickLocalCape_Click" Padding="9,6" Margin="0,0,6,0" />
@@ -891,7 +933,7 @@
                                                                 </StackPanel>
                                                                 <StackPanel Margin="0,0,8,0">
                                                                     <TextBlock Text="披风" FontWeight="SemiBold" />
-                                                                    <TextBlock Text="{Binding LocalCapeLabel}" Foreground="{StaticResource MutedBrush}" FontSize="11" />
+                                                                    <TextBlock Text="{Binding LocalCapeLabel}" Foreground="{DynamicResource MutedBrush}" FontSize="11" />
                                                                 </StackPanel>
                                                             </DockPanel>
                                                         </Border>
@@ -909,7 +951,7 @@
                                                                      AutomationProperties.Name="要查询的 Java 玩家名" />
                                                             <Button Grid.Column="1" Content="查询" Click="LookupPublicAppearance_Click" Margin="8,0,0,0" />
                                                         </Grid>
-                                                        <TextBlock Text="{Binding PublicAppearanceStatus}" Foreground="{StaticResource MutedBrush}" FontSize="11"
+                                                        <TextBlock Text="{Binding PublicAppearanceStatus}" Foreground="{DynamicResource MutedBrush}" FontSize="11"
                                                                    TextWrapping="Wrap" Margin="0,5,0,0">
                                                             <TextBlock.Style>
                                                                 <Style TargetType="TextBlock">
@@ -996,33 +1038,68 @@
                             </StackPanel></Border>
                             <Border Style="{StaticResource Card}" Margin="0,16,0,0"><StackPanel>
                                 <TextBlock Text="运行环境" FontSize="17" FontWeight="SemiBold" Margin="0,0,0,20" />
-                                <Grid><CheckBox Content="根据游戏版本自动匹配 Java" IsChecked="{Binding AutoMatchJava}" /><Button Content="重新检测" Padding="0" Background="Transparent" BorderThickness="0" Foreground="{StaticResource AccentTextBrush}" HorizontalAlignment="Right" Click="DetectJava_Click" IsEnabled="{Binding CanInteract}" /></Grid>
+                                <Grid><CheckBox Content="根据游戏版本自动匹配 Java" IsChecked="{Binding AutoMatchJava}" /><Button Content="重新检测" Padding="0" Background="Transparent" BorderThickness="0" Foreground="{DynamicResource AccentTextBrush}" HorizontalAlignment="Right" Click="DetectJava_Click" IsEnabled="{Binding CanInteract}" /></Grid>
                                 <TextBlock Text="自定义 Java 路径（可选）" FontSize="12" Margin="0,12,0,0" />
                                 <Grid Margin="0,9,0,0"><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions><TextBox Text="{Binding JavaPath, UpdateSourceTrigger=PropertyChanged}" /><Button Grid.Column="1" Content="浏览…" Margin="10,0,0,0" Click="BrowseJava_Click" IsEnabled="{Binding CanInteract}" /></Grid>
                                 <TextBlock Text="{Binding JavaDetail}" Style="{StaticResource MutedText}" FontSize="11" Margin="0,7,0,0" />
-                                <Grid Margin="0,23,0,8"><TextBlock Text="最大游戏内存" FontSize="12" /><TextBlock Text="{Binding MemorySummary}" HorizontalAlignment="Right" Foreground="{StaticResource AccentTextBrush}" FontWeight="SemiBold" FontSize="13" /></Grid>
-                                <Slider Minimum="1024" Maximum="16384" TickFrequency="512" IsSnapToTickEnabled="True" Value="{Binding MemoryMb, UpdateSourceTrigger=PropertyChanged}" Foreground="{StaticResource AccentTextBrush}" />
+                                <Grid Margin="0,23,0,8"><TextBlock Text="最大游戏内存" FontSize="12" /><TextBlock Text="{Binding MemorySummary}" HorizontalAlignment="Right" Foreground="{DynamicResource AccentTextBrush}" FontWeight="SemiBold" FontSize="13" /></Grid>
+                                <Slider Minimum="1024" Maximum="16384" TickFrequency="512" IsSnapToTickEnabled="True" Value="{Binding MemoryMb, UpdateSourceTrigger=PropertyChanged}" Foreground="{DynamicResource AccentTextBrush}" />
                                 <TextBlock Text="建议先使用 4096 MB，并为 Windows 和其他程序保留足够内存。" Style="{StaticResource MutedText}" FontSize="11" Margin="0,8,0,0" />
                             </StackPanel></Border>
                             <TextBlock Text="{Binding SettingsStatus}" Style="{StaticResource MutedText}" Margin="0,16,0,15" />
                         </StackPanel>
                     </Grid>
+                    <Grid x:Name="LauncherSettingsPage" Style="{StaticResource PagePanel}">
+                        <StackPanel>
+                            <Border Style="{StaticResource Card}" Padding="22,20">
+                                <StackPanel>
+                                    <TextBlock Text="外观主题" FontSize="17" FontWeight="SemiBold" />
+                                    <UniformGrid Rows="1" Margin="0,16,0,0">
+                                        <RadioButton x:Name="CherryThemeOption" GroupName="LauncherTheme" Tag="cherry" Click="Theme_Click"
+                                                     AutomationProperties.Name="樱花主题" Style="{StaticResource RoomRoleTab}"
+                                                     IsChecked="{Binding IsCherryTheme, Mode=OneWay}" HorizontalContentAlignment="Stretch" Margin="0,0,6,0">
+                                            <StackPanel Margin="10,10,10,14">
+                                                <Border Height="112" CornerRadius="8">
+                                                    <Border.Background><ImageBrush ImageSource="/MCL;component/Assets/spring-valley.jpg" Stretch="UniformToFill" /></Border.Background>
+                                                </Border>
+                                                <TextBlock Text="樱花" Margin="0,9,0,0" HorizontalAlignment="Center" />
+                                            </StackPanel>
+                                        </RadioButton>
+                                        <RadioButton x:Name="AmethystThemeOption" GroupName="LauncherTheme" Tag="amethyst" Click="Theme_Click"
+                                                     AutomationProperties.Name="紫水晶洞穴主题" Style="{StaticResource RoomRoleTab}"
+                                                     IsChecked="{Binding IsAmethystTheme, Mode=OneWay}" HorizontalContentAlignment="Stretch" Margin="6,0,0,0">
+                                            <StackPanel Margin="10,10,10,14">
+                                                <Border Height="112" CornerRadius="8">
+                                                    <Border.Background><ImageBrush ImageSource="/MCL;component/Assets/amethyst-geode.jpg" Stretch="UniformToFill" /></Border.Background>
+                                                </Border>
+                                                <TextBlock Text="紫水晶洞穴" Margin="0,9,0,0" HorizontalAlignment="Center" />
+                                            </StackPanel>
+                                        </RadioButton>
+                                    </UniformGrid>
+                                </StackPanel>
+                            </Border>
+                            <Border Style="{StaticResource Card}" Padding="22,17" Margin="0,15,0,0">
+                                <CheckBox x:Name="ReduceMotionOption" Content="减少页面动画" Click="ReduceMotion_Click"
+                                          IsChecked="{Binding ReduceMotion, Mode=OneWay}" Foreground="{DynamicResource TextBrush}" />
+                            </Border>
+                        </StackPanel>
+                    </Grid>
                     <Grid x:Name="LogsPage" Style="{StaticResource PagePanel}">
                         <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
                         <Grid Margin="0,0,0,15"><TextBlock Text="启动器与游戏的运行记录" Style="{StaticResource MutedText}" VerticalAlignment="Center" /><StackPanel Orientation="Horizontal" HorizontalAlignment="Right"><Button Content="复制日志" Click="CopyLogs_Click" /><Button Content="打开日志文件夹" Margin="9,0,0,0" Click="OpenLogs_Click" /></StackPanel></Grid>
-                        <Border Grid.Row="1" Background="{StaticResource LogBackgroundBrush}" CornerRadius="12" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Padding="15" MinHeight="430">
+                        <Border Grid.Row="1" Background="{DynamicResource LogBackgroundBrush}" CornerRadius="12" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" Padding="15" MinHeight="430">
                             <ListBox x:Name="LogList" ItemsSource="{Binding Logs}" MaxHeight="550" ScrollViewer.VerticalScrollBarVisibility="Auto" VirtualizingPanel.IsVirtualizing="True">
                                 <ListBox.ItemContainerStyle><Style TargetType="ListBoxItem"><Setter Property="HorizontalContentAlignment" Value="Stretch" /><Setter Property="Template"><Setter.Value><ControlTemplate TargetType="ListBoxItem"><ContentPresenter Margin="0,4" /></ControlTemplate></Setter.Value></Setter></Style></ListBox.ItemContainerStyle>
-                                <ListBox.ItemTemplate><DataTemplate><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="70" /><ColumnDefinition Width="55" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions><TextBlock Text="{Binding TimeText}" FontFamily="Consolas" FontSize="11" Foreground="{StaticResource MutedBrush}" /><TextBlock Grid.Column="1" Text="{Binding Level}" FontFamily="Consolas" FontSize="11" Foreground="{StaticResource AccentTextBrush}" /><TextBlock Grid.Column="2" Text="{Binding Message}" FontSize="12" TextWrapping="Wrap" Foreground="{StaticResource LogTextBrush}" /></Grid></DataTemplate></ListBox.ItemTemplate>
+                                <ListBox.ItemTemplate><DataTemplate><Grid><Grid.ColumnDefinitions><ColumnDefinition Width="70" /><ColumnDefinition Width="55" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions><TextBlock Text="{Binding TimeText}" FontFamily="Consolas" FontSize="11" Foreground="{DynamicResource MutedBrush}" /><TextBlock Grid.Column="1" Text="{Binding Level}" FontFamily="Consolas" FontSize="11" Foreground="{DynamicResource AccentTextBrush}" /><TextBlock Grid.Column="2" Text="{Binding Message}" FontSize="12" TextWrapping="Wrap" Foreground="{DynamicResource LogTextBrush}" /></Grid></DataTemplate></ListBox.ItemTemplate>
                             </ListBox>
                         </Border>
                     </Grid>
                 </Grid>
             </ScrollViewer>
-            <Border Grid.Row="2" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0" Padding="0,11,0,0" Margin="0,10,0,0">
+            <Border Grid.Row="2" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0" Padding="0,11,0,0" Margin="0,10,0,0">
                 <Grid>
                     <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                    <TextBlock Text="{Binding StatusMessage}" Foreground="{StaticResource MutedBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,0,15,0" VerticalAlignment="Center" />
+                    <TextBlock Text="{Binding StatusMessage}" Foreground="{DynamicResource MutedBrush}" FontSize="11" TextWrapping="Wrap" Margin="0,0,15,0" VerticalAlignment="Center" />
                     <Button x:Name="FooterSaveButton" Grid.Column="1" Content="保存设置" Visibility="Collapsed" Style="{StaticResource PrimaryButton}"
                             Padding="18,9" Click="SaveSettings_Click" IsEnabled="{Binding CanInteract}" />
                 </Grid>

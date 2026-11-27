@@ -8,6 +8,7 @@ public partial class VersionDeleteDialog : Window
     public VersionDeleteDialog(VersionDeletionInfo info)
     {
         InitializeComponent();
+        SourceInitialized += (_, _) => MainWindow.ApplyWindowCaption(this);
         DataContext = info;
         ContentRendered += (_, _) => CancelDeleteButton.Focus();
     }

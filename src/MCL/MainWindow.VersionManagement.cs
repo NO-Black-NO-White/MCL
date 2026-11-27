@@ -46,7 +46,7 @@ public partial class MainWindow
     private void AnimateVersionArtwork()
     {
         if (_currentPage != "Versions" || _loading || IsBusy || SelectedVersion is null
-            || !IsLoaded || _offlinePreview || !SystemParameters.ClientAreaAnimation) return;
+            || !IsLoaded || _offlinePreview || !AnimatePages) return;
 
         VersionArtwork.BeginAnimation(System.Windows.Media.Brush.OpacityProperty,
             new DoubleAnimation(0.45, 1, TimeSpan.FromMilliseconds(180))

@@ -47,7 +47,7 @@ public partial class MainWindow
         var sameDirection = _versionScrollTimer?.IsEnabled == true && (_versionScrollTarget - current) * distance > 0;
         var target = Math.Clamp((sameDirection ? _versionScrollTarget : current) + distance, 0, viewer.ScrollableHeight);
 
-        if (!SystemParameters.ClientAreaAnimation || target == current)
+        if (!AnimatePages || target == current)
         {
             _versionScrollTimer?.Stop();
             viewer.ScrollToVerticalOffset(target);
