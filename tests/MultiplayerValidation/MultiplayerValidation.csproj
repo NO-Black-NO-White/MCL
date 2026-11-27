@@ -10,5 +10,6 @@
     <Compile Include="../../src/MCL/Services/MultiplayerClient.cs" Link="MultiplayerClient.cs" />
     <Compile Include="../../src/MCL/Services/RoomInvite.cs" Link="RoomInvite.cs" />
     <Compile Include="../../src/MCL/Services/DirectMultiplayer.cs" Link="DirectMultiplayer.cs" />
+    <Compile Include="../../src/MCL/Services/RoomLatencyHistory.cs" Link="RoomLatencyHistory.cs" />
   </ItemGroup>
 </Project>

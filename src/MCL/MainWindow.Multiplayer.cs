@@ -7,6 +7,8 @@ using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Threading;
 using MCL.Models;
 using MCL.Multiplayer;
 using MCL.Services;
@@ -84,13 +86,18 @@ public partial class MainWindow
     public bool UseIpv6Direct
     {
         get => _useIpv6Direct;
-        set { if (Set(ref _useIpv6Direct, value)) NotifyMultiplayer(); }
+        set
+        {
+            if (!Set(ref _useIpv6Direct, value)) return;
+            if (value) Set(ref _useSharedRelay, false, nameof(UseSharedRelay));
+            NotifyMultiplayer();
+        }
     }
     public bool CanChooseSharedRelay => CanEditRelay && !UseIpv6Direct;
     public string HostTransportHint => UseIpv6Direct
-        ? "在游戏里开放存档，MCL 会生成 IPv6 直连邀请。好友需要 IPv6，你的网络需要允许入站连接。"
-        : UseSharedRelay ? "在游戏里开放存档，MCL 会使用你填写的共享中转。"
-        : "在游戏里开放存档，MCL 会自动准备本机中转和临时公网隧道。";
+        ? "IPv6 直连需要双方有 IPv6，房主网络允许入站连接。"
+        : UseSharedRelay ? "使用下方「手动中转设置」中的地址。"
+        : "进入存档后选择「对局域网开放」，MCL 会准备公网隧道。";
     public string MultiplayerStatus { get => _multiplayerStatus; private set => Set(ref _multiplayerStatus, value); }
     public string MultiplayerStage
     {
@@ -107,6 +114,7 @@ public partial class MainWindow
 
     private void StartRoomDiagnostic(bool hosting, RoomRoute route)
     {
+        ClearLatency();
         _roomDiagnostic = new RoomDiagnostic(hosting, route);
         Notify(nameof(HasRoomDiagnostic), nameof(RoomDiagnosticRoute), nameof(RoomDiagnosticDetails));
     }
@@ -120,32 +128,63 @@ public partial class MainWindow
     private void CopyRoomDiagnostic_Click(object sender, RoutedEventArgs e)
     {
         if (_roomDiagnostic is not { } diagnostic) return;
-        try { Clipboard.SetText(diagnostic.Format(AppVersionText)); StatusMessage = "已复制联机诊断。"; }
+        try
+        {
+            var report = diagnostic.Format(AppVersionText);
+            if (RoomLatencyDiagnostic is { Length: > 0 } latency) report += Environment.NewLine + Environment.NewLine + latency;
+            Clipboard.SetText(report);
+            StatusMessage = "已复制联机诊断。";
+        }
         catch (COMException) { StatusMessage = "剪贴板暂时不可用，请重试。"; }
     }
     public bool MultiplayerActive => _multiplayerCancellation is not null;
     public bool CanEditRelay => !MultiplayerActive && !IsBusy;
+    public bool CanChooseHostVersion => CanEditRelay && !IsGameRunning;
+    public IReadOnlyList<GameVersion> HostRoomVersions => _runningGame is { } running
+        ? [running] : Versions.Where(IsHostable).ToArray();
+    public GameVersion? HostRoomVersion
+    {
+        get => _runningGame ?? (SelectedVersion is { } selected && IsHostable(selected)
+            ? selected : Versions.FirstOrDefault(IsHostable));
+        set
+        {
+            if (CanChooseHostVersion && value is not null && Versions.Contains(value) && IsHostable(value))
+                SelectedVersion = value;
+        }
+    }
     public bool CanHostRoom => CanEditRelay && !_runningForGuest
-        && (IsGameRunning ? _runningGame : SelectedVersion) is { IsValid: true } game && Describe(game).IsSupported;
+        && (!IsGameRunning || _runningGame is not null) && HostRoomVersion is { } version && IsHostable(version);
     public bool CanJoinRoom => (CanEditRelay || _retryJoin && _multiplayerCancellation is { IsCancellationRequested: false } && !_hostingRoom && !IsBusy)
         && (!IsGameRunning || _runningGame is not null) && InviteInput.Trim().Length != 0;
     public string HostRoomButtonText => IsGameRunning ? _retryHost ? "重试开房" : "创建房间" : "启动并创建房间";
     public string JoinRoomButtonText => _retryJoin ? "重试加入" : IsGameRunning ? "加入房间" : "加入并启动";
     public string LanRoomStatus => _runningForGuest ? "请先退出正在加入的游戏，再创建自己的房间。"
-        : (_runningGame ?? SelectedVersion) is not { IsValid: true } version
-        ? "请先在「游戏版本」里选择可启动的版本。"
-        : !Describe(version).IsSupported ? "好友联机支持 Minecraft Java 1.20 及以上。"
-        : _runningGame is null ? $"将启动 {version.DisplayName}。"
+        : HostRoomVersion is not { } version || !IsHostable(version)
+        ? "需要可启动的 Java 版 1.20 或以上版本。"
+        : _runningGame is null ? ""
         : _lanPort is null ? "等待游戏开放局域网。"
         : "已识别局域网房间。";
 
     private void NotifyMultiplayer() => Notify(nameof(MultiplayerActive), nameof(CanEditRelay), nameof(CanHostRoom),
+        nameof(CanChooseHostVersion), nameof(HostRoomVersion),
         nameof(CanJoinRoom), nameof(HostRoomButtonText), nameof(JoinRoomButtonText), nameof(LanRoomStatus),
         nameof(CanChooseSharedRelay), nameof(HostTransportHint),
         nameof(CanManageSaves), nameof(CanShareModpack), nameof(CanCompareModpack), nameof(ActivityText), nameof(ActivityIsReady));
 
     private static RoomGame Describe(GameVersion version) =>
         new(version.ModpackMinecraft ?? version.Id, version.ModpackName, version.ModpackVersion, version.ModpackLoader);
+
+    private static bool IsHostable(GameVersion version) => version.IsValid && (version.ModpackName is not null || version.InheritsFrom is null)
+        && Describe(version).IsSupported;
+
+    private void HostVersionList_IsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (sender is ListBox { IsVisible: true } list)
+            Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
+            {
+                if (list.IsVisible && list.SelectedItem is { } version) list.ScrollIntoView(version);
+            });
+    }
 
     private static Task<string> RoomModsAsync(GameVersion version, CancellationToken ct) =>
         Task.Run(() => ModpackComparison.FingerprintAsync(
@@ -200,6 +239,7 @@ public partial class MainWindow
 
     private void ResetMultiplayer()
     {
+        StopLatency();
         _multiplayerCancellation = null;
         _hostingRoom = false;
         _guestUsesGame = false;
@@ -210,7 +250,8 @@ public partial class MainWindow
 
     private async void HostRoom_Click(object sender, RoutedEventArgs e)
     {
-        if (!CanHostRoom || (_runningGame ?? SelectedVersion) is not { } version) return;
+        if (!CanHostRoom || HostRoomVersion is not { } version) return;
+        if (_runningGame is null) SelectedVersion = version;
         using var cancellation = BeginMultiplayer(hosting: true);
         StartRoomDiagnostic(hosting: true, UseIpv6Direct ? RoomRoute.Ipv6 : UseSharedRelay ? RoomRoute.SharedRelay : RoomRoute.Cloudflare);
         MultiplayerStage = "准备开房";
@@ -241,7 +282,9 @@ public partial class MainWindow
             if (directAddress is not null)
             {
                 MultiplayerStage = "准备 IPv6 直连";
-                var directRoom = DirectMultiplayer.Host(game, directAddress, port, cancellation.Token);
+                var samples = new Progress<double?>(sample => ObserveDirectGuestLatency(cancellation, sample));
+                var directRoom = DirectMultiplayer.Host(game, directAddress, port, cancellation.Token, samples);
+                StartLatency(LatencyTarget.DirectHost);
                 RoomCode = directRoom.Invite;
                 _retryHost = false;
                 MultiplayerStage = "IPv6 房间已开放";
@@ -270,6 +313,9 @@ public partial class MainWindow
             }));
             if (!cancellation.IsCancellationRequested)
             {
+                var probe = automatic is null ? client : new MultiplayerClient(automatic.Public.AbsoluteUri);
+                _ = MonitorLatencyAsync(cancellation, automatic is null ? LatencyTarget.Relay : LatencyTarget.PublicTunnelLoop,
+                    probe.MeasureLatencyAsync);
                 RoomCode = automatic is null ? room.Code : RoomInvite.Create(automatic.Public, room.Code);
                 _retryHost = false;
                 MultiplayerStage = "房间已开放";
@@ -310,6 +356,7 @@ public partial class MainWindow
         }
         finally
         {
+            cancellation.Cancel();
             automatic?.Dispose();
             ResetMultiplayer();
         }
@@ -327,9 +374,10 @@ public partial class MainWindow
         }
         var runningGame = _runningGame;
         var input = InviteInput.Trim();
-        StartRoomDiagnostic(hosting: false, input.StartsWith("MCL6/", StringComparison.OrdinalIgnoreCase) ? RoomRoute.Ipv6
+        var route = input.StartsWith("MCL6/", StringComparison.OrdinalIgnoreCase) ? RoomRoute.Ipv6
             : input.StartsWith("MCL1/", StringComparison.OrdinalIgnoreCase) ? RoomRoute.Cloudflare
-            : RoomProtocol.IsToken(input) ? RoomRoute.SharedRelay : RoomRoute.Unknown);
+            : RoomProtocol.IsToken(input) ? RoomRoute.SharedRelay : RoomRoute.Unknown;
+        StartRoomDiagnostic(hosting: false, route);
         RoomInvite invite;
         try { invite = RoomInvite.Read(input, RelayEndpoint); }
         catch (InvalidDataException ex)
@@ -387,6 +435,14 @@ public partial class MainWindow
             tunnel = direct is null
                 ? client!.StartGuest(invite.Code, ConnectionFailed, cancellation.Token, Connected)
                 : direct.StartGuest(ConnectionFailed, cancellation.Token, Connected);
+            if (direct is null)
+                _ = MonitorLatencyAsync(cancellation, route == RoomRoute.Cloudflare
+                    ? LatencyTarget.PublicTunnel : LatencyTarget.Relay, client!.MeasureLatencyAsync);
+            else
+            {
+                var probe = direct.CreateLatencyProbe();
+                _ = MonitorLatencyAsync(cancellation, LatencyTarget.DirectGuest, probe.MeasureAsync, probe);
+            }
             if (runningGame is null)
             {
                 SelectedVersion = version;

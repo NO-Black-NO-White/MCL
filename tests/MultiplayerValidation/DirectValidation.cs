@@ -1,6 +1,8 @@
 using System.Net;
 using System.Net.Sockets;
+using System.Security.Authentication;
 using System.Security.Cryptography;
+using System.Threading.Channels;
 using MCL.Multiplayer;
 using MCL.Services;
 
@@ -30,14 +32,29 @@ internal static class DirectValidation
         try
         {
             var game = new RoomGame("1.21.11", "Direct QA", "1", "Fabric", new string('B', 64));
-            var host = DirectMultiplayer.Host(game, IPAddress.IPv6Loopback, ((IPEndPoint)world.LocalEndpoint).Port, hostLifetime.Token);
+            var reverseSamples = Channel.CreateUnbounded<double?>();
+            var host = DirectMultiplayer.Host(game, IPAddress.IPv6Loopback, ((IPEndPoint)world.LocalEndpoint).Port,
+                hostLifetime.Token, new SampleObserver(reverseSamples.Writer));
             var fields = host.Invite.Split('/');
             var local = new DirectRoomEndpoint(IPAddress.IPv6Loopback, host.Port, fields[4]);
             var client = new DirectMultiplayer(local, fields[3]);
             Check(await client.FindAsync(ct) == game, "A direct IPv6 room returns its version and mod fingerprint");
             await RejectAsync(() => new DirectMultiplayer(local, RoomProtocol.Token()).FindAsync(ct));
             await RejectAsync(() => new DirectMultiplayer(local with { Pin = new string('0', 64) }, fields[3]).FindAsync(ct));
-            Check(!world.Pending(), "Info requests and failed authentication do not connect to the game");
+            using (var invalidProbe = new DirectMultiplayer(local, RoomProtocol.Token()).CreateLatencyProbe())
+                await RejectAsync(() => invalidProbe.MeasureAsync(ct));
+            using (var wrongCertificate = new DirectMultiplayer(local with { Pin = new string('0', 64) }, fields[3]).CreateLatencyProbe())
+                await RejectAsync(() => wrongCertificate.MeasureAsync(ct));
+            using (var probe = client.CreateLatencyProbe())
+            {
+                for (var i = 0; i < 3; i++)
+                {
+                    Check(await probe.MeasureAsync(ct) >= 0 && await reverseSamples.Reader.ReadAsync(ct) is >= 0,
+                        "Direct latency exchange provides both client and host samples");
+                }
+            }
+            Check(await reverseSamples.Reader.ReadAsync(ct) is null, "Disconnecting the measured peer clears the host observation");
+            Check(!world.Pending(), "Info, latency probes and failed authentication do not connect to the game");
 
             var connected = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             var tunnel = client.StartGuest(() => { }, guestLifetime.Token, () => connected.TrySetResult());
@@ -75,7 +92,7 @@ internal static class DirectValidation
     private static async Task RejectAsync<T>(Func<Task<T>> operation)
     {
         try { await operation(); }
-        catch (Exception ex) when (ex is InvalidDataException or IOException) { return; }
+        catch (Exception ex) when (ex is InvalidDataException or IOException or AuthenticationException) { return; }
         throw new InvalidOperationException("An invalid direct connection was accepted.");
     }
 
@@ -83,5 +100,10 @@ internal static class DirectValidation
     {
         if (!condition) throw new InvalidOperationException(message);
         Console.WriteLine("PASS " + message);
+    }
+
+    private sealed class SampleObserver(ChannelWriter<double?> samples) : IProgress<double?>
+    {
+        public void Report(double? value) => samples.TryWrite(value);
     }
 }

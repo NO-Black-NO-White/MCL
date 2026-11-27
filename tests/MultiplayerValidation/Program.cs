@@ -20,6 +20,16 @@ using var hostLifetime = CancellationTokenSource.CreateLinkedTokenSource(deadlin
 using var guestLifetime = CancellationTokenSource.CreateLinkedTokenSource(deadline.Token);
 var ct = deadline.Token;
 var service = new MultiplayerClient(relay);
+Check(await service.MeasureLatencyAsync(ct) >= 0, "Relay health endpoint returns a round-trip measurement");
+var latency = new RoomLatencyHistory();
+foreach (var sample in new double?[] { 100, 120, null, 200, 240 }) latency.Add(sample);
+var summary = latency.Snapshot();
+Check(summary.Current == 240 && summary.Average == 165 && summary.Jitter == 30 && summary.Missed == 1,
+    "Latency history excludes failed samples and does not calculate jitter across a gap");
+for (var i = 0; i < RoomLatencyHistory.Capacity; i++) latency.Add(i);
+summary = latency.Snapshot();
+Check(summary.Samples.Length == RoomLatencyHistory.Capacity && summary.Missed == 0 && summary.Current == 29,
+    "Latency statistics are limited to the recent window");
 var hostKey = Environment.GetEnvironmentVariable("MCL_RelayHostKey");
 var sampleCode = RoomProtocol.Token();
 var sampleInvite = RoomInvite.Create(new Uri("https://rose-world.trycloudflare.com"), sampleCode);

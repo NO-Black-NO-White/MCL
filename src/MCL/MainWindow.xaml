@@ -976,27 +976,78 @@
                                                      IsChecked="{Binding ShowGuestSetup, Mode=TwoWay}" />
                                     </Grid>
                                 </Border>
-                                <Border x:Name="HostRoomCard" Style="{StaticResource Card}" Background="{DynamicResource HeroBrush}" Padding="24"
-                                        Visibility="{Binding ShowHostSetup, Converter={StaticResource BoolVisibility}}">
-                                    <StackPanel>
-                                        <TextBlock Text="邀请好友进入你的存档" FontSize="22" FontWeight="SemiBold" />
-                                        <TextBlock Text="{Binding HostTransportHint}"
-                                                   Style="{StaticResource MutedText}" Margin="0,8,0,0" />
-                                        <CheckBox x:Name="Ipv6DirectOption" Content="使用 IPv6 直连（测试）" Style="{StaticResource ToggleSwitch}"
-                                                  IsChecked="{Binding UseIpv6Direct}" IsEnabled="{Binding CanEditRelay}" Margin="0,12,0,0" />
-                                        <TextBlock Text="{Binding LanRoomStatus}" TextWrapping="Wrap" Margin="0,10,0,14" />
-                                        <WrapPanel>
-                                            <Button Content="{Binding HostRoomButtonText}" Style="{StaticResource PrimaryButton}" Click="HostRoom_Click" IsEnabled="{Binding CanHostRoom}" />
-                                        </WrapPanel>
-                                        <StackPanel Visibility="{Binding HasRoomCode, Converter={StaticResource BoolVisibility}}" Margin="0,13,0,0">
-                                            <TextBlock Text="邀请码" FontWeight="SemiBold" Margin="0,0,0,5" />
-                                            <DockPanel>
-                                                <Button Content="复制邀请码" DockPanel.Dock="Right" Click="CopyRoom_Click" Margin="9,0,0,0" />
-                                                <TextBox Text="{Binding RoomCode, Mode=OneWay}" IsReadOnly="True" VerticalContentAlignment="Center" />
-                                            </DockPanel>
+                                <Grid x:Name="HostRoomCard" Visibility="{Binding ShowHostSetup, Converter={StaticResource BoolVisibility}}">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="36*" /><ColumnDefinition Width="14" /><ColumnDefinition Width="64*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Style="{StaticResource Card}" Padding="14">
+                                        <DockPanel>
+                                            <TextBlock Text="选择游戏版本" DockPanel.Dock="Top" FontSize="16" FontWeight="SemiBold" Margin="2,0,0,10" />
+                                            <Grid>
+                                                <ListBox x:Name="HostVersionList" ItemsSource="{Binding HostRoomVersions}"
+                                                         SelectedItem="{Binding HostRoomVersion, Mode=TwoWay}"
+                                                         IsEnabled="{Binding CanChooseHostVersion}" AutomationProperties.Name="选择开房版本"
+                                                         MaxHeight="166" VerticalAlignment="Top" VirtualizingPanel.ScrollUnit="Pixel"
+                                                         IsVisibleChanged="HostVersionList_IsVisibleChanged">
+                                                    <ListBox.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Grid ToolTip="{Binding DisplayName}">
+                                                                <Grid.ColumnDefinitions>
+                                                                    <ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" />
+                                                                </Grid.ColumnDefinitions>
+                                                                <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Margin="0,0,8,0" />
+                                                                <Border Grid.Column="1" Style="{StaticResource VersionBadgeBorder}">
+                                                                    <TextBlock Text="{Binding BadgeText}" Style="{StaticResource VersionBadgeText}" />
+                                                                </Border>
+                                                            </Grid>
+                                                        </DataTemplate>
+                                                    </ListBox.ItemTemplate>
+                                                </ListBox>
+                                                <TextBlock Text="暂无可联机版本" VerticalAlignment="Center" HorizontalAlignment="Center" Foreground="{DynamicResource MutedBrush}">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding HasItems, ElementName=HostVersionList}" Value="False">
+                                                                    <Setter Property="Visibility" Value="Visible" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                            </Grid>
+                                        </DockPanel>
+                                    </Border>
+                                    <Border Grid.Column="2" Style="{StaticResource Card}" Background="{DynamicResource HeroBrush}" Padding="20">
+                                        <StackPanel>
+                                            <TextBlock Text="房间设置" FontSize="17" FontWeight="SemiBold" />
+                                            <CheckBox x:Name="Ipv6DirectOption" Content="使用 IPv6 直连（测试）" Style="{StaticResource ToggleSwitch}"
+                                                      IsChecked="{Binding UseIpv6Direct}" IsEnabled="{Binding CanEditRelay}" Margin="0,10,0,8" />
+                                            <CheckBox Content="使用手动中转" Style="{StaticResource ToggleSwitch}"
+                                                      IsChecked="{Binding UseSharedRelay}" IsEnabled="{Binding CanChooseSharedRelay}" />
+                                            <TextBlock Text="{Binding HostTransportHint}" Style="{StaticResource MutedText}" Margin="0,9,0,0" />
+                                            <TextBlock Text="{Binding LanRoomStatus}" TextWrapping="Wrap">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Margin" Value="0,6,0,0" />
+                                                        <Style.Triggers>
+                                                            <Trigger Property="Text" Value=""><Setter Property="Visibility" Value="Collapsed" /></Trigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
+                                            <Button Content="{Binding HostRoomButtonText}" Style="{StaticResource PrimaryButton}" Click="HostRoom_Click"
+                                                    IsEnabled="{Binding CanHostRoom}" HorizontalAlignment="Left" Margin="0,12,0,0" />
+                                            <StackPanel Visibility="{Binding HasRoomCode, Converter={StaticResource BoolVisibility}}" Margin="0,12,0,0">
+                                                <TextBlock Text="邀请码" FontWeight="SemiBold" Margin="0,0,0,5" />
+                                                <DockPanel>
+                                                    <Button Content="复制邀请码" DockPanel.Dock="Right" Click="CopyRoom_Click" Margin="9,0,0,0" />
+                                                    <TextBox Text="{Binding RoomCode, Mode=OneWay}" IsReadOnly="True" VerticalContentAlignment="Center" AutomationProperties.Name="房间邀请码" />
+                                                </DockPanel>
+                                            </StackPanel>
                                         </StackPanel>
-                                    </StackPanel>
-                                </Border>
+                                    </Border>
+                                </Grid>
                                 <Border x:Name="GuestRoomCard" Style="{StaticResource Card}" Padding="20"
                                         Visibility="{Binding ShowGuestSetup, Converter={StaticResource BoolVisibility}}">
                                     <StackPanel>
@@ -1058,10 +1109,59 @@
                                             <StackPanel>
                                                 <TextBlock Text="已有共享中转或收到旧版邀请码时，可填写地址。" Style="{StaticResource MutedText}" Margin="0,2,0,8" />
                                                 <TextBox Text="{Binding RelayEndpoint, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding CanEditRelay}" AutomationProperties.Name="联机服务地址" />
-                                                <CheckBox Content="创建房间时使用这个中转地址" Style="{StaticResource ToggleSwitch}" IsChecked="{Binding UseSharedRelay}"
-                                                          IsEnabled="{Binding CanChooseSharedRelay}" Margin="0,12,0,0" />
                                             </StackPanel>
                                         </Expander>
+                                    </StackPanel>
+                                </Border>
+                                <Border x:Name="RoomLatencyCard" Style="{StaticResource Card}" Padding="18,14" Margin="0,14,0,0">
+                                    <StackPanel>
+                                        <DockPanel>
+                                            <TextBlock Text="最近 30 次" DockPanel.Dock="Right" Style="{StaticResource MutedText}"
+                                                       FontSize="11" VerticalAlignment="Center" Margin="12,0,0,0" />
+                                            <TextBlock Text="联机延迟" FontSize="16" FontWeight="SemiBold" />
+                                        </DockPanel>
+                                        <TextBlock Text="{Binding RoomLatencyCaption}" Style="{StaticResource MutedText}" FontSize="11" Margin="0,2,0,9"
+                                                   ToolTip="中转测速测量到入口的 HTTP 往返。IPv6 测速测量双方启动器之间的往返。" />
+                                        <UniformGrid Rows="1" Margin="0,0,0,10">
+                                            <StackPanel>
+                                                <TextBlock Text="当前延迟" Style="{StaticResource MutedText}" FontSize="11" />
+                                                <TextBlock Text="{Binding RoomLatencyCurrent}" Foreground="{DynamicResource AccentTextBrush}" FontSize="22" FontWeight="SemiBold" />
+                                            </StackPanel>
+                                            <StackPanel>
+                                                <TextBlock Text="平均延迟" Style="{StaticResource MutedText}" FontSize="11" />
+                                                <TextBlock Text="{Binding RoomLatencyAverage}" FontSize="17" FontWeight="SemiBold" Margin="0,4,0,0" />
+                                            </StackPanel>
+                                            <StackPanel ToolTip="相邻有效样本的平均变化。">
+                                                <TextBlock Text="波动" Style="{StaticResource MutedText}" FontSize="11" />
+                                                <TextBlock Text="{Binding RoomLatencyJitter}" FontSize="17" FontWeight="SemiBold" Margin="0,4,0,0" />
+                                            </StackPanel>
+                                            <StackPanel>
+                                                <TextBlock Text="未响应" Style="{StaticResource MutedText}" FontSize="11" />
+                                                <TextBlock Text="{Binding RoomLatencyMissed}" FontSize="17" FontWeight="SemiBold" Margin="0,4,0,0" />
+                                            </StackPanel>
+                                        </UniformGrid>
+                                        <Border Background="{DynamicResource SubtleSurfaceBrush}" CornerRadius="10" Padding="8,5">
+                                            <Grid Height="92" ClipToBounds="True" AutomationProperties.Name="实时延迟趋势，最新采样在右侧">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" /><ColumnDefinition Width="58" />
+                                                </Grid.ColumnDefinitions>
+                                                <Viewbox Stretch="Fill" IsHitTestVisible="False">
+                                                    <Canvas Width="740" Height="92">
+                                                        <Line X1="7" Y1="6" X2="732" Y2="6" Stroke="{DynamicResource DividerBrush}" />
+                                                        <Line X1="7" Y1="45" X2="732" Y2="45" Stroke="{DynamicResource DividerBrush}" StrokeDashArray="3,3" />
+                                                        <Line X1="7" Y1="84" X2="732" Y2="84" Stroke="{DynamicResource DividerBrush}" />
+                                                        <Path Data="{Binding RoomLatencyCurve}" Stroke="{DynamicResource AccentBrush}"
+                                                              Fill="{DynamicResource AccentBrush}" StrokeThickness="2" StrokeLineJoin="Round" />
+                                                        <Path Data="{Binding RoomLatencyTimeoutMarks}" Fill="{DynamicResource BadgeWarningFg}" />
+                                                    </Canvas>
+                                                </Viewbox>
+                                                <Grid Grid.Column="1" Margin="2,0,2,0" TextBlock.Foreground="{DynamicResource MutedBrush}" TextBlock.FontSize="10.5">
+                                                    <TextBlock Text="{Binding RoomLatencyChartTop}" HorizontalAlignment="Right" VerticalAlignment="Top" />
+                                                    <TextBlock Text="{Binding RoomLatencyChartMiddle}" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                                                    <TextBlock Text="0 ms" HorizontalAlignment="Right" VerticalAlignment="Bottom" />
+                                                </Grid>
+                                            </Grid>
+                                        </Border>
                                     </StackPanel>
                                 </Border>
                             </StackPanel>

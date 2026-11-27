@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
@@ -129,6 +130,14 @@ internal sealed class MultiplayerClient
         if (count >= buffer.Length || JsonSerializer.Deserialize<RoomGame>(buffer.AsSpan(0, count), RoomProtocol.Json) is not { IsSupported: true } game)
             throw new InvalidDataException("联机服务返回的房间信息无效。");
         return game;
+    }
+
+    internal async Task<double> MeasureLatencyAsync(CancellationToken ct)
+    {
+        var started = Stopwatch.GetTimestamp();
+        using var response = await Http.GetAsync(Endpoint("/health"), HttpCompletionOption.ResponseHeadersRead, ct).ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+        return Stopwatch.GetElapsedTime(started).TotalMilliseconds;
     }
 
     internal GuestTunnel StartGuest(string code, Action connectionFailed, CancellationToken ct, Action? connected = null) =>

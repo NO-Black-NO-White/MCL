@@ -187,6 +187,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private void UpdateVersionState()
     {
         Notify(nameof(VersionCountLabel), nameof(RecentGames));
+        Notify(nameof(HostRoomVersions), nameof(HostRoomVersion), nameof(CanHostRoom), nameof(LanRoomStatus));
         if (EmptyVersions is not null) EmptyVersions.Visibility = Versions.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         if (VersionsWorkspace is not null) VersionsWorkspace.Visibility = Versions.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
         RevealSelectedVersion();
@@ -467,6 +468,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             _ = CompleteScreenshotSessionAsync();
             StatusMessage = "游戏进程已结束，详细信息可在运行日志中查看。";
         }
+        Notify(nameof(HostRoomVersions), nameof(HostRoomVersion));
     }
 
     private void NotifySettingsChanged() => Notify(nameof(SettingsStatus));
@@ -611,8 +613,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         _runningGame = runningGame;
         IsGameRunning = true;
         if (!JoinRoomButton.IsEnabled || !Equals(JoinRoomButton.Content, "加入房间")
+            || CanChooseHostVersion || !ReferenceEquals(HostRoomVersion, runningGame)
             || !ReferenceEquals(await ResolveJoiningVersionAsync(Describe(runningGame), runningGame, _lifetime.Token), runningGame))
-            throw new InvalidOperationException("Joining with a matching game must reuse the running instance.");
+            throw new InvalidOperationException("Multiplayer must reuse the running game and lock the host version picker.");
         var rejectedMismatch = false;
         try { await ResolveJoiningVersionAsync(Describe(runningGame) with { Pack = "Smoke Pack", PackVersion = "1" }, runningGame, _lifetime.Token); }
         catch (InvalidDataException) { rejectedMismatch = true; }
@@ -622,8 +625,19 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         InviteInput = "";
         HostRoleButton.SetCurrentValue(System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty, true);
         if (HostRoleButton.IsChecked != true || GuestRoleButton.IsChecked != false
-            || HostRoomCard.Visibility != Visibility.Visible || GuestRoomCard.Visibility != Visibility.Collapsed)
+            || HostRoomCard.Visibility != Visibility.Visible || GuestRoomCard.Visibility != Visibility.Collapsed
+            || RoomLatencyCard.Visibility != Visibility.Visible)
             throw new InvalidOperationException("Hosting must show only the host setup.");
+        if (HostVersionList.Items.Count != Versions.Count(IsHostable) || !Equals(HostVersionList.SelectedItem, HostRoomVersion))
+            throw new InvalidOperationException("The host version picker must show the available multiplayer versions.");
+        if (HostRoomVersions.FirstOrDefault(version => version != HostRoomVersion) is { } otherHost)
+        {
+            var previous = SelectedVersion;
+            HostVersionList.SetCurrentValue(System.Windows.Controls.Primitives.Selector.SelectedItemProperty, otherHost);
+            if (SelectedVersion != otherHost || HostRoomVersion != otherHost || !CanHostRoom)
+                throw new InvalidOperationException("Selecting a host version must change the launch target.");
+            SelectedVersion = previous;
+        }
         Ipv6DirectOption.SetCurrentValue(System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty, true);
         if (!UseIpv6Direct || CanChooseSharedRelay || !HostTransportHint.Contains("IPv6"))
             throw new InvalidOperationException("IPv6 hosting must select direct mode and disable manual relay selection.");

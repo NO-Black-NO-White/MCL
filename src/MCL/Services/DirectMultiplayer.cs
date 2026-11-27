@@ -1,4 +1,5 @@
 using System.Buffers.Binary;
+using System.Diagnostics;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Security;
@@ -17,7 +18,15 @@ internal sealed class DirectMultiplayer(DirectRoomEndpoint endpoint, string code
 {
     private const byte Info = 1;
     private const byte Play = 2;
+    private const byte Measure = 3;
     private const byte Accepted = 1;
+    private const byte Ping = 1;
+    private const byte Pong = 2;
+    private const byte Acknowledged = 3;
+    private static readonly byte[] ReadyMessage = [Accepted];
+    private static readonly byte[] PingMessage = [Ping];
+    private static readonly byte[] PongMessage = [Pong];
+    private static readonly byte[] Acknowledgement = [Acknowledged];
     private const int RequestLength = 19;
     private const int MaximumInfoBytes = 2048;
     private const string CertificateName = "mcl-direct";
@@ -49,7 +58,8 @@ internal sealed class DirectMultiplayer(DirectRoomEndpoint endpoint, string code
             .FirstOrDefault();
     }
 
-    internal static DirectHostedRoom Host(RoomGame game, IPAddress address, int gamePort, CancellationToken ct)
+    internal static DirectHostedRoom Host(RoomGame game, IPAddress address, int gamePort, CancellationToken ct,
+        IProgress<double?>? latency = null)
     {
         ct.ThrowIfCancellationRequested();
         var bytes = JsonSerializer.SerializeToUtf8Bytes(game, RoomProtocol.Json);
@@ -68,7 +78,7 @@ internal sealed class DirectMultiplayer(DirectRoomEndpoint endpoint, string code
             var pin = certificate.GetCertHashString(HashAlgorithmName.SHA256);
             var bound = (IPEndPoint)listener.LocalEndpoint;
             var invite = RoomInvite.CreateDirect(bound, token, pin);
-            return new(invite, bound.Port, HostAsync(listener, certificate, tls, Convert.FromHexString(token), bytes, gamePort, ct));
+            return new(invite, bound.Port, HostAsync(listener, certificate, tls, Convert.FromHexString(token), bytes, gamePort, ct, latency));
         }
         catch
         {
@@ -95,11 +105,13 @@ internal sealed class DirectMultiplayer(DirectRoomEndpoint endpoint, string code
     }
 
     private static async Task HostAsync(TcpListener listener, X509Certificate2 certificate, SslServerAuthenticationOptions tls, byte[] token,
-        byte[] info, int gamePort, CancellationToken ct)
+        byte[] info, int gamePort, CancellationToken ct, IProgress<double?>? latency)
     {
         using (certificate)
         using (var lifetime = CancellationTokenSource.CreateLinkedTokenSource(ct))
         using (var slots = new SemaphoreSlim(RoomProtocol.MaximumGuests))
+        using (var probeSlots = new SemaphoreSlim(RoomProtocol.MaximumGuests))
+        using (var observationSlot = new SemaphoreSlim(1))
         {
             var clients = new List<Task>();
             try
@@ -108,8 +120,8 @@ internal sealed class DirectMultiplayer(DirectRoomEndpoint endpoint, string code
                 {
                     var client = await listener.AcceptTcpClientAsync(lifetime.Token);
                     clients.RemoveAll(item => item.IsCompletedSuccessfully);
-                    if (clients.Count < RoomProtocol.MaximumGuests * 2)
-                        clients.Add(HandleGuestAsync(client, tls, token, info, gamePort, slots, lifetime.Token));
+                    if (clients.Count < RoomProtocol.MaximumGuests * 3)
+                        clients.Add(HandleGuestAsync(client, tls, token, info, gamePort, slots, probeSlots, observationSlot, lifetime.Token, latency));
                     else client.Dispose();
                 }
             }
@@ -123,7 +135,8 @@ internal sealed class DirectMultiplayer(DirectRoomEndpoint endpoint, string code
     }
 
     private static async Task HandleGuestAsync(TcpClient client, SslServerAuthenticationOptions tls, byte[] token,
-        byte[] info, int gamePort, SemaphoreSlim slots, CancellationToken ct)
+        byte[] info, int gamePort, SemaphoreSlim slots, SemaphoreSlim probeSlots, SemaphoreSlim observationSlot,
+        CancellationToken ct, IProgress<double?>? latency)
     {
         using (client)
         {
@@ -144,19 +157,91 @@ internal sealed class DirectMultiplayer(DirectRoomEndpoint endpoint, string code
                     await stream.WriteAsync(prefix, timeout.Token);
                     await stream.WriteAsync(info, timeout.Token);
                 }
+                else if (request[0] == Measure && probeSlots.Wait(0))
+                {
+                    try { await ReplyToLatencyProbesAsync(stream, observationSlot, latency, ct).ConfigureAwait(false); }
+                    finally { probeSlots.Release(); }
+                }
                 else if (request[0] == Play && slots.Wait(0))
                 {
                     try
                     {
                         using var game = new TcpClient(AddressFamily.InterNetwork) { NoDelay = true };
                         await game.ConnectAsync(IPAddress.Loopback, gamePort, timeout.Token);
-                        await stream.WriteAsync(new byte[] { Accepted }, timeout.Token);
+                        await stream.WriteAsync(ReadyMessage, timeout.Token);
                         await BridgeAsync(stream, game.GetStream(), ct);
                     }
                     finally { slots.Release(); }
                 }
             }
             catch (Exception ex) when (IsConnectionError(ex)) { }
+        }
+    }
+
+    private static async Task ReplyToLatencyProbesAsync(SslStream stream, SemaphoreSlim observationSlot,
+        IProgress<double?>? latency, CancellationToken ct)
+    {
+        var received = new byte[1];
+        var observing = false;
+        try
+        {
+            using (var handshake = WithDeadline(ct))
+                await stream.WriteAsync(ReadyMessage, handshake.Token).ConfigureAwait(false);
+            while (!ct.IsCancellationRequested)
+            {
+                using var deadline = WithDeadline(ct);
+                await stream.ReadExactlyAsync(received, deadline.Token).ConfigureAwait(false);
+                if (received[0] != Ping) break;
+                var started = Stopwatch.GetTimestamp();
+                await stream.WriteAsync(PongMessage, deadline.Token).ConfigureAwait(false);
+                await stream.ReadExactlyAsync(received, deadline.Token).ConfigureAwait(false);
+                if (received[0] != Acknowledged) break;
+                var elapsed = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+                if (!observing && latency is not null) observing = observationSlot.Wait(0);
+                if (observing) latency!.Report(elapsed);
+            }
+        }
+        finally
+        {
+            if (observing)
+            {
+                latency!.Report(null);
+                observationSlot.Release();
+            }
+        }
+    }
+
+    internal LatencyProbe CreateLatencyProbe() => new(this);
+
+    internal sealed class LatencyProbe(DirectMultiplayer room) : IDisposable
+    {
+        private SslStream? _stream;
+        private readonly byte[] _received = new byte[1];
+
+        internal async Task<double> MeasureAsync(CancellationToken ct)
+        {
+            try
+            {
+                var stream = _stream ??= await room.ConnectAsync(Measure, ct).ConfigureAwait(false);
+                var started = Stopwatch.GetTimestamp();
+                await stream.WriteAsync(PingMessage, ct).ConfigureAwait(false);
+                await stream.ReadExactlyAsync(_received, ct).ConfigureAwait(false);
+                if (_received[0] != Pong) throw new IOException("IPv6 测速响应无效。");
+                var elapsed = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+                await stream.WriteAsync(Acknowledgement, ct).ConfigureAwait(false);
+                return elapsed;
+            }
+            catch
+            {
+                Dispose();
+                throw;
+            }
+        }
+
+        public void Dispose()
+        {
+            _stream?.Dispose();
+            _stream = null;
         }
     }
 
