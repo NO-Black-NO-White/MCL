@@ -9,5 +9,6 @@
     <Compile Include="../../src/Multiplayer/RoomProtocol.cs" Link="RoomProtocol.cs" />
     <Compile Include="../../src/MCL/Services/MultiplayerClient.cs" Link="MultiplayerClient.cs" />
     <Compile Include="../../src/MCL/Services/RoomInvite.cs" Link="RoomInvite.cs" />
+    <Compile Include="../../src/MCL/Services/DirectMultiplayer.cs" Link="DirectMultiplayer.cs" />
   </ItemGroup>
 </Project>

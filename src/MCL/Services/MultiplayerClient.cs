@@ -15,6 +15,56 @@ internal sealed record GuestTunnel(int Port, Task Completion)
     internal const string LanRoomName = "MCL 好友房间";
     internal const int LanDiscoveryPort = 4445;
 
+    internal static GuestTunnel Start(Func<NetworkStream, CancellationToken, Task> connect,
+        Action connectionFailed, CancellationToken ct)
+    {
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start(RoomProtocol.MaximumGuests * 2);
+        return new(((IPEndPoint)listener.LocalEndpoint).Port, ListenAsync(listener, connect, connectionFailed, ct));
+    }
+
+    private static async Task ListenAsync(TcpListener listener, Func<NetworkStream, CancellationToken, Task> connect,
+        Action connectionFailed, CancellationToken ct)
+    {
+        using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        var active = new List<Task>();
+        try
+        {
+            while (!lifetime.IsCancellationRequested)
+            {
+                var game = await listener.AcceptTcpClientAsync(lifetime.Token);
+                active.RemoveAll(item => item.IsCompletedSuccessfully);
+                if (active.Count < RoomProtocol.MaximumGuests * 2)
+                    active.Add(ConnectAsync(game, connect, connectionFailed, lifetime.Token));
+                else game.Dispose();
+            }
+        }
+        finally
+        {
+            listener.Stop();
+            await lifetime.CancelAsync();
+            await Task.WhenAll(active);
+        }
+    }
+
+    private static async Task ConnectAsync(TcpClient game, Func<NetworkStream, CancellationToken, Task> connect,
+        Action connectionFailed, CancellationToken ct)
+    {
+        using (game)
+        {
+            try
+            {
+                game.NoDelay = true;
+                await connect(game.GetStream(), ct);
+            }
+            catch (Exception ex) when (ex is SocketException or WebSocketException or IOException or OperationCanceledException
+                or System.Security.Authentication.AuthenticationException or InvalidDataException)
+            {
+                if (!ct.IsCancellationRequested) connectionFailed();
+            }
+        }
+    }
+
     internal async Task AdvertiseLanRoomAsync(CancellationToken ct)
     {
         // Keep the advertisement on the guest PC, where the proxy also listens.
@@ -81,12 +131,16 @@ internal sealed class MultiplayerClient
         return game;
     }
 
-    internal GuestTunnel StartGuest(string code, Action connectionFailed, CancellationToken ct, Action? connected = null)
-    {
-        var listener = new TcpListener(IPAddress.Loopback, 0);
-        listener.Start(RoomProtocol.MaximumGuests * 2);
-        return new(((IPEndPoint)listener.LocalEndpoint).Port, RunGuestAsync(listener, code, connectionFailed, connected, ct));
-    }
+    internal GuestTunnel StartGuest(string code, Action connectionFailed, CancellationToken ct, Action? connected = null) =>
+        GuestTunnel.Start(async (game, token) =>
+        {
+            using var timeout = Deadline(token);
+            using var socket = await ConnectAsync("/guest", code, timeout.Token);
+            if (await RoomProtocol.ReadTextAsync(socket, timeout.Token) != "ready")
+                throw new IOException("房主的游戏连接不可用。");
+            connected?.Invoke();
+            await RoomProtocol.BridgeAsync(socket, game, token);
+        }, connectionFailed, ct);
 
     private async Task RunHostAsync(ClientWebSocket control, int port, Action? guestConnected, CancellationToken ct)
     {
@@ -126,49 +180,6 @@ internal sealed class MultiplayerClient
         catch (Exception ex) when (ex is SocketException or WebSocketException or IOException or OperationCanceledException) { }
     }
 
-    private async Task RunGuestAsync(TcpListener listener, string code, Action connectionFailed, Action? connected, CancellationToken ct)
-    {
-        using var lifetime = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        var active = new List<Task>();
-        try
-        {
-            while (!lifetime.IsCancellationRequested)
-            {
-                var game = await listener.AcceptTcpClientAsync(lifetime.Token);
-                active.RemoveAll(item => item.IsCompletedSuccessfully);
-                if (active.Count < RoomProtocol.MaximumGuests * 2)
-                    active.Add(ConnectToRoomAsync(game, code, connectionFailed, connected, lifetime.Token));
-                else game.Dispose();
-            }
-        }
-        finally
-        {
-            listener.Stop();
-            await lifetime.CancelAsync();
-            await Task.WhenAll(active);
-        }
-    }
-
-    private async Task ConnectToRoomAsync(TcpClient game, string code, Action connectionFailed, Action? connected, CancellationToken ct)
-    {
-        using (game)
-        {
-            try
-            {
-                game.NoDelay = true;
-                using var timeout = Deadline(ct);
-                using var socket = await ConnectAsync("/guest", code, timeout.Token);
-                if (await RoomProtocol.ReadTextAsync(socket, timeout.Token) != "ready")
-                    throw new IOException("房主的游戏连接不可用。");
-                connected?.Invoke();
-                await RoomProtocol.BridgeAsync(socket, game.GetStream(), ct);
-            }
-            catch (Exception ex) when (ex is SocketException or WebSocketException or IOException or OperationCanceledException)
-            {
-                if (!ct.IsCancellationRequested) connectionFailed();
-            }
-        }
-    }
 
     private Uri Endpoint(string path) => new(_endpoint, RoomProtocol.Prefix + path);
 

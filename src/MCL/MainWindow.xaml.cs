@@ -580,6 +580,10 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         if (HostRoleButton.IsChecked != true || GuestRoleButton.IsChecked != false
             || HostRoomCard.Visibility != Visibility.Visible || GuestRoomCard.Visibility != Visibility.Collapsed)
             throw new InvalidOperationException("Hosting must show only the host setup.");
+        Ipv6DirectOption.SetCurrentValue(System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty, true);
+        if (!UseIpv6Direct || CanChooseSharedRelay || !HostTransportHint.Contains("IPv6"))
+            throw new InvalidOperationException("IPv6 hosting must select direct mode and disable manual relay selection.");
+        Ipv6DirectOption.SetCurrentValue(System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty, false);
         var oldPlayer = PlayerName;
         var smokePlayer = oldPlayer == "MCL_Smoke" ? "MCL_Test" : "MCL_Smoke";
         PlayerName = smokePlayer;

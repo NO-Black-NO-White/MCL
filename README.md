@@ -63,9 +63,11 @@ MCL 会安装或复用校验通过的原版文件，按清单安装所需的加�
 1. 房主选好游戏版本，在“好友联机 → 创建房间”点“启动并创建房间”。MCL 会使用正在运行的游戏，或启动所选版本。没配置 Java 时会尝试从本机检测。
 2. 房主在游戏里进入单人存档，按 Esc 选择“对局域网开放”并启动局域网世界。MCL 识别端口后会启动内置中转，首次使用时从发布包提取并校验 `cloudflared`，随后建立公网隧道并生成邀请码。组件准备无需联网或管理员权限。
 3. 好友在“好友联机 → 加入房间”粘贴邀请码。游戏尚未启动时，点“加入并启动”，MCL 会匹配已安装的游戏版本。如果已经由 MCL 启动了相同版本和整合包，点“加入房间”继续使用当前游戏。回到 Minecraft 的“多人游戏”页面，在局域网列表中选择“MCL 好友房间”。
-4. 房主在联机期间保持存档和 MCL 运行。结束联机、退出游戏或关闭 MCL，会关闭这个房间的临时隧道。下次开房需要新的邀请码。
+4. 房主在联机期间保持存档和 MCL 运行。结束联机、退出游戏或关闭 MCL，会关闭这个房间。下次开房需要新的邀请码。
 
 自动开房使用 [Cloudflare Quick Tunnel](https://developers.cloudflare.com/tunnel/get-started/quick-tunnels/)，适合临时联测。公网连接取决于房主和好友都能访问 Cloudflare。手动部署的共享中转和旧邀请码仍可通过“手动中转设置”使用。
+
+测试 IPv6 时，房主在「创建房间」开启「使用 IPv6 直连（测试）」，按同样流程开放存档。双方都使用支持此功能的 MCL。房主需要公网 IPv6，好友需要能通过 IPv6 访问房主，房主的网络和 Windows 防火墙需要允许 MCL 的入站 TCP 连接。房主页面会显示监听端口。邀请码包含 IPv6 地址和房间凭据，请只发给好友。好友粘贴邀请码后，MCL 会通过 IPv6 直接验证房间和转发游戏数据。本机开始监听后仍需好友从外网实测。直连失败时可以关掉 IPv6 开关，再用原来的中转方式开房。
 
 开发时可用以下命令启动本机中转，再把“手动中转设置”填为 `http://127.0.0.1:28470`，勾选“创建房间时使用这个中转地址”。
 
@@ -80,6 +82,8 @@ dotnet run --project src/MCL.Relay/MCL.Relay.csproj
 ```powershell
 dotnet run --project tests/MultiplayerValidation/MultiplayerValidation.csproj -- http://127.0.0.1:28470
 ```
+
+IPv6 回环验证使用 `dotnet run --project tests/MultiplayerValidation/MultiplayerValidation.csproj -- --ipv6`。
 
 ## 管理和删除已有版本
 

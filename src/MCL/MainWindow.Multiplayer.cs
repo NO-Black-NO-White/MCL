@@ -1,8 +1,10 @@
 using System.Net.Http;
 using System.ComponentModel;
+using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Net.WebSockets;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using System.Text.Json;
 using System.Windows;
 using MCL.Models;
@@ -21,6 +23,7 @@ public partial class MainWindow
     private bool _runningForGuest;
     private bool _showHostSetup = true;
     private bool _useSharedRelay;
+    private bool _useIpv6Direct;
     private TaskCompletionSource<int>? _lanReady;
     private string _relayEndpoint = "";
     private string _inviteInput = "";
@@ -77,6 +80,16 @@ public partial class MainWindow
         get => _useSharedRelay;
         set { if (Set(ref _useSharedRelay, value)) NotifyMultiplayer(); }
     }
+    public bool UseIpv6Direct
+    {
+        get => _useIpv6Direct;
+        set { if (Set(ref _useIpv6Direct, value)) NotifyMultiplayer(); }
+    }
+    public bool CanChooseSharedRelay => CanEditRelay && !UseIpv6Direct;
+    public string HostTransportHint => UseIpv6Direct
+        ? "在游戏里开放存档，MCL 会生成 IPv6 直连邀请。好友需要 IPv6，你的网络需要允许入站连接。"
+        : UseSharedRelay ? "在游戏里开放存档，MCL 会使用你填写的共享中转。"
+        : "在游戏里开放存档，MCL 会自动准备本机中转和临时公网隧道。";
     public string MultiplayerStatus { get => _multiplayerStatus; private set => Set(ref _multiplayerStatus, value); }
     public string MultiplayerStage { get => _multiplayerStage; private set => Set(ref _multiplayerStage, value); }
     public bool MultiplayerActive => _multiplayerCancellation is not null;
@@ -97,6 +110,7 @@ public partial class MainWindow
 
     private void NotifyMultiplayer() => Notify(nameof(MultiplayerActive), nameof(CanEditRelay), nameof(CanHostRoom),
         nameof(CanJoinRoom), nameof(HostRoomButtonText), nameof(JoinRoomButtonText), nameof(LanRoomStatus),
+        nameof(CanChooseSharedRelay), nameof(HostTransportHint),
         nameof(CanManageSaves), nameof(CanShareModpack), nameof(CanCompareModpack), nameof(ActivityText), nameof(ActivityIsReady));
 
     private static RoomGame Describe(GameVersion version) =>
@@ -171,7 +185,10 @@ public partial class MainWindow
         HostedRelay? automatic = null;
         try
         {
-            var sharedClient = UseSharedRelay ? new MultiplayerClient(RelayEndpoint) : null;
+            var directAddress = UseIpv6Direct
+                ? DirectMultiplayer.FindLocalAddress() ?? throw new InvalidDataException("本机未找到可用的公网 IPv6 地址。请检查网络，或改用中转。")
+                : null;
+            var sharedClient = directAddress is null && UseSharedRelay ? new MultiplayerClient(RelayEndpoint) : null;
             _lanReady = new(TaskCreationOptions.RunContinuationsAsynchronously);
             if (_lanPort is { } ready) _lanReady.TrySetResult(ready);
             if (_runningGame is null)
@@ -189,6 +206,17 @@ public partial class MainWindow
             MultiplayerStage = "核对房主模组";
             MultiplayerStatus = "正在读取当前游戏目录的模组文件…";
             var game = Describe(version) with { ModsSha256 = await RoomModsAsync(version, cancellation.Token) };
+            if (directAddress is not null)
+            {
+                MultiplayerStage = "准备 IPv6 直连";
+                var directRoom = DirectMultiplayer.Host(game, directAddress, port, cancellation.Token);
+                RoomCode = directRoom.Invite;
+                _retryHost = false;
+                MultiplayerStage = "IPv6 房间已开放";
+                MultiplayerStatus = $"本机已开始监听 TCP {directRoom.Port}，等待好友从外网测试。邀请码包含你的 IPv6 地址，请只发给好友。";
+                await directRoom.Completion;
+                return;
+            }
             MultiplayerStage = "连接中转";
             if (sharedClient is null)
             {
@@ -278,31 +306,44 @@ public partial class MainWindow
         MultiplayerStatus = "正在查找好友房间…";
         try
         {
-            var client = new MultiplayerClient(invite.Address);
-            var game = await client.FindAsync(invite.Code, cancellation.Token);
+            var direct = invite.Direct is { } endpoint ? new DirectMultiplayer(endpoint, invite.Code) : null;
+            var client = direct is null ? new MultiplayerClient(invite.Address) : null;
+            if (direct is not null)
+            {
+                MultiplayerStage = "检查 IPv6 直连";
+                MultiplayerStatus = "正在直连房主并验证邀请码…";
+            }
+            var game = direct is null ? await client!.FindAsync(invite.Code, cancellation.Token) : await direct.FindAsync(cancellation.Token);
             cancellation.Token.ThrowIfCancellationRequested();
             MultiplayerStage = "检查版本和模组";
             MultiplayerStatus = "正在核对 Minecraft 版本、整合包、加载器和模组文件…";
             var version = await ResolveJoiningVersionAsync(game, runningGame, cancellation.Token);
             if (version.ModpackName is null && version.InheritsFrom is not null)
                 throw new InvalidDataException("请选择原版游戏或由 MCL 导入的整合包。");
-            tunnel = client.StartGuest(invite.Code, () => Dispatcher.BeginInvoke(() =>
+            void ConnectionFailed() => Dispatcher.BeginInvoke(() =>
             {
                 if (ReferenceEquals(_multiplayerCancellation, cancellation) && !cancellation.IsCancellationRequested)
                 {
                     _retryJoin = true;
                     MultiplayerStage = "连接房间失败";
-                    MultiplayerStatus = "请确认房间仍开放，点「重试加入」即可用当前邀请码再连接。";
+                    MultiplayerStatus = direct is null
+                        ? "请确认房间仍开放，点「重试加入」即可用当前邀请码再连接。"
+                        : "IPv6 游戏连接失败。请确认房主仍开放存档、房间未关闭，再点「重试加入」。";
                     NotifyMultiplayer();
                 }
-            }), cancellation.Token, () => Dispatcher.BeginInvoke(() =>
+            });
+            void Connected() => Dispatcher.BeginInvoke(() =>
             {
                 if (!ReferenceEquals(_multiplayerCancellation, cancellation) || cancellation.IsCancellationRequested) return;
                 _retryJoin = false;
                 MultiplayerStage = "已连通房主游戏";
-                MultiplayerStatus = "中转已连通。若游戏内仍无法进入，请查看 Minecraft 的提示。";
+                MultiplayerStatus = direct is null ? "中转已连通。若游戏内仍无法进入，请查看 Minecraft 的提示。"
+                    : "IPv6 已直连房主。若游戏内仍无法进入，请查看 Minecraft 的提示。";
                 NotifyMultiplayer();
-            }));
+            });
+            tunnel = direct is null
+                ? client!.StartGuest(invite.Code, ConnectionFailed, cancellation.Token, Connected)
+                : direct.StartGuest(ConnectionFailed, cancellation.Token, Connected);
             if (runningGame is null)
             {
                 SelectedVersion = version;
@@ -388,7 +429,8 @@ public partial class MainWindow
 
     private static bool IsMultiplayerError(Exception ex) => ex is InvalidDataException or IOException or
         OperationCanceledException or SocketException or WebSocketException or HttpRequestException or JsonException
-        or InvalidOperationException or UnauthorizedAccessException or Win32Exception or NotSupportedException;
+        or InvalidOperationException or UnauthorizedAccessException or Win32Exception or NotSupportedException
+        or NetworkInformationException or CryptographicException;
 
     private static string MultiplayerError(Exception ex) => ex switch
     {
@@ -400,7 +442,12 @@ public partial class MainWindow
     private void CopyRoom_Click(object sender, RoutedEventArgs e)
     {
         if (!HasRoomCode) return;
-        try { Clipboard.SetText(RoomCode); MultiplayerStatus = "已复制邀请码，可以粘贴发给好友。"; }
+        try
+        {
+            Clipboard.SetText(RoomCode);
+            MultiplayerStatus = UseIpv6Direct ? "已复制 IPv6 邀请码，其中包含你的 IPv6 地址，请只发给好友。"
+                : "已复制邀请码，可以粘贴发给好友。";
+        }
         catch (COMException) { MultiplayerStatus = "剪贴板暂时不可用，可以选中邀请码手动复制。"; }
     }
 

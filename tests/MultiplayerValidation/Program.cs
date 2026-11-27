@@ -6,6 +6,12 @@ using System.Text;
 using MCL.Multiplayer;
 using MCL.Services;
 
+if (args is ["--ipv6"])
+{
+    await DirectValidation.RunAsync();
+    return;
+}
+
 if (args is not [var relay])
     throw new ArgumentException("Run a local MCL.Relay and provide its HTTP address.");
 

@@ -981,8 +981,10 @@
                                         Visibility="{Binding ShowHostSetup, Converter={StaticResource BoolVisibility}}">
                                     <StackPanel>
                                         <TextBlock Text="邀请好友进入你的存档" FontSize="22" FontWeight="SemiBold" />
-                                        <TextBlock Text="选好版本和存档，再在游戏里点「对局域网开放」。MCL 会自动准备本机中转和临时公网隧道。"
+                                        <TextBlock Text="{Binding HostTransportHint}"
                                                    Style="{StaticResource MutedText}" Margin="0,8,0,0" />
+                                        <CheckBox x:Name="Ipv6DirectOption" Content="使用 IPv6 直连（测试）" Style="{StaticResource ToggleSwitch}"
+                                                  IsChecked="{Binding UseIpv6Direct}" IsEnabled="{Binding CanEditRelay}" Margin="0,12,0,0" />
                                         <TextBlock Text="{Binding LanRoomStatus}" TextWrapping="Wrap" Margin="0,10,0,14" />
                                         <WrapPanel>
                                             <Button Content="{Binding HostRoomButtonText}" Style="{StaticResource PrimaryButton}" Click="HostRoom_Click" IsEnabled="{Binding CanHostRoom}" />
@@ -1004,7 +1006,7 @@
                                         <DockPanel>
                                             <Button x:Name="JoinRoomButton" Content="{Binding JoinRoomButtonText}" DockPanel.Dock="Right" Style="{StaticResource PrimaryButton}" Click="JoinRoom_Click" IsEnabled="{Binding CanJoinRoom}" Margin="9,0,0,0" />
                                             <Grid>
-                                                <TextBox Text="{Binding InviteInput, UpdateSourceTrigger=PropertyChanged}" MaxLength="128" IsEnabled="{Binding CanEditRelay}" VerticalContentAlignment="Center" AutomationProperties.Name="好友邀请码" />
+                                                <TextBox Text="{Binding InviteInput, UpdateSourceTrigger=PropertyChanged}" MaxLength="160" IsEnabled="{Binding CanEditRelay}" VerticalContentAlignment="Center" AutomationProperties.Name="好友邀请码" />
                                                 <TextBlock Text="粘贴好友邀请码" Foreground="{DynamicResource MutedBrush}" FontSize="12" Margin="12,0"
                                                            VerticalAlignment="Center" IsHitTestVisible="False">
                                                     <TextBlock.Style>
@@ -1048,7 +1050,8 @@
                                             <StackPanel>
                                                 <TextBlock Text="已有共享中转或收到旧版邀请码时，可填写地址。" Style="{StaticResource MutedText}" Margin="0,2,0,8" />
                                                 <TextBox Text="{Binding RelayEndpoint, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding CanEditRelay}" AutomationProperties.Name="联机服务地址" />
-                                                <CheckBox Content="创建房间时使用这个中转地址" Style="{StaticResource ToggleSwitch}" IsChecked="{Binding UseSharedRelay}" Margin="0,12,0,0" />
+                                                <CheckBox Content="创建房间时使用这个中转地址" Style="{StaticResource ToggleSwitch}" IsChecked="{Binding UseSharedRelay}"
+                                                          IsEnabled="{Binding CanChooseSharedRelay}" Margin="0,12,0,0" />
                                             </StackPanel>
                                         </Expander>
                                     </StackPanel>
