@@ -89,8 +89,20 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     }
 
     public string PlayerName { get => _playerName; set { if (Set(ref _playerName, value)) { NotifySettingsChanged(); Notify(nameof(SelectedVersionDescription)); } } }
-    public int MemoryMb { get => _memoryMb; set { if (Set(ref _memoryMb, value)) { NotifySettingsChanged(); Notify(nameof(MemorySummary)); NotifyJava(); } } }
+    public int MemoryMb { get => _memoryMb; set { if (Set(ref _memoryMb, value)) { NotifySettingsChanged(); Notify(nameof(MemorySummary), nameof(SystemMemorySummary), nameof(MemoryUsagePercent)); NotifyJava(); } } }
     public string MemorySummary => $"{MemoryMb:N0} MB";
+    private static long TotalSystemMemoryMb
+    {
+        get
+        {
+            var bytes = GC.GetGCMemoryInfo().TotalAvailableMemoryBytes;
+            return bytes > 0 ? Math.Max(2048, bytes / (1024L * 1024L)) : 16384;
+        }
+    }
+    public double MemoryUsagePercent => Math.Clamp(MemoryMb * 100.0 / TotalSystemMemoryMb, 0, 100);
+    public string SystemMemorySummary => $"本机可用物理内存 {TotalSystemMemoryMb / 1024.0:0.#} GB · 当前分配约占 {MemoryUsagePercent:0.#}%";
+    public bool IsWindowMaximized => WindowState == WindowState.Maximized;
+    public string MaximizeToolTip => IsWindowMaximized ? "还原窗口" : "最大化";
     public GameVersion? SelectedVersion
     {
         get => _selectedVersion;
@@ -118,13 +130,20 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     public string StatusMessage { get => _statusMessage; private set => Set(ref _statusMessage, value); }
     private bool HasUnsavedSettings => CaptureSettings().PreferenceSnapshot() != _savedPreferences;
     public string SettingsStatus => HasUnsavedSettings ? "有尚未保存的修改" : "当前没有未保存的修改";
-    public bool IsBusy { get => _isBusy; private set { if (Set(ref _isBusy, value)) { Notify(nameof(CanInteract), nameof(CanLaunch), nameof(CanStop), nameof(LaunchButtonText), nameof(ActivityText), nameof(JavaSummary), nameof(CanEditLocalAppearance)); NotifyDownloadActions(); NotifyVersionManagement(); NotifyPackActions(); NotifyMultiplayer(); NotifyOnlineProfile(); } } }
+    public bool IsBusy { get => _isBusy; private set { if (Set(ref _isBusy, value)) { Notify(nameof(CanInteract), nameof(CanLaunch), nameof(CanStop), nameof(LaunchButtonText), nameof(ActivityText), nameof(ActivityIsReady), nameof(JavaSummary), nameof(CanEditLocalAppearance)); NotifyDownloadActions(); NotifyVersionManagement(); NotifyPackActions(); NotifyMultiplayer(); NotifyOnlineProfile(); } } }
     public bool CanInteract => !IsBusy;
     public bool CanLaunch => !IsBusy && !IsGameRunning && SelectedVersion is { IsValid: true };
     public bool CanStop => !IsBusy && IsGameRunning;
     public string LaunchButtonText => IsBusy ? "正在准备…" : IsGameRunning ? "游戏运行中" : "▶  启动本地游戏";
-    public bool IsGameRunning { get => _isGameRunning; private set { if (Set(ref _isGameRunning, value)) { Notify(nameof(CanLaunch), nameof(CanStop), nameof(LaunchButtonText), nameof(ActivityText), nameof(CanEditLocalAppearance)); NotifyVersionManagement(); NotifyPackActions(); NotifyMultiplayer(); NotifyOnlineProfile(); } } }
-    public string ActivityText => PackInProgress ? "正在安装整合包" : IsInstalling ? "正在安装游戏" : IsBusy ? "正在处理" : IsGameRunning ? "游戏运行中" : "就绪";
+    public bool IsGameRunning { get => _isGameRunning; private set { if (Set(ref _isGameRunning, value)) { Notify(nameof(CanLaunch), nameof(CanStop), nameof(LaunchButtonText), nameof(ActivityText), nameof(ActivityIsReady), nameof(CanEditLocalAppearance)); NotifyVersionManagement(); NotifyPackActions(); NotifyMultiplayer(); NotifyOnlineProfile(); } } }
+    public bool ActivityIsReady => !PackInProgress && !IsInstalling && !IsBusy && !IsGameRunning && !MultiplayerActive;
+    public string ActivityText => PackInProgress
+        ? (!PackIndeterminate && PackPercent > 0 ? $"安装整合包 · {PackPercent:0}%" : "正在安装整合包")
+        : IsInstalling
+        ? (!InstallIndeterminate && InstallPercent > 0 ? $"安装游戏 · {InstallPercent:0}%" : "正在安装游戏")
+        : MultiplayerActive ? "好友联机中"
+        : IsBusy ? "正在处理"
+        : IsGameRunning ? "游戏运行中" : "就绪";
 
     public async Task InitializeAsync()
     {
@@ -194,6 +213,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         LauncherSettingsPage.Visibility = page == "LauncherSettings" ? Visibility.Visible : Visibility.Collapsed;
         LogsPage.Visibility = page == "Logs" ? Visibility.Visible : Visibility.Collapsed;
         FooterSaveButton.Visibility = page == "Settings" ? Visibility.Visible : Visibility.Collapsed;
+        var fillsViewport = page is "Versions" or "Logs";
+        PageScroll.VerticalScrollBarVisibility = fillsViewport ? ScrollBarVisibility.Disabled : ScrollBarVisibility.Auto;
         PageTitle = page switch { "Versions" => "游戏版本", "Downloads" => "下载游戏", "Modpacks" => "导入整合包", "Multiplayer" => "好友联机", "Appearance" => "本地角色", "Settings" => "启动设置", "LauncherSettings" => "启动器设置", "Logs" => "运行日志", _ => "首页" };
         if (changed)
         {
@@ -225,6 +246,29 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private void ShowVersions_Click(object sender, RoutedEventArgs e) => VersionsNav.IsChecked = true;
     private void ShowModpacks_Click(object sender, RoutedEventArgs e) => OpenModpacks();
     private void ShowSettings_Click(object sender, RoutedEventArgs e) => SettingsNav.IsChecked = true;
+    private void ShowAppearance_Click(object sender, RoutedEventArgs e) => AppearanceNav.IsChecked = true;
+    private void ActivityPill_Click(object sender, RoutedEventArgs e)
+    {
+        if (PackInProgress) OpenModpacks();
+        else if (IsInstalling) OpenDownloads();
+        else if (MultiplayerActive) OpenMultiplayer();
+        else LogsNav.IsChecked = true;
+    }
+
+    private void MinimizeWindow_Click(object sender, RoutedEventArgs e) => SystemCommands.MinimizeWindow(this);
+    private void MaximizeWindow_Click(object sender, RoutedEventArgs e)
+    {
+        if (WindowState == WindowState.Maximized) SystemCommands.RestoreWindow(this);
+        else SystemCommands.MaximizeWindow(this);
+    }
+    private void CloseWindow_Click(object sender, RoutedEventArgs e) => Close();
+
+    private void Window_StateChanged(object? sender, EventArgs e)
+    {
+        if (RootLayout is not null)
+            RootLayout.Margin = WindowState == WindowState.Maximized ? new Thickness(7) : new Thickness(0);
+        Notify(nameof(IsWindowMaximized), nameof(MaximizeToolTip));
+    }
 
     private async void BrowseGame_Click(object sender, RoutedEventArgs e)
     {
@@ -442,7 +486,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             var darkMode = Application.Current.Resources.MergedDictionaries[0].Source.OriginalString.EndsWith("Amethyst.xaml", StringComparison.Ordinal) ? 1 : 0;
             var captionColor = CaptionColor("SidebarBrush");
             var captionTextColor = CaptionColor("TextBrush");
+            var cornerPreference = 2; // DWMWCP_ROUND on Windows 11
             DwmSetWindowAttribute(handle, 20, ref darkMode, sizeof(int));
+            DwmSetWindowAttribute(handle, 33, ref cornerPreference, sizeof(int));
             DwmSetWindowAttribute(handle, 35, ref captionColor, sizeof(int));
             DwmSetWindowAttribute(handle, 36, ref captionTextColor, sizeof(int));
         }

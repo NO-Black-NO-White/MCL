@@ -97,7 +97,7 @@ public partial class MainWindow
 
     private void NotifyMultiplayer() => Notify(nameof(MultiplayerActive), nameof(CanEditRelay), nameof(CanHostRoom),
         nameof(CanJoinRoom), nameof(HostRoomButtonText), nameof(JoinRoomButtonText), nameof(LanRoomStatus),
-        nameof(CanManageSaves), nameof(CanShareModpack), nameof(CanCompareModpack));
+        nameof(CanManageSaves), nameof(CanShareModpack), nameof(CanCompareModpack), nameof(ActivityText), nameof(ActivityIsReady));
 
     private static RoomGame Describe(GameVersion version) =>
         new(version.ModpackMinecraft ?? version.Id, version.ModpackName, version.ModpackVersion, version.ModpackLoader);

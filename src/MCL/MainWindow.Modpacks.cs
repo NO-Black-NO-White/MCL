@@ -15,9 +15,11 @@ public partial class MainWindow
     private bool _packIndeterminate;
     private bool _packCompleted;
     private bool _includeOptionalPackFiles;
+    private bool _isPackDragOver;
     private string? _packLocalFilesDirectory;
 
     public bool CanChoosePack => !IsBusy && !IsGameRunning;
+    public bool IsPackDragOver { get => _isPackDragOver; private set => Set(ref _isPackDragOver, value); }
     public bool HasPack => _selectedPack is not null;
     public bool IsCurseForgePack => _selectedPack is { CurseForge: true, MclShare: false };
     public bool HasOptionalPackFiles => _selectedPack?.OptionalFiles > 0;
@@ -35,13 +37,13 @@ public partial class MainWindow
         : "";
     public string PackOptionalText => $"同时安装 {_selectedPack?.OptionalFiles ?? 0} 个可选文件";
     public string PackStatus { get => _packStatus; private set => Set(ref _packStatus, value); }
-    public double PackPercent { get => _packPercent; private set => Set(ref _packPercent, value); }
-    public bool PackIndeterminate { get => _packIndeterminate; private set => Set(ref _packIndeterminate, value); }
+    public double PackPercent { get => _packPercent; private set { var prev = (int)_packPercent; if (Set(ref _packPercent, value) && (int)value != prev) Notify(nameof(ActivityText)); } }
+    public bool PackIndeterminate { get => _packIndeterminate; private set { if (Set(ref _packIndeterminate, value)) Notify(nameof(ActivityText)); } }
     public bool PackCompleted { get => _packCompleted; private set { if (Set(ref _packCompleted, value)) Notify(nameof(CanImportPack)); } }
     public bool IncludeOptionalPackFiles { get => _includeOptionalPackFiles; set => Set(ref _includeOptionalPackFiles, value); }
 
     private void NotifyPackActions() => Notify(nameof(CanChoosePack), nameof(CanImportPack), nameof(CanCancelPack),
-        nameof(PackInProgress), nameof(ActivityText));
+        nameof(PackInProgress), nameof(ActivityText), nameof(ActivityIsReady));
 
     private async void ChoosePack_Click(object sender, RoutedEventArgs e)
     {
@@ -58,14 +60,18 @@ public partial class MainWindow
     private void Pack_DragOver(object sender, DragEventArgs e)
     {
         var paths = e.Data.GetDataPresent(DataFormats.FileDrop) ? e.Data.GetData(DataFormats.FileDrop) as string[] : null;
-        e.Effects = CanChoosePack && paths is { Length: 1 }
-            && Path.GetExtension(paths[0]).ToLowerInvariant() is ".mrpack" or ".zip"
-            ? DragDropEffects.Copy : DragDropEffects.None;
+        var accepted = CanChoosePack && paths is { Length: 1 }
+            && Path.GetExtension(paths[0]).ToLowerInvariant() is ".mrpack" or ".zip";
+        e.Effects = accepted ? DragDropEffects.Copy : DragDropEffects.None;
+        IsPackDragOver = accepted;
         e.Handled = true;
     }
 
+    private void Pack_DragLeave(object sender, DragEventArgs e) => IsPackDragOver = false;
+
     private async void Pack_Drop(object sender, DragEventArgs e)
     {
+        IsPackDragOver = false;
         e.Handled = true;
         if (CanChoosePack && e.Data.GetData(DataFormats.FileDrop) is string[] { Length: 1 } paths)
             await PreviewPackAsync(paths[0]);

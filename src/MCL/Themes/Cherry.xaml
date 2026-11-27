@@ -2,6 +2,7 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <SolidColorBrush x:Key="BackgroundBrush" Color="#FBF6F8" />
     <SolidColorBrush x:Key="PanelBrush" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="SubtleSurfaceBrush" Color="#FDF7FA" />
     <SolidColorBrush x:Key="BorderBrush" Color="#EDDBE3" />
     <SolidColorBrush x:Key="TextBrush" Color="#352332" />
     <SolidColorBrush x:Key="MutedBrush" Color="#745969" />
@@ -23,9 +24,23 @@
     <SolidColorBrush x:Key="PrimaryHoverBrush" Color="#A53763" />
     <SolidColorBrush x:Key="PrimaryPressedBrush" Color="#912B54" />
     <SolidColorBrush x:Key="SelectionBrush" Color="#EFC0D3" />
-    <SolidColorBrush x:Key="ScrollThumbBrush" Color="#D8A9BE" />
+    <SolidColorBrush x:Key="ScrollThumbBrush" Color="#CFA0B6" />
     <SolidColorBrush x:Key="TrackBrush" Color="#EBD6E0" />
     <SolidColorBrush x:Key="DangerBrush" Color="#A22A4C" />
+    <SolidColorBrush x:Key="DangerSoftBrush" Color="#FFF1F4" />
+    <SolidColorBrush x:Key="DangerHoverBrush" Color="#FDE2E9" />
+    <SolidColorBrush x:Key="GlassSurfaceBrush" Color="#E6FFFFFF" />
+    <SolidColorBrush x:Key="GlassHoverBrush" Color="#FAFFF4F8" />
+    <SolidColorBrush x:Key="GlassBorderBrush" Color="#BFE8CCD9" />
+    <SolidColorBrush x:Key="BadgeVanillaBg" Color="#FBE6EE" />
+    <SolidColorBrush x:Key="BadgeVanillaFg" Color="#9D2857" />
+    <SolidColorBrush x:Key="BadgeModpackBg" Color="#EDEFFF" />
+    <SolidColorBrush x:Key="BadgeModpackFg" Color="#4749A6" />
+    <SolidColorBrush x:Key="BadgeWarningBg" Color="#FFF0E2" />
+    <SolidColorBrush x:Key="BadgeWarningFg" Color="#A34A12" />
+    <SolidColorBrush x:Key="SuccessDotBrush" Color="#2FA86E" />
+    <SolidColorBrush x:Key="WindowControlHoverBrush" Color="#149D2857" />
+    <SolidColorBrush x:Key="CloseHoverBrush" Color="#E04365" />
     <Color x:Key="ProgressPulseColor">#FFBC3268</Color>
     <Color x:Key="ProgressFadeColor">#00BC3268</Color>
     <Color x:Key="DialogShadowColor">#562D44</Color>

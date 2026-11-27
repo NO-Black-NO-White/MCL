@@ -52,10 +52,10 @@ public partial class MainWindow
     public string InstallFiles { get => _installFiles; private set => Set(ref _installFiles, value); }
     public string InstallTransfer { get => _installTransfer; private set => Set(ref _installTransfer, value); }
     public string InstallSpeed { get => _installSpeed; private set => Set(ref _installSpeed, value); }
-    public double InstallPercent { get => _installPercent; private set => Set(ref _installPercent, value); }
-    public bool InstallIndeterminate { get => _installIndeterminate; private set => Set(ref _installIndeterminate, value); }
+    public double InstallPercent { get => _installPercent; private set { var prev = (int)_installPercent; if (Set(ref _installPercent, value) && (int)value != prev) Notify(nameof(ActivityText)); } }
+    public bool InstallIndeterminate { get => _installIndeterminate; private set { if (Set(ref _installIndeterminate, value)) Notify(nameof(ActivityText)); } }
 
-    private void NotifyDownloadActions() => Notify(nameof(CanInstall), nameof(CanCancelInstall), nameof(InstallButtonText), nameof(ActivityText));
+    private void NotifyDownloadActions() => Notify(nameof(CanInstall), nameof(CanCancelInstall), nameof(InstallButtonText), nameof(ActivityText), nameof(ActivityIsReady));
 
     private void FilterRemoteVersions()
     {

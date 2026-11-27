@@ -51,8 +51,8 @@ public partial class App : Application
             window.Width = 1180;
             window.Height = 800;
             var visual = (FrameworkElement)window.Content;
-            visual.Measure(new Size(1180, 760));
-            visual.Arrange(new Rect(0, 0, 1180, 760));
+            visual.Measure(new Size(1180, 800));
+            visual.Arrange(new Rect(0, 0, 1180, 800));
             visual.UpdateLayout();
             await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.Render);
             if (smokeIndex + 1 < e.Args.Length)
@@ -64,7 +64,7 @@ public partial class App : Application
                     window.SelectSmokePage(page);
                     visual.UpdateLayout();
                     await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.Render);
-                    var bitmap = new RenderTargetBitmap(1180, 760, 96, 96, PixelFormats.Pbgra32);
+                    var bitmap = new RenderTargetBitmap(1180, 800, 96, 96, PixelFormats.Pbgra32);
                     bitmap.Render(visual);
                     var encoder = new PngBitmapEncoder();
                     encoder.Frames.Add(BitmapFrame.Create(bitmap));
