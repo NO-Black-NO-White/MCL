@@ -93,7 +93,7 @@ public partial class MainWindow
 
     private async Task<JavaInstallation> ResolveJavaForLaunchAsync(GameVersion version, CancellationToken ct)
         => await FindUsableJavaAsync(version.RequiredJava, ct)
-            ?? throw new InvalidDataException($"「{version.DisplayName}」需要 Java {version.RequiredJava}。请在「游戏版本」页安装对应的 Java，或在「启动设置」选择已有的 Java。");
+            ?? throw new GameLaunchProblemException($"「{version.DisplayName}」需要 Java {version.RequiredJava}。请安装对应版本或在「启动设置」选择已有的 Java。", LaunchFix.Java, version.RequiredJava);
 
     private async Task<JavaInstallation?> FindUsableJavaAsync(int major, CancellationToken ct)
     {
@@ -127,11 +127,21 @@ public partial class MainWindow
     private async void InstallVersionJava_Click(object sender, RoutedEventArgs e)
     {
         if (IsBusy || !VersionNeedsJava || SelectedVersion is not { } version) return;
+        await InstallJavaForVersionAsync(version, version.RequiredJava);
+    }
+
+    private async Task InstallJavaForVersionAsync(GameVersion version, int major)
+    {
         await RunBusyAsync(async () =>
         {
             var progress = new Progress<string>(message => { if (!_closing && IsBusy) StatusMessage = message; });
-            StatusMessage = $"正在检查 64 位 Java {version.RequiredJava}…";
-            var java = await EnsureJavaAsync(version.RequiredJava, progress, _lifetime.Token);
+            StatusMessage = $"正在检查 64 位 Java {major}…";
+            var java = await EnsureJavaAsync(major, progress, _lifetime.Token);
+            if (_launchFailure is { } failure && failure.Directory == version.VersionDirectory && failure.Problem.Fix == LaunchFix.Java)
+            {
+                _launchFailure = null;
+                NotifyLaunchProblem();
+            }
             StatusMessage = $"{DescribeJava(java)} 已就绪，可以启动 {version.DisplayName}。";
         });
     }

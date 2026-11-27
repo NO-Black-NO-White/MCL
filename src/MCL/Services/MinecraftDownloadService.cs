@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Net;
 using System.Net.Http;
+using System.Security.Cryptography;
 using System.Text.Json;
 using MCL.Models;
 
@@ -96,16 +97,50 @@ public sealed class MinecraftDownloadService : IDisposable
     internal Task<InstallResult> InstallModpackBaseAsync(RemoteGameVersion version, string gameDirectory, IProgress<InstallProgress>? progress, CancellationToken ct)
         => InstallAsync(version, gameDirectory, progress, true, ct);
 
-    private async Task<InstallResult> InstallAsync(RemoteGameVersion version, string gameDirectory, IProgress<InstallProgress>? progress, bool allowCachedBase, CancellationToken ct)
+    internal async Task<InstallResult> RepairAsync(GameVersion installed, string gameDirectory, IProgress<InstallProgress>? progress, CancellationToken ct)
+    {
+        var path = SafeTarget(gameDirectory, $"versions/{installed.Id}/{installed.Id}.json");
+        if (!string.Equals(path, Path.GetFullPath(installed.JsonPath), StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("所选版本不在当前游戏目录中。");
+        ModpackInstance? pack = null;
+        if (installed.ModpackName is not null)
+        {
+            using var stream = File.OpenRead(path);
+            if (stream.Length is < 1 or > 16 * 1024 * 1024) throw new InvalidDataException("整合包配置无法读取，请重新导入整合包。");
+            using var document = await JsonDocument.ParseAsync(stream, cancellationToken: ct);
+            var metadata = document.RootElement;
+            if (!metadata.TryGetProperty(ModpackPaths.InstanceKey, out var instance) || instance.Deserialize<ModpackInstance>() is not { } found)
+                throw new InvalidDataException("整合包配置无法读取，请重新导入整合包。");
+            ModpackPaths.CheckInstance(installed.Id,
+                metadata.TryGetProperty("inheritsFrom", out var parent) ? parent.GetString() : null,
+                metadata.GetProperty("mainClass").GetString(), found);
+            pack = found;
+        }
+        else if (installed.Kind != "原版" || installed.InheritsFrom is not null)
+            throw new NotSupportedException("这里可以修复原版和 MCL 整合包使用的官方基础文件。");
+
+        progress?.Report(new("读取官方版本列表", pack?.Minecraft ?? installed.Id, 0, 0, 0, 0, 0));
+        var versions = await GetVersionsAsync(ct, includeSnapshots: true);
+        var version = versions.FirstOrDefault(item => item.Id == (pack?.Minecraft ?? installed.Id));
+        if (version is null || pack is not null && !string.Equals(version.MetadataSha1, pack.BaseSha1, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("官方清单中找不到相符的版本文件，暂时无法修复。");
+        return await InstallAsync(version, gameDirectory, progress, false, ct, new RepairTarget(pack?.UsesCachedBase == true));
+    }
+
+    private sealed record RepairTarget(bool CachedBase);
+
+    private async Task<InstallResult> InstallAsync(RemoteGameVersion version, string gameDirectory, IProgress<InstallProgress>? progress,
+        bool allowCachedBase, CancellationToken ct, RepairTarget? repair = null)
     {
         if (!await _installGate.WaitAsync(0, ct)) throw new InvalidOperationException("已有一个版本正在安装。");
-        try { return await InstallCoreAsync(version, gameDirectory, progress, allowCachedBase, ct); }
+        try { return await InstallCoreAsync(version, gameDirectory, progress, allowCachedBase, ct, repair); }
         catch (HttpRequestException ex) { throw new IOException("无法连接官方文件服务器，请检查网络后重新尝试。", ex); }
         catch (UnauthorizedAccessException ex) { throw new IOException("无法写入游戏目录，请选择当前账户可以写入的文件夹。", ex); }
         finally { _installGate.Release(); }
     }
 
-    private async Task<InstallResult> InstallCoreAsync(RemoteGameVersion version, string gameDirectory, IProgress<InstallProgress>? progress, bool allowCachedBase, CancellationToken ct)
+    private async Task<InstallResult> InstallCoreAsync(RemoteGameVersion version, string gameDirectory, IProgress<InstallProgress>? progress,
+        bool allowCachedBase, CancellationToken ct, RepairTarget? repair)
     {
         if (string.IsNullOrWhiteSpace(gameDirectory)) throw new InvalidDataException("请先选择游戏安装文件夹。");
         var root = Path.GetFullPath(gameDirectory);
@@ -117,12 +152,16 @@ public sealed class MinecraftDownloadService : IDisposable
         var lockPath = SafeTarget(root, $".mcl-downloads/{version.Id}.lock");
         Directory.CreateDirectory(Path.GetDirectoryName(lockPath)!);
         using var installationLock = new FileStream(lockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
-        var versionBase = ModpackPaths.BaseDirectory(version.Id, version.MetadataSha1, false);
+        var versionBase = ModpackPaths.BaseDirectory(version.Id, version.MetadataSha1, repair?.CachedBase == true);
         var versionJson = SafeTarget(root, $"{versionBase}/{version.Id}.json");
-        var useCachedBase = File.Exists(versionJson) && !await VerifiedDownloader.IsValidAsync(versionJson, version.MetadataSha1, info.Metadata.Length, ct);
-        if (useCachedBase)
+        var hasMetadata = File.Exists(versionJson);
+        var validMetadata = hasMetadata && await VerifiedDownloader.IsValidAsync(versionJson, version.MetadataSha1, info.Metadata.Length, ct);
+        var useCachedBase = repair?.CachedBase == true;
+        if (hasMetadata && !validMetadata && !useCachedBase)
         {
+            if (repair is not null) throw new IOException("本地版本配置与官方原件不同，已保留。请通过原安装来源处理版本配置。");
             if (!allowCachedBase) throw new IOException("已存在同名版本，且配置与官方版本不同。为保护已有配置，请换一个游戏目录安装。");
+            useCachedBase = true;
             progress?.Report(new("准备游戏版本", "保留同名版本，使用整合包专用的官方游戏文件", 0, 0, 0, 0, 0));
             versionBase = ModpackPaths.BaseDirectory(version.Id, version.MetadataSha1, true);
             versionJson = SafeTarget(root, $"{versionBase}/{version.Id}.json");
@@ -161,8 +200,14 @@ public sealed class MinecraftDownloadService : IDisposable
         var indexPath = SafeTarget(root, "assets/indexes/" + indexId + ".json");
         if (!VerifiedDownloader.ValidSha1(indexHash)) throw new InvalidDataException("资源索引校验信息不正确。");
         progress?.Report(new("读取资源清单", "正在准备声音、语言等资源", 0, 0, 0, 0, 0));
-        var indexBytes = await _downloader.GetBytesAsync(VerifiedDownloader.CheckedUri(assetIndex.GetProperty("url").GetString()!), 64 * 1024 * 1024, indexHash, ct);
-        if (indexBytes.LongLength != assetIndex.GetProperty("size").GetInt64()) throw new InvalidDataException("资源索引大小与清单不一致。");
+        var indexSize = assetIndex.GetProperty("size").GetInt64();
+        if (indexSize is < 1 or > 64 * 1024 * 1024) throw new InvalidDataException("资源索引大小不正确。");
+        var validIndex = repair is not null && await VerifiedDownloader.IsValidAsync(indexPath, indexHash, indexSize, ct);
+        var indexBytes = validIndex ? await File.ReadAllBytesAsync(indexPath, ct)
+            : await _downloader.GetBytesAsync(VerifiedDownloader.CheckedUri(assetIndex.GetProperty("url").GetString()!), 64 * 1024 * 1024, indexHash, ct);
+        if (indexBytes.LongLength != indexSize || validIndex &&
+            !Convert.ToHexString(SHA1.HashData(indexBytes)).Equals(indexHash, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("资源索引与官方清单不一致，请重新检查。");
         using var indexDoc = JsonDocument.Parse(indexBytes);
         var indexRoot = indexDoc.RootElement;
         if ((indexRoot.TryGetProperty("virtual", out var virtualFlag) && virtualFlag.ValueKind == JsonValueKind.True)
@@ -227,11 +272,17 @@ public sealed class MinecraftDownloadService : IDisposable
             Report("下载游戏文件", FriendlyFile(file));
         });
         ct.ThrowIfCancellationRequested();
-        Report("完成安装", "正在保存版本信息", true);
-        await WriteCompleteFileAsync(indexPath, indexBytes, ct);
-        await WriteCompleteFileAsync(versionJson, info.Metadata, ct);
+        Report(repair is null ? "完成安装" : "完成修复", "正在整理版本文件", true);
+        if (!validIndex) await WriteCompleteFileAsync(SafeTarget(root, Path.GetRelativePath(root, indexPath)), indexBytes, ct);
+        if (repair is null || !validMetadata)
+            await WriteCompleteFileAsync(SafeTarget(root, Path.GetRelativePath(root, versionJson)), info.Metadata, ct);
+        if (repair is not null)
+        {
+            downloaded += (validIndex ? 0 : 1) + (validMetadata ? 0 : 1);
+            reused += (validIndex ? 1 : 0) + (validMetadata ? 1 : 0);
+        }
         try { if (File.Exists(marker)) File.Delete(marker); } catch (IOException) { } catch (UnauthorizedAccessException) { }
-        Report("安装完成", $"下载 {downloaded} 个文件，复用 {reused} 个文件", true);
+        Report(repair is null ? "安装完成" : "修复完成", $"下载 {downloaded} 个文件，复用 {reused} 个文件", true);
         return new InstallResult(version.Id, downloaded, reused, info.RequiredJava) { UsesCachedBase = useCachedBase };
     }
 

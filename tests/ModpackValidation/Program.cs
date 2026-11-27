@@ -217,6 +217,54 @@ Check(await File.ReadAllTextAsync(otherJson) == otherMetadata && await File.Read
     "Existing launcher's version JSON and JAR are preserved");
 var otherNotice = await deletion.InspectAsync(otherGame, cachedVersions.Single(candidate => candidate.Id == "1.20.1"));
 Check(otherNotice.DirectoryPath == otherVersion, "An instance with a cached base does not depend on the same-named local version");
+var cachedPack = cachedVersions.Single(candidate => candidate.Id == cached.InstanceId);
+var cachedJar = Directory.EnumerateFiles(Path.Combine(otherGame, ".mcl-base-versions"), "*.jar", SearchOption.AllDirectories).Single();
+File.Delete(cachedJar);
+var cachedRepair = await minecraft.RepairAsync(cachedPack, otherGame, null, default);
+Check(cachedRepair.DownloadedFiles == 1 && File.Exists(cachedJar) && await File.ReadAllTextAsync(otherJar) == "local jar"
+    && await File.ReadAllTextAsync(otherJson) == otherMetadata, "Pack repair targets its cached official base and preserves a customized same-name version");
+await Reject<IOException>(() => minecraft.RepairAsync(cachedVersions.Single(candidate => candidate.Id == "1.20.1"), otherGame, null, default),
+    "Repair refuses to overwrite local customized version metadata");
+Check(await File.ReadAllTextAsync(otherJson) == otherMetadata, "Rejected repair keeps customized metadata");
+
+var repairGame = Path.Combine(root, "repair-game");
+var repairVersion = (await minecraft.GetVersionsAsync()).Single();
+await minecraft.InstallAsync(repairVersion, repairGame);
+var installedVanilla = (await new VersionCatalog().ScanAsync(repairGame)).Single();
+var repairJar = Path.ChangeExtension(installedVanilla.JsonPath, ".jar");
+var repairIndex = Path.Combine(repairGame, "assets", "indexes", "fixture.json");
+var repairLog = Path.Combine(repairGame, "assets", "log_configs", "client.xml");
+var localFiles = new[] { "saves/world/level.dat", "mods/my-mod.jar", "config/my-config.json" };
+foreach (var relative in localFiles)
+{
+    var local = Path.Combine(repairGame, relative);
+    Directory.CreateDirectory(Path.GetDirectoryName(local)!);
+    await File.WriteAllTextAsync(local, "keep");
+}
+var before = File.GetLastWriteTimeUtc(installedVanilla.JsonPath);
+await File.WriteAllBytesAsync(repairJar, new byte[new FileInfo(repairJar).Length]);
+await File.WriteAllTextAsync(repairIndex, "bad index");
+File.Delete(repairLog);
+var repair = await minecraft.RepairAsync(installedVanilla, repairGame, null, default);
+Check(repair.DownloadedFiles == 3 && File.Exists(repairLog) && await File.ReadAllTextAsync(repairJar) == "client fixture"
+    && localFiles.All(relative => File.ReadAllText(Path.Combine(repairGame, relative)) == "keep")
+    && File.GetLastWriteTimeUtc(installedVanilla.JsonPath) == before, "Repair replaces damaged or missing official files and preserves local content and valid metadata");
+var knownRequests = fixture.Requests.Where(entry => entry.Key.Contains("piston-data")).ToDictionary();
+Check((await minecraft.RepairAsync(installedVanilla, repairGame, null, default)).DownloadedFiles == 0
+    && knownRequests.All(entry => fixture.Requests[entry.Key] == entry.Value), "A complete installation does not download its files again");
+
+var diagnostic = new RoomDiagnostic(hosting: false, RoomRoute.Ipv6);
+const string secret = "MCL6/2600::7/45500/secret-invite";
+diagnostic.Record("检查 IPv6 直连");
+diagnostic.Record(secret);
+diagnostic.SetFailure(new IOException(secret, new System.Net.Sockets.SocketException((int)System.Net.Sockets.SocketError.TimedOut)));
+var report = diagnostic.Format("0.9.2");
+Check(report.Contains("IPv6 直连") && report.Contains("TimedOut") && !report.Contains("2600::7") && !report.Contains("secret-invite"),
+    "Diagnostic report retains route and failure category and excludes raw endpoints and invite data");
+Check(LaunchTroubleshooter.FromOutput("java.lang.UnsupportedClassVersionError: fixture")?.Fix == LaunchFix.Java
+    && LaunchTroubleshooter.FromOutput("Error: Invalid or corrupt jarfile example.jar")?.Fix == LaunchFix.Repair
+    && LaunchTroubleshooter.FromOutput("Could not reserve enough space for object heap")?.Fix == LaunchFix.Memory
+    && LaunchTroubleshooter.FromOutput("normal game log") is null, "Common JVM failures map to the appropriate actions");
 Console.WriteLine("MODPACK_VALIDATION_OK");
 
 static async Task TestForgeLiveAsync(string isolatedGame, string javaPath)
@@ -395,12 +443,14 @@ sealed class FixtureServer : HttpMessageHandler
         }
         var jar = Add("client.jar", Encoding.UTF8.GetBytes("client fixture"));
         var idx = Add("assets.json", JsonSerializer.SerializeToUtf8Bytes(new { objects = new { } }));
+        var log = Add("client.xml", Encoding.UTF8.GetBytes("<Configuration/>"));
         var json = JsonSerializer.SerializeToUtf8Bytes(new
         {
             id = "1.20.1", type = "release", mainClass = "net.minecraft.client.main.Main",
             downloads = new { client = new { url = jar.Url, sha1 = jar.Sha1, size = jar.Size } }, libraries = Array.Empty<object>(),
             arguments = new { game = new[] { "--gameDir", "${game_directory}" }, jvm = Array.Empty<string>() },
-            assetIndex = new { id = "fixture", url = idx.Url, sha1 = idx.Sha1, size = idx.Size }
+            assetIndex = new { id = "fixture", url = idx.Url, sha1 = idx.Sha1, size = idx.Size },
+            logging = new { client = new { file = new { id = "client.xml", url = log.Url, sha1 = log.Sha1, size = log.Size } } }
         });
         var hash = Convert.ToHexString(SHA1.HashData(json));
         var versionUrl = $"https://piston-meta.mojang.com/v1/packages/{hash}/1.20.1.json";

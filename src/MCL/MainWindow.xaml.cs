@@ -52,6 +52,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         _profileStore = accountStore ?? new AccountStore(_store.DataDirectory);
         _launcher = new GameLaunchService(_log);
         _launcher.RunningChanged += OnRunningChanged;
+        _launcher.GameFailed += OnGameFailed;
         _launcher.LanPortChanged += OnLanPortChanged;
         _versionManager = new VersionManagementService(recycleBin, () => _launcher.IsRunning);
         _modpacks = new ModpackImportService(_downloads);
@@ -110,6 +111,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             if (!Set(ref _selectedVersion, value)) return;
             Notify(nameof(SelectedVersionTitle), nameof(SelectedVersionDescription), nameof(CanLaunch));
+            NotifyLaunchProblem();
             NotifyVersionManagement();
             NotifyJava();
             NotifyMultiplayer();
@@ -203,6 +205,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     {
         var changed = _currentPage != page;
         _currentPage = page;
+        NotifyLaunchProblem();
         HomePage.Visibility = page == "Home" ? Visibility.Visible : Visibility.Collapsed;
         VersionsPage.Visibility = page == "Versions" ? Visibility.Visible : Visibility.Collapsed;
         DownloadsPage.Visibility = page == "Downloads" ? Visibility.Visible : Visibility.Collapsed;
@@ -340,10 +343,32 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private async void Launch_Click(object sender, RoutedEventArgs e)
     {
         if (!CanLaunch || SelectedVersion is not { } version) return;
-        await RunBusyAsync(() => LaunchGameAsync(version, _lifetime.Token));
+        await RunBusyAsync(async () =>
+        {
+            try { await LaunchGameAsync(version, _lifetime.Token); }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                if (!_closing) { _log.Error($"游戏启动失败：{ex}"); StatusMessage = "游戏启动失败。"; }
+            }
+        });
     }
 
     private async Task LaunchGameAsync(GameVersion version, CancellationToken ct, bool joiningFriend = false)
+    {
+        if (_launchFailure?.Directory == version.VersionDirectory)
+        {
+            _launchFailure = null;
+            NotifyLaunchProblem();
+        }
+        try { await LaunchGameCoreAsync(version, ct, joiningFriend); }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            OnGameFailed(version, ex is GameLaunchProblemException known ? known.Problem : new LaunchProblem(ex.Message, LaunchFix.Logs));
+            throw;
+        }
+    }
+
+    private async Task LaunchGameCoreAsync(GameVersion version, CancellationToken ct, bool joiningFriend)
     {
         var settings = SnapshotSettings();
         StatusMessage = "正在检查 Java 和本地游戏文件…";
@@ -469,6 +494,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         _lifetime.Cancel();
         _log.EntryAdded -= OnLogEntry;
         _launcher.RunningChanged -= OnRunningChanged;
+        _launcher.GameFailed -= OnGameFailed;
         _launcher.LanPortChanged -= OnLanPortChanged;
         _launcher.Dispose();
         _modpacks.Dispose();
@@ -555,6 +581,19 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 throw new InvalidOperationException("Version details and actions must follow the current selection.");
             VersionList.SetCurrentValue(System.Windows.Controls.Primitives.Selector.SelectedItemProperty, selected);
         }
+        if (SelectedVersion is { } launchVersion)
+        {
+            OnGameFailed(launchVersion, new LaunchProblem("Smoke: Java is missing.", LaunchFix.Java, 21));
+            if (!ShowLaunchProblem || LaunchProblemAction != "安装 Java 21")
+                throw new InvalidOperationException("A launch failure with a known Java version must offer to install it.");
+            if (SupportsRepair(launchVersion))
+            {
+                OnGameFailed(launchVersion, new LaunchProblem("Smoke: a game file is missing.", LaunchFix.Repair));
+                if (!CanRepairVersion || LaunchProblemAction != "检查并修复")
+                    throw new InvalidOperationException("Missing official files must offer to repair the selected game.");
+            }
+            DismissLaunchProblem_Click(this, new RoutedEventArgs());
+        }
         SelectSmokePage("Multiplayer");
         GuestRoleButton.SetCurrentValue(System.Windows.Controls.Primitives.ToggleButton.IsCheckedProperty, true);
         if (GuestRoleButton.IsChecked != true || HostRoleButton.IsChecked != false
@@ -563,6 +602,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         InviteInput = "smoke-invite";
         if (!JoinRoomButton.IsEnabled || !Equals(JoinRoomButton.Content, "加入并启动"))
             throw new InvalidOperationException("Joining with no game running must offer to start it.");
+        JoinRoom_Click(this, new RoutedEventArgs());
+        if (!HasRoomDiagnostic || !RoomDiagnosticDetails.Contains("邀请码有误", StringComparison.Ordinal))
+            throw new InvalidOperationException("An invalid invite must leave a safe diagnostic on the multiplayer page.");
         var runningGame = new GameVersion("1.21.11", "", "", "原版", null, true, null);
         _runningGame = runningGame;
         IsGameRunning = true;

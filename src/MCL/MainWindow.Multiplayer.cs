@@ -33,6 +33,7 @@ public partial class MainWindow
     private bool _retryHost;
     private bool _retryJoin;
     private bool _rejoinRequested;
+    private RoomDiagnostic? _roomDiagnostic;
 
     public string RelayEndpoint
     {
@@ -91,7 +92,37 @@ public partial class MainWindow
         : UseSharedRelay ? "在游戏里开放存档，MCL 会使用你填写的共享中转。"
         : "在游戏里开放存档，MCL 会自动准备本机中转和临时公网隧道。";
     public string MultiplayerStatus { get => _multiplayerStatus; private set => Set(ref _multiplayerStatus, value); }
-    public string MultiplayerStage { get => _multiplayerStage; private set => Set(ref _multiplayerStage, value); }
+    public string MultiplayerStage
+    {
+        get => _multiplayerStage;
+        private set
+        {
+            Set(ref _multiplayerStage, value);
+            if (_roomDiagnostic?.Record(value) == true) Notify(nameof(RoomDiagnosticDetails));
+        }
+    }
+    public bool HasRoomDiagnostic => _roomDiagnostic is not null;
+    public string RoomDiagnosticRoute => _roomDiagnostic is { } diagnostic ? $"连接方式 · {diagnostic.RouteName}" : "";
+    public string RoomDiagnosticDetails => _roomDiagnostic?.Details ?? "";
+
+    private void StartRoomDiagnostic(bool hosting, RoomRoute route)
+    {
+        _roomDiagnostic = new RoomDiagnostic(hosting, route);
+        Notify(nameof(HasRoomDiagnostic), nameof(RoomDiagnosticRoute), nameof(RoomDiagnosticDetails));
+    }
+
+    private void RecordRoomFailure(Exception ex)
+    {
+        _roomDiagnostic?.SetFailure(ex);
+        Notify(nameof(RoomDiagnosticDetails));
+    }
+
+    private void CopyRoomDiagnostic_Click(object sender, RoutedEventArgs e)
+    {
+        if (_roomDiagnostic is not { } diagnostic) return;
+        try { Clipboard.SetText(diagnostic.Format(AppVersionText)); StatusMessage = "已复制联机诊断。"; }
+        catch (COMException) { StatusMessage = "剪贴板暂时不可用，请重试。"; }
+    }
     public bool MultiplayerActive => _multiplayerCancellation is not null;
     public bool CanEditRelay => !MultiplayerActive && !IsBusy;
     public bool CanHostRoom => CanEditRelay && !_runningForGuest
@@ -181,6 +212,7 @@ public partial class MainWindow
     {
         if (!CanHostRoom || (_runningGame ?? SelectedVersion) is not { } version) return;
         using var cancellation = BeginMultiplayer(hosting: true);
+        StartRoomDiagnostic(hosting: true, UseIpv6Direct ? RoomRoute.Ipv6 : UseSharedRelay ? RoomRoute.SharedRelay : RoomRoute.Cloudflare);
         MultiplayerStage = "准备开房";
         HostedRelay? automatic = null;
         try
@@ -271,6 +303,7 @@ public partial class MainWindow
             {
                 _retryHost = true;
                 MultiplayerStage += "失败";
+                RecordRoomFailure(ex);
                 MultiplayerStatus = MultiplayerError(ex);
                 _log.Warn($"创建联机房间失败：{MultiplayerStatus}");
             }
@@ -293,9 +326,19 @@ public partial class MainWindow
             return;
         }
         var runningGame = _runningGame;
+        var input = InviteInput.Trim();
+        StartRoomDiagnostic(hosting: false, input.StartsWith("MCL6/", StringComparison.OrdinalIgnoreCase) ? RoomRoute.Ipv6
+            : input.StartsWith("MCL1/", StringComparison.OrdinalIgnoreCase) ? RoomRoute.Cloudflare
+            : RoomProtocol.IsToken(input) ? RoomRoute.SharedRelay : RoomRoute.Unknown);
         RoomInvite invite;
-        try { invite = RoomInvite.Read(InviteInput, RelayEndpoint); }
-        catch (InvalidDataException ex) { MultiplayerStage = "邀请码有误"; MultiplayerStatus = ex.Message; return; }
+        try { invite = RoomInvite.Read(input, RelayEndpoint); }
+        catch (InvalidDataException ex)
+        {
+            RecordRoomFailure(ex);
+            MultiplayerStage = "邀请码有误";
+            MultiplayerStatus = ex.Message;
+            return;
+        }
         using var cancellation = BeginMultiplayer(hosting: false);
         _guestUsesGame = runningGame is not null;
         GuestTunnel? tunnel = null;
@@ -379,6 +422,7 @@ public partial class MainWindow
             {
                 _retryJoin = true;
                 MultiplayerStage += "失败";
+                RecordRoomFailure(ex);
                 MultiplayerStatus = MultiplayerError(ex);
                 _log.Warn($"加入好友房间失败：{MultiplayerStatus}");
             }

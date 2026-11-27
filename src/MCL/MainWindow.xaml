@@ -768,10 +768,20 @@
                                                     </TextBlock>
                                                     <WrapPanel>
                                                         <Button Content="打开版本文件夹" Style="{StaticResource VersionActionButton}" Click="OpenVersionFolder_Click" IsEnabled="{Binding CanOpenVersionFolder}" />
+                                                        <Button Content="检查并修复游戏" Style="{StaticResource VersionActionButton}" Click="RepairVersion_Click" IsEnabled="{Binding CanRepairVersion}"
+                                                                ToolTip="检查官方客户端、依赖、资源和日志配置，只补齐缺失或损坏的官方文件。" ToolTipService.ShowOnDisabled="True" />
                                                         <Button Content="导出整合包" Style="{StaticResource VersionActionButton}" Click="ExportModpack_Click" IsEnabled="{Binding CanShareModpack}"
                                                                 Visibility="{Binding ManagedVersionIsModpack, Converter={StaticResource BoolVisibility}}"
                                                                 ToolTip="分享包包含模组、配置和资源包。请在发送前检查打包内容。" />
                                                     </WrapPanel>
+                                                    <StackPanel Margin="0,7,0,4" Visibility="{Binding IsRepairing, Converter={StaticResource BoolVisibility}}">
+                                                        <DockPanel>
+                                                            <Button DockPanel.Dock="Right" Content="取消" Click="CancelRepair_Click" Padding="9,4" Margin="8,0,0,0" />
+                                                            <TextBlock Text="{Binding RepairStatus}" Style="{StaticResource MutedText}" VerticalAlignment="Center" />
+                                                        </DockPanel>
+                                                        <ProgressBar Height="6" Margin="0,7,0,0" Maximum="100" Value="{Binding RepairPercent, Mode=OneWay}"
+                                                                     IsIndeterminate="{Binding RepairIndeterminate, Mode=OneWay}" />
+                                                    </StackPanel>
                                                     <TextBlock Text="存档" FontSize="13" FontWeight="SemiBold" Margin="0,11,0,0" />
                                                     <TextBlock Text="{Binding SaveScopeHint}" Foreground="{DynamicResource MutedBrush}"
                                                                TextWrapping="Wrap" FontSize="11" Margin="0,4,0,7" />
@@ -1046,6 +1056,15 @@
                                         </TextBlock>
                                         <Button Content="结束联机" Click="CloseRoom_Click" HorizontalAlignment="Left" Margin="0,2,0,10"
                                                 Visibility="{Binding MultiplayerActive, Converter={StaticResource BoolVisibility}}" />
+                                        <DockPanel Margin="0,0,0,9" Visibility="{Binding HasRoomDiagnostic, Converter={StaticResource BoolVisibility}}">
+                                            <Button DockPanel.Dock="Right" Content="复制诊断" Click="CopyRoomDiagnostic_Click" Padding="10,5"
+                                                    ToolTip="复制连接方式、步骤和错误类别。" />
+                                            <TextBlock Text="{Binding RoomDiagnosticRoute}" Style="{StaticResource MutedText}" VerticalAlignment="Center" />
+                                        </DockPanel>
+                                        <Expander Header="本次连接步骤" Margin="0,0,0,8"
+                                                  Visibility="{Binding HasRoomDiagnostic, Converter={StaticResource BoolVisibility}}">
+                                            <TextBlock Text="{Binding RoomDiagnosticDetails}" Style="{StaticResource MutedText}" Margin="0,5,0,0" />
+                                        </Expander>
                                         <Expander Header="手动中转设置" IsEnabled="{Binding CanEditRelay}">
                                             <StackPanel>
                                                 <TextBlock Text="已有共享中转或收到旧版邀请码时，可填写地址。" Style="{StaticResource MutedText}" Margin="0,2,0,8" />
@@ -1364,14 +1383,26 @@
                         </Grid>
                     </Grid>
                 </ScrollViewer>
-                <Border Grid.Row="2" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0" Padding="0,10,6,0" Margin="0,10,0,0">
-                    <Grid>
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
-                        <TextBlock Text="{Binding StatusMessage}" Foreground="{DynamicResource MutedBrush}" FontSize="11.5" TextWrapping="Wrap" Margin="0,0,15,0" VerticalAlignment="Center" />
-                        <Button x:Name="FooterSaveButton" Grid.Column="1" Content="保存设置" Visibility="Collapsed" Style="{StaticResource PrimaryButton}"
-                                Padding="18,9" Click="SaveSettings_Click" IsEnabled="{Binding CanInteract}" />
-                    </Grid>
-                </Border>
+                <StackPanel Grid.Row="2">
+                    <Border Style="{StaticResource Card}" Background="{DynamicResource HeroBrush}" Padding="12,8" Margin="0,8,6,0"
+                            Visibility="{Binding ShowLaunchProblem, Converter={StaticResource BoolVisibility}}">
+                        <DockPanel>
+                            <Button DockPanel.Dock="Right" Content="关闭" Padding="9,5" Click="DismissLaunchProblem_Click" Margin="7,0,0,0" />
+                            <Button DockPanel.Dock="Right" Content="{Binding LaunchProblemAction}" Padding="10,5" Margin="10,0,0,0"
+                                    Click="LaunchProblemAction_Click" IsEnabled="{Binding CanInteract}" />
+                            <TextBlock Text="{Binding LaunchProblemText}" Style="{StaticResource MutedText}" VerticalAlignment="Center"
+                                       TextWrapping="Wrap" TextTrimming="CharacterEllipsis" MaxHeight="78" ToolTip="{Binding LaunchProblemText}" />
+                        </DockPanel>
+                    </Border>
+                    <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="0,1,0,0" Padding="0,10,6,0" Margin="0,10,0,0">
+                        <Grid>
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                            <TextBlock Text="{Binding StatusMessage}" Foreground="{DynamicResource MutedBrush}" FontSize="11.5" TextWrapping="Wrap" Margin="0,0,15,0" VerticalAlignment="Center" />
+                            <Button x:Name="FooterSaveButton" Grid.Column="1" Content="保存设置" Visibility="Collapsed" Style="{StaticResource PrimaryButton}"
+                                    Padding="18,9" Click="SaveSettings_Click" IsEnabled="{Binding CanInteract}" />
+                        </Grid>
+                    </Border>
+                </StackPanel>
             </Grid>
         </Grid>
     </Grid>

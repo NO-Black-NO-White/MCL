@@ -10,10 +10,12 @@ public sealed class GameLaunchService(LogService log) : IDisposable
 {
     private readonly object _gate = new();
     private Process? _process;
+    private Process? _stopRequestedFor;
     private bool _starting;
     private bool _disposed;
     public bool IsRunning { get { lock (_gate) return _process is not null || _starting; } }
     public event Action<bool>? RunningChanged;
+    internal event Action<GameVersion, LaunchProblem>? GameFailed;
     public event Action<int?>? LanPortChanged;
 
     public Task LaunchAsync(LauncherSettings settings, GameVersion version, JavaInstallation java, CancellationToken ct = default,
@@ -54,7 +56,7 @@ public sealed class GameLaunchService(LogService log) : IDisposable
             log.Info($"已启动 {version.DisplayName}（本地档案：{settings.PlayerName}，内存 {settings.MemoryMb} MB）。");
             var directoryToClean = nativeDirectory;
             nativeDirectory = null;
-            _ = ObserveAsync(process, directoryToClean, !joiningFriend);
+            _ = ObserveAsync(process, version, directoryToClean, !joiningFriend);
         }
         catch
         {
@@ -76,10 +78,11 @@ public sealed class GameLaunchService(LogService log) : IDisposable
             throw new NotSupportedException("当前支持独立原版和由 MCL 导入的整合包。其他启动器的继承版本暂不支持。");
         if (!MinecraftMetadata.IsValidLocalPlayerName(settings.PlayerName)) throw new InvalidDataException("本地玩家名称需为 1–16 位英文字母、数字或下划线。");
         if (settings.MemoryMb is < 512 or > 65536) throw new InvalidDataException("游戏内存需要在 512–65536 MB 之间。");
-        if (!java.Is64Bit && settings.MemoryMb > 1536) throw new InvalidDataException("当前 Java 为 32 位，请使用 64 位 Java，或把内存调低至 1536 MB 以内。");
-        if (!File.Exists(java.Path)) throw new FileNotFoundException("找不到所选 Java，请在设置中重新选择。", java.Path);
+        if (!java.Is64Bit && settings.MemoryMb > 1536)
+            throw new GameLaunchProblemException("当前 Java 为 32 位，请改用 64 位 Java 或降低分配内存。", LaunchFix.Java, version.RequiredJava);
+        if (!File.Exists(java.Path)) throw new GameLaunchProblemException("找不到所选 Java，请补装或重新选择。", LaunchFix.Java, version.RequiredJava);
         var gameDirectory = Path.GetFullPath(settings.GameDirectory);
-        if (!Directory.Exists(gameDirectory)) throw new DirectoryNotFoundException("找不到游戏文件夹，请先在设置中选择 .minecraft 文件夹。");
+        if (!Directory.Exists(gameDirectory)) throw new GameLaunchProblemException("找不到游戏文件夹，请重新选择 .minecraft 文件夹。", LaunchFix.Settings);
         // Keep all metadata paths inside the selected game directory.
         var expectedJson = MinecraftMetadata.SafePath(Path.Combine(gameDirectory, "versions"), version.Id + "/" + version.Id + ".json");
         if (!string.Equals(expectedJson, Path.GetFullPath(version.JsonPath), StringComparison.OrdinalIgnoreCase)) throw new InvalidDataException("版本配置路径与所选游戏文件夹不一致，请重新扫描版本。");
@@ -100,12 +103,13 @@ public sealed class GameLaunchService(LogService log) : IDisposable
             var versionBase = ModpackPaths.BaseDirectory(pack.Minecraft, pack.BaseSha1, pack.UsesCachedBase);
             versionJar = ModpackPaths.SafeTarget(gameDirectory, $"{versionBase}/{pack.Minecraft}.jar");
             var basePath = ModpackPaths.SafeTarget(gameDirectory, $"{versionBase}/{pack.Minecraft}.json");
+            if (!File.Exists(basePath)) throw new GameLaunchProblemException("整合包的官方基础版本配置缺失。", LaunchFix.Repair);
             using var input = File.OpenRead(basePath);
-            if (input.Length is < 1 or > 16 * 1024 * 1024) throw new InvalidDataException("整合包的基础版本配置有误。");
+            if (input.Length is < 1 or > 16 * 1024 * 1024) throw new GameLaunchProblemException("整合包的官方基础版本配置已损坏。", LaunchFix.Repair);
             var bytes = new byte[(int)input.Length];
             input.ReadExactly(bytes);
             if (!Convert.ToHexString(System.Security.Cryptography.SHA1.HashData(bytes)).Equals(pack.BaseSha1, StringComparison.OrdinalIgnoreCase))
-                throw new InvalidDataException("整合包的原版配置与安装时的官方清单不一致，请修复基础游戏版本。");
+                throw new GameLaunchProblemException("整合包的原版配置与安装时的官方清单不一致。", LaunchFix.Repair);
             baseMetadata = JsonDocument.Parse(bytes);
             metadata = baseMetadata.RootElement;
         }
@@ -118,10 +122,12 @@ public sealed class GameLaunchService(LogService log) : IDisposable
         }
         using var baseDocument = baseMetadata;
         var required = MinecraftMetadata.RequiredJava(metadata);
-        if (java.MajorVersion < required) throw new InvalidDataException($"这个游戏版本至少需要 Java {required}，当前选择的是 Java {java.MajorVersion}。");
-        if (!File.Exists(versionJar)) throw new FileNotFoundException("缺少游戏主文件，请先用已有启动器补全这个版本。", versionJar);
+        if (java.MajorVersion < required) throw new GameLaunchProblemException($"游戏需要 Java {required}，当前使用的是 Java {java.MajorVersion}。", LaunchFix.Java, required);
+        if (!File.Exists(versionJar)) throw new GameLaunchProblemException("缺少游戏主文件。", LaunchFix.Repair);
         var assetsDirectory = Path.Combine(gameDirectory, "assets");
-        MinecraftMetadata.ValidateAssets(metadata, assetsDirectory, ct);
+        try { MinecraftMetadata.ValidateAssets(metadata, assetsDirectory, ct); }
+        catch (Exception ex) when (ex is FileNotFoundException or InvalidDataException or JsonException)
+        { throw new GameLaunchProblemException("游戏资源缺失、损坏或不完整。", LaunchFix.Repair, inner: ex); }
 
         var libraryRoot = Path.Combine(gameDirectory, "libraries");
         var classpath = new List<string>();
@@ -174,7 +180,7 @@ public sealed class GameLaunchService(LogService log) : IDisposable
                 if (artifactPath is not null && !forgeLibraries.Contains(LibraryIdentity(name)))
                 {
                     var fullPath = MinecraftMetadata.SafePath(libraryRoot, artifactPath);
-                    if (!File.Exists(fullPath)) throw new FileNotFoundException($"缺少游戏依赖 {name}。请先用已有启动器补全文件。", fullPath);
+                    if (!File.Exists(fullPath)) throw new GameLaunchProblemException($"缺少游戏依赖 {name}。", LaunchFix.Repair);
                     classpath.Add(fullPath);
                 }
                 if (library.TryGetProperty("natives", out var natives) && natives.TryGetProperty("windows", out var windowsNative))
@@ -185,7 +191,7 @@ public sealed class GameLaunchService(LogService log) : IDisposable
                         nativeRelativePath = classifierArtifact.TryGetProperty("path", out var path) ? path.GetString()! : MinecraftMetadata.MavenPath(name, classifier);
                     else nativeRelativePath = MinecraftMetadata.MavenPath(name, classifier);
                     var fullPath = MinecraftMetadata.SafePath(libraryRoot, nativeRelativePath);
-                    if (!File.Exists(fullPath)) throw new FileNotFoundException($"缺少 Windows 原生库 {name}，请先补全游戏文件。", fullPath);
+                    if (!File.Exists(fullPath)) throw new GameLaunchProblemException($"缺少 Windows 原生库 {name}。", LaunchFix.Repair);
                     var exclusions = new List<string>();
                     if (library.TryGetProperty("extract", out var extract) && extract.TryGetProperty("exclude", out var exclude))
                         exclusions.AddRange(exclude.EnumerateArray().Select(item => item.GetString() ?? ""));
@@ -197,7 +203,12 @@ public sealed class GameLaunchService(LogService log) : IDisposable
         if (forge is null) classpath.Add(versionJar);
         nativeDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MCL", "natives", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(nativeDirectory);
-        foreach (var archive in nativeArchives) MinecraftMetadata.ExtractNatives(archive.Path, nativeDirectory, archive.Exclusions, ct);
+        try
+        {
+            foreach (var archive in nativeArchives) MinecraftMetadata.ExtractNatives(archive.Path, nativeDirectory, archive.Exclusions, ct);
+        }
+        catch (Exception ex) when (ex is InvalidDataException or FileNotFoundException)
+        { throw new GameLaunchProblemException("Windows 原生库缺失或损坏。", LaunchFix.Repair, inner: ex); }
 
         var assetsId = metadata.TryGetProperty("assetIndex", out var assetIndex) ? assetIndex.GetProperty("id").GetString()! : metadata.GetProperty("assets").GetString()!;
         var replacements = new Dictionary<string, string>(StringComparer.Ordinal)
@@ -276,7 +287,7 @@ public sealed class GameLaunchService(LogService log) : IDisposable
             && loggingClient.TryGetProperty("argument", out var loggingArgument) && loggingClient.TryGetProperty("file", out var loggingFile))
         {
             var configPath = MinecraftMetadata.SafePath(Path.Combine(assetsDirectory, "log_configs"), loggingFile.GetProperty("id").GetString()!);
-            if (!File.Exists(configPath)) throw new FileNotFoundException("缺少游戏日志配置，请先补全游戏文件。", configPath);
+            if (!File.Exists(configPath)) throw new GameLaunchProblemException("缺少游戏日志配置。", LaunchFix.Repair);
             replacements["path"] = configPath;
             info.ArgumentList.Add(MinecraftMetadata.Expand(loggingArgument.GetString()!, replacements));
         }
@@ -307,7 +318,7 @@ public sealed class GameLaunchService(LogService log) : IDisposable
         return parts.Length >= 3 ? $"{parts[0]}:{parts[1]}:{(parts.Length > 3 ? parts[3] : "")}" : coordinate;
     }
 
-    private async Task ObserveAsync(Process process, string? nativeDirectory, bool observeLan)
+    private async Task ObserveAsync(Process process, GameVersion version, string? nativeDirectory, bool observeLan)
     {
         try
         {
@@ -315,8 +326,16 @@ public sealed class GameLaunchService(LogService log) : IDisposable
             var errors = ReadOutputAsync(process.StandardError, false);
             await process.WaitForExitAsync().ConfigureAwait(false);
             await Task.WhenAll(output, errors).ConfigureAwait(false);
-            if (process.ExitCode == 0) log.Info("游戏已正常退出。");
-            else log.Warn($"游戏已退出，退出码 {process.ExitCode}。请查看游戏日志了解原因。");
+            bool stopped;
+            lock (_gate) stopped = ReferenceEquals(_stopRequestedFor, process);
+            if (stopped) log.Info("已结束游戏进程。");
+            else if (process.ExitCode == 0) log.Info("游戏已正常退出。");
+            else
+            {
+                log.Warn($"游戏已退出，退出码 {process.ExitCode}。请查看游戏日志了解原因。");
+                GameFailed?.Invoke(version, await errors.ConfigureAwait(false) ?? await output.ConfigureAwait(false)
+                    ?? new LaunchProblem($"游戏异常退出（代码 {process.ExitCode}）。", LaunchFix.Logs));
+            }
         }
         catch (Exception ex) when (ex is IOException or InvalidOperationException or ObjectDisposedException)
         {
@@ -324,18 +343,24 @@ public sealed class GameLaunchService(LogService log) : IDisposable
         }
         finally
         {
-            lock (_gate) { if (ReferenceEquals(_process, process)) _process = null; }
+            lock (_gate)
+            {
+                if (ReferenceEquals(_process, process)) _process = null;
+                if (ReferenceEquals(_stopRequestedFor, process)) _stopRequestedFor = null;
+            }
             process.Dispose();
             CleanNatives(nativeDirectory);
             NotifyRunningChanged(false);
         }
     }
 
-    private async Task ReadOutputAsync(StreamReader reader, bool observeLan)
+    private async Task<LaunchProblem?> ReadOutputAsync(StreamReader reader, bool observeLan)
     {
+        LaunchProblem? problem = null;
         while (await reader.ReadLineAsync().ConfigureAwait(false) is { } line)
         {
             log.Write("GAME", line);
+            problem ??= LaunchTroubleshooter.FromOutput(line);
             if (!observeLan || LanPortChanged is null) continue;
             var message = Regex.Match(line,
                 @"^\s*(?:<log4j:Message><!\[CDATA\[|\[[^\]]{1,48}\] \[(?:Render|Server) thread/INFO\]: )(?<message>.*?)\s*(?:\]\]></log4j:Message>)?$",
@@ -346,6 +371,7 @@ public sealed class GameLaunchService(LogService log) : IDisposable
             else if (message is "Stopping server" or "Stopping integrated server")
                 LanPortChanged?.Invoke(null);
         }
+        return problem;
     }
 
     public void Stop()
@@ -353,7 +379,15 @@ public sealed class GameLaunchService(LogService log) : IDisposable
         lock (_gate)
         {
             if (_process is null) return;
-            try { if (!_process.HasExited) { log.Info("正在停止本启动器启动的游戏进程。"); _process.Kill(entireProcessTree: true); } }
+            try
+            {
+                if (!_process.HasExited)
+                {
+                    log.Info("正在停止本启动器启动的游戏进程。");
+                    _process.Kill(entireProcessTree: true);
+                    _stopRequestedFor = _process;
+                }
+            }
             catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception) { log.Warn("无法停止游戏：" + ex.Message); }
         }
     }
@@ -383,6 +417,7 @@ public sealed class GameLaunchService(LogService log) : IDisposable
         // Closing the launcher never terminates a running game.
         lock (_gate) _disposed = true;
         RunningChanged = null;
+        GameFailed = null;
         LanPortChanged = null;
     }
 }

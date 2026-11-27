@@ -38,6 +38,7 @@ public partial class MainWindow
     private void NotifyVersionManagement()
     {
         Notify(nameof(CanOpenVersionFolder), nameof(CanDeleteVersion), nameof(CanManageSaves), nameof(CanShareModpack), nameof(ManagedVersionTitle), nameof(ManagedVersionPath),
+            nameof(CanRepairVersion),
             nameof(ManagedMinecraftVersion), nameof(ManagedVersionArtwork), nameof(ManagedVersionLoader), nameof(ManagedVersionHasPackVersion),
             nameof(ManagedVersionNeedsAttention), nameof(ManagedVersionIsModpack), nameof(SaveScopeHint), nameof(VersionManagementHint));
         if (VersionManagementCard is not null) VersionManagementCard.Visibility = SelectedVersion is null ? Visibility.Collapsed : Visibility.Visible;
